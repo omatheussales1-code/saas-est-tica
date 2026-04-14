@@ -18,12 +18,14 @@ import {
   CheckCircle2, 
   AlertCircle, 
   Menu, 
-  Sparkles,
+  ShieldCheck,
+  Activity,
   MessageCircle,
   Sun,
   Moon,
   Trash2,
-  Download
+  Download,
+  Pencil
 } from 'lucide-react';
 import { 
   format, 
@@ -68,6 +70,38 @@ import 'jspdf-autotable';
 
 // --- Components ---
 
+const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }: { isOpen: boolean, onClose: () => void, onConfirm: () => void, title: string, message: string }) => (
+  <AnimatePresence>
+    {isOpen && (
+      <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.9 }}
+          className="bg-white p-6 rounded-3xl w-full max-w-sm shadow-2xl border border-rose-50"
+        >
+          <h2 className="text-xl font-bold text-gray-900 mb-2">{title}</h2>
+          <p className="text-gray-500 mb-6">{message}</p>
+          <div className="flex gap-3">
+            <button 
+              onClick={onClose}
+              className="flex-1 py-3 rounded-xl font-bold text-gray-500 hover:bg-gray-50 transition-all"
+            >
+              Cancelar
+            </button>
+            <button 
+              onClick={() => { onConfirm(); onClose(); }}
+              className="flex-1 bg-rose-500 text-white py-3 rounded-xl font-bold shadow-lg shadow-rose-200"
+            >
+              Confirmar
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    )}
+  </AnimatePresence>
+);
+
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 };
@@ -101,9 +135,15 @@ const Dashboard = ({ appointments, clients, procedures, onNavigateToAgenda }: { 
   
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold text-gray-800">Bom dia, Dra. Juliana</h1>
-        <p className="text-gray-500">Veja o que temos para hoje.</p>
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-gray-900 tracking-tight">Painel de Controle</h1>
+          <p className="text-sm font-medium text-gray-500">Bem-vinda, Dra. Brenda Fernandes</p>
+        </div>
+        <div className="bg-white px-4 py-2 rounded-xl border border-rose-100 shadow-sm flex items-center gap-3">
+          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+          <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">Sistema Online</span>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -201,7 +241,9 @@ const Agenda = ({
   onUpdateStatus,
   onMarkAsPaid,
   onUndoMarkAsPaid,
-  onOpenNewAppointment
+  onOpenNewAppointment,
+  onEditAppointment,
+  onDeleteAppointment
 }: { 
   appointments: Appointment[], 
   clients: Client[],
@@ -209,7 +251,9 @@ const Agenda = ({
   onUpdateStatus: (id: string, status: AppointmentStatus) => void,
   onMarkAsPaid: (id: string) => void,
   onUndoMarkAsPaid: (id: string) => void,
-  onOpenNewAppointment: (date: Date) => void
+  onOpenNewAppointment: (date: Date) => void,
+  onEditAppointment: (app: Appointment) => void,
+  onDeleteAppointment: (id: string) => void
 }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -332,7 +376,21 @@ const Agenda = ({
                 const client = clients.find(c => c.id === app.clientId);
                 const proc = procedures.find(p => p.id === app.procedureId);
                 return (
-                  <div key={app.id} className="p-4 rounded-2xl bg-gray-50 border border-transparent hover:border-rose-100 transition-all group">
+                  <div key={app.id} className="p-4 rounded-2xl bg-gray-50 border border-transparent hover:border-rose-100 transition-all group relative">
+                    <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button 
+                        onClick={() => onEditAppointment(app)}
+                        className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button 
+                        onClick={() => onDeleteAppointment(app.id)}
+                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center text-rose-600 font-bold">
@@ -396,7 +454,21 @@ const Agenda = ({
   );
 };
 
-const ClientsTab = ({ clients, appointments, procedures, onOpenNewClient }: { clients: Client[], appointments: Appointment[], procedures: Procedure[], onOpenNewClient: () => void }) => {
+const ClientsTab = ({ 
+  clients, 
+  appointments, 
+  procedures, 
+  onOpenNewClient,
+  onEditClient,
+  onDeleteClient
+}: { 
+  clients: Client[], 
+  appointments: Appointment[], 
+  procedures: Procedure[], 
+  onOpenNewClient: () => void,
+  onEditClient: (client: Client) => void,
+  onDeleteClient: (id: string) => void
+}) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   
@@ -421,7 +493,24 @@ const ClientsTab = ({ clients, appointments, procedures, onOpenNewClient }: { cl
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="space-y-6">
-            <div className="bg-white p-6 rounded-3xl shadow-sm border border-rose-50 text-center">
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-rose-50 text-center relative">
+              <div className="absolute top-4 right-4 flex gap-2">
+                <button 
+                  onClick={() => onEditClient(selectedClient)}
+                  className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+                <button 
+                  onClick={() => {
+                    onDeleteClient(selectedClient.id);
+                    setSelectedClient(null);
+                  }}
+                  className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
               <div className="w-24 h-24 rounded-3xl bg-rose-100 flex items-center justify-center text-rose-600 text-3xl font-black mx-auto mb-4">
                 {selectedClient.name.charAt(0)}
               </div>
@@ -431,7 +520,7 @@ const ClientsTab = ({ clients, appointments, procedures, onOpenNewClient }: { cl
 
             <div className="bg-white p-6 rounded-3xl shadow-sm border border-rose-50">
               <div className="flex items-center gap-2 mb-4 text-rose-600">
-                <Sparkles className="w-5 h-5" />
+                <ShieldCheck className="w-5 h-5" />
                 <h3 className="font-bold">Atendimento Personalizado</h3>
               </div>
               <div className="space-y-4">
@@ -507,16 +596,31 @@ const ClientsTab = ({ clients, appointments, procedures, onOpenNewClient }: { cl
         {filteredClients.map(client => (
           <div 
             key={client.id} 
-            onClick={() => setSelectedClient(client)}
-            className="bg-white p-5 rounded-2xl shadow-sm border border-rose-50 hover:border-rose-200 transition-all group cursor-pointer"
+            className="bg-white p-5 rounded-2xl shadow-sm border border-rose-50 hover:border-rose-200 transition-all group cursor-pointer relative"
           >
-            <div className="flex items-center gap-4 mb-4">
-              <div className="w-14 h-14 rounded-2xl bg-rose-100 flex items-center justify-center text-rose-600 text-xl font-bold">
-                {client.name.charAt(0)}
-              </div>
-              <div>
-                <h3 className="font-bold text-gray-900 group-hover:text-rose-600 transition-colors">{client.name}</h3>
-                <p className="text-sm text-gray-500">{client.phone}</p>
+            <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button 
+                onClick={(e) => { e.stopPropagation(); onEditClient(client); }}
+                className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={(e) => { e.stopPropagation(); onDeleteClient(client.id); }}
+                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+            <div onClick={() => setSelectedClient(client)}>
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-14 h-14 rounded-2xl bg-rose-100 flex items-center justify-center text-rose-600 text-xl font-bold">
+                  {client.name.charAt(0)}
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900 group-hover:text-rose-600 transition-colors">{client.name}</h3>
+                  <p className="text-sm text-gray-500">{client.phone}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -526,7 +630,21 @@ const ClientsTab = ({ clients, appointments, procedures, onOpenNewClient }: { cl
   );
 };
 
-const AppointmentsTab = ({ appointments, clients, procedures, onUpdateStatus }: { appointments: Appointment[], clients: Client[], procedures: Procedure[], onUpdateStatus: (id: string, status: AppointmentStatus) => void }) => {
+const AppointmentsTab = ({ 
+  appointments, 
+  clients, 
+  procedures, 
+  onUpdateStatus,
+  onEditAppointment,
+  onDeleteAppointment
+}: { 
+  appointments: Appointment[], 
+  clients: Client[], 
+  procedures: Procedure[], 
+  onUpdateStatus: (id: string, status: AppointmentStatus) => void,
+  onEditAppointment: (app: Appointment) => void,
+  onDeleteAppointment: (id: string) => void
+}) => {
   const [filter, setFilter] = useState<AppointmentStatus | 'todos'>('todos');
   const [startDate, setStartDate] = useState(format(subMonths(new Date(), 1), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -615,7 +733,7 @@ const AppointmentsTab = ({ appointments, clients, procedures, onUpdateStatus }: 
                 const client = clients.find(c => c.id === app.clientId);
                 const proc = procedures.find(p => p.id === app.procedureId);
                 return (
-                  <tr key={app.id} className="hover:bg-rose-50/30 transition-colors">
+                  <tr key={app.id} className="hover:bg-rose-50/30 transition-colors group">
                     <td className="px-6 py-4">
                       <div className="text-sm font-bold text-gray-900">{format(parseISO(app.date), 'dd/MM/yyyy')}</div>
                       <div className="text-xs text-gray-400">{format(parseISO(app.date), 'HH:mm')}</div>
@@ -631,12 +749,28 @@ const AppointmentsTab = ({ appointments, clients, procedures, onUpdateStatus }: 
                     <td className="px-6 py-4 text-sm text-gray-600">{proc?.name}</td>
                     <td className="px-6 py-4 text-sm font-bold text-gray-900">{formatCurrency(app.price)}</td>
                     <td className="px-6 py-4">
-                      <span className={cn(
-                        "px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider",
-                        statusColors[app.status]
-                      )}>
-                        {statusLabels[app.status]}
-                      </span>
+                      <div className="flex items-center justify-between gap-4">
+                        <span className={cn(
+                          "px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider",
+                          statusColors[app.status]
+                        )}>
+                          {statusLabels[app.status]}
+                        </span>
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button 
+                            onClick={() => onEditAppointment(app)}
+                            className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button 
+                            onClick={() => onDeleteAppointment(app.id)}
+                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -649,7 +783,23 @@ const AppointmentsTab = ({ appointments, clients, procedures, onUpdateStatus }: 
   );
 };
 
-const BudgetsTab = ({ budgets, clients, procedures, onAddBudget, onAddProcedure, onUpdateProcedure }: { budgets: Budget[], clients: Client[], procedures: Procedure[], onAddBudget: (b: Budget) => void, onAddProcedure: (p: Procedure) => void, onUpdateProcedure: (id: string, u: Partial<Procedure>) => void }) => {
+const BudgetsTab = ({ 
+  budgets, 
+  clients, 
+  procedures, 
+  onAddBudget, 
+  onAddProcedure, 
+  onUpdateProcedure,
+  onDeleteBudget
+}: { 
+  budgets: Budget[], 
+  clients: Client[], 
+  procedures: Procedure[], 
+  onAddBudget: (b: Budget) => void, 
+  onAddProcedure: (p: Procedure) => void, 
+  onUpdateProcedure: (id: string, u: Partial<Procedure>) => void,
+  onDeleteBudget: (id: string) => void
+}) => {
   const [isNewBudgetModalOpen, setIsNewBudgetModalOpen] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState('');
   const [selectedProcedureId, setSelectedProcedureId] = useState('');
@@ -708,7 +858,15 @@ const BudgetsTab = ({ budgets, clients, procedures, onAddBudget, onAddProcedure,
         {budgets.map(budget => {
           const client = clients.find(c => c.id === budget.clientId);
           return (
-            <div key={budget.id} className="bg-white p-5 rounded-2xl shadow-sm border border-rose-50">
+            <div key={budget.id} className="bg-white p-5 rounded-2xl shadow-sm border border-rose-50 hover:border-rose-200 transition-all group relative">
+              <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button 
+                  onClick={() => onDeleteBudget(budget.id)}
+                  className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
               <div className="flex justify-between items-start mb-4">
                 <div>
                   <h3 className="font-bold text-gray-900">{client?.name}</h3>
@@ -909,7 +1067,7 @@ const FollowUpTab = ({ leads, appointments, clients, procedures, onUpdateStatus 
 
         <div className="space-y-6">
           <div className="bg-rose-500 p-6 rounded-3xl text-white shadow-lg shadow-rose-200">
-            <Sparkles className="w-8 h-8 mb-4 opacity-80" />
+            <Activity className="w-8 h-8 mb-4 opacity-80" />
             <h2 className="text-xl font-bold mb-2">Régua de Relacionamento</h2>
             <p className="text-xs text-rose-50">Dicas automáticas para aumentar sua conversão.</p>
           </div>
@@ -919,7 +1077,23 @@ const FollowUpTab = ({ leads, appointments, clients, procedures, onUpdateStatus 
   );
 };
 
-const FinancialTab = ({ appointments, clients, procedures, entries, onAddEntry }: { appointments: Appointment[], clients: Client[], procedures: Procedure[], entries: FinancialEntry[], onAddEntry: (e: FinancialEntry) => void }) => {
+const FinancialTab = ({ 
+  appointments, 
+  clients, 
+  procedures, 
+  entries, 
+  onAddEntry,
+  onEditEntry,
+  onDeleteEntry
+}: { 
+  appointments: Appointment[], 
+  clients: Client[], 
+  procedures: Procedure[], 
+  entries: FinancialEntry[], 
+  onAddEntry: (e: FinancialEntry) => void,
+  onEditEntry: (e: FinancialEntry) => void,
+  onDeleteEntry: (id: string) => void
+}) => {
   const [desc, setDesc] = useState('');
   const [amount, setAmount] = useState('');
   const [type, setType] = useState<'receita' | 'despesa'>('receita');
@@ -946,20 +1120,35 @@ const FinancialTab = ({ appointments, clients, procedures, entries, onAddEntry }
 
   const exportPDF = () => {
     const doc = new jsPDF();
-    doc.text("Extrato Financeiro", 14, 15);
+    const businessName = "Brenda Fernandes Estética";
+    const dateStr = format(new Date(), 'dd/MM/yyyy HH:mm');
+    
+    doc.setFontSize(20);
+    doc.setTextColor(225, 29, 72); // rose-600
+    doc.text(businessName, 14, 20);
+    
+    doc.setFontSize(12);
+    doc.setTextColor(100, 116, 139); // gray-500
+    doc.text("Extrato Financeiro", 14, 30);
+    doc.text(`Gerado em: ${dateStr}`, 14, 38);
+    
     const tableData = entries.map(e => [
       format(parseISO(e.date), 'dd/MM/yyyy'),
       e.description,
-      e.category,
       e.type === 'receita' ? 'Entrou' : 'Saiu',
       formatCurrency(e.amount)
     ]);
+    
     (doc as any).autoTable({
-      head: [['Data', 'Descrição', 'Categoria', 'Tipo', 'Valor']],
+      head: [['Data', 'Descrição', 'Tipo', 'Valor']],
       body: tableData,
-      startY: 20
+      startY: 45,
+      styles: { fontSize: 10, cellPadding: 5 },
+      headStyles: { fillColor: [225, 29, 72], textColor: [255, 255, 255] },
+      alternateRowStyles: { fillColor: [255, 241, 242] } // rose-50
     });
-    doc.save("extrato.pdf");
+    
+    doc.save(`extrato_${format(new Date(), 'yyyyMMdd')}.pdf`);
   };
 
   return (
@@ -1021,14 +1210,30 @@ const FinancialTab = ({ appointments, clients, procedures, entries, onAddEntry }
             </thead>
             <tbody className="divide-y divide-gray-50">
               {entries.sort((a,b) => b.date.localeCompare(a.date)).map(entry => (
-                <tr key={entry.id}>
+                <tr key={entry.id} className="group transition-colors hover:bg-rose-50/30">
                   <td className="px-6 py-4 text-xs text-gray-400">{format(parseISO(entry.date), 'dd/MM/yy')}</td>
                   <td className="px-6 py-4">
                     <div className="text-sm font-bold text-gray-900">{entry.description}</div>
                     <div className="text-[10px] uppercase text-gray-400">{entry.type === 'receita' ? 'Entrou' : 'Saiu'}</div>
                   </td>
                   <td className={cn("px-6 py-4 text-sm font-black text-right", entry.type === 'receita' ? "text-green-600" : "text-red-500")}>
-                    {entry.type === 'receita' ? '+' : '-'} {formatCurrency(entry.amount)}
+                    <div className="flex items-center justify-end gap-3">
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button 
+                          onClick={() => onEditEntry(entry)}
+                          className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button 
+                          onClick={() => onDeleteEntry(entry.id)}
+                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <span>{entry.type === 'receita' ? '+' : '-'} {formatCurrency(entry.amount)}</span>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -1040,30 +1245,120 @@ const FinancialTab = ({ appointments, clients, procedures, entries, onAddEntry }
   );
 };
 
-const SettingsTab = () => {
+const SettingsTab = ({ 
+  procedures, 
+  onAddProcedure, 
+  onUpdateProcedure, 
+  onDeleteProcedure 
+}: { 
+  procedures: Procedure[], 
+  onAddProcedure: (p: Procedure) => void, 
+  onUpdateProcedure: (id: string, updates: Partial<Procedure>) => void, 
+  onDeleteProcedure: (id: string) => void 
+}) => {
+  const [isAddingProc, setIsAddingProc] = useState(false);
+  const [newProc, setNewProc] = useState({ name: '', price: '', duration: '' });
+
+  const handleAdd = () => {
+    if (!newProc.name || !newProc.price || !newProc.duration) return;
+    onAddProcedure({
+      id: Math.random().toString(36).substr(2, 9),
+      name: newProc.name,
+      price: parseFloat(newProc.price),
+      duration: parseInt(newProc.duration)
+    });
+    setNewProc({ name: '', price: '', duration: '' });
+    setIsAddingProc(false);
+  };
+
   return (
-    <div className="max-w-2xl space-y-8">
+    <div className="max-w-4xl space-y-8">
       <h1 className="text-2xl font-bold text-gray-800">Configurações</h1>
       
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold text-gray-700">Perfil Profissional</h2>
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-rose-50 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-gray-400 uppercase">Nome Completo</label>
-              <input type="text" defaultValue="Juliana Alencar" className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 transition-all" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-gray-400 uppercase">Nome do Negócio</label>
-              <input type="text" defaultValue="Juliana Estética" className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 transition-all" />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold text-gray-700">Perfil Profissional</h2>
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-rose-50 space-y-4">
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-400 uppercase">Nome Completo</label>
+                <input type="text" defaultValue="Brenda Fernandes" className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 transition-all" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-400 uppercase">Nome do Negócio</label>
+                <input type="text" defaultValue="Brenda Fernandes Estética" className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 transition-all" />
+              </div>
+              <button className="w-full bg-rose-500 text-white py-3 rounded-xl font-bold shadow-lg shadow-rose-200 hover:bg-rose-600 transition-all">
+                Salvar Perfil
+              </button>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <button className="w-full bg-rose-500 text-white py-4 rounded-2xl font-bold shadow-lg shadow-rose-200 hover:bg-rose-600 transition-all">
-        Salvar Alterações
-      </button>
+        <section className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-semibold text-gray-700">Procedimentos e Preços</h2>
+            <button 
+              onClick={() => setIsAddingProc(true)}
+              className="text-rose-500 font-bold text-sm flex items-center gap-1 hover:underline"
+            >
+              <Plus className="w-4 h-4" /> Adicionar
+            </button>
+          </div>
+          
+          <div className="bg-white rounded-2xl shadow-sm border border-rose-50 overflow-hidden">
+            <div className="divide-y divide-gray-50">
+              {procedures.map(proc => (
+                <div key={proc.id} className="p-4 flex justify-between items-center group hover:bg-rose-50/30 transition-all">
+                  <div>
+                    <p className="font-bold text-gray-900">{proc.name}</p>
+                    <p className="text-xs text-gray-500">{proc.duration} min • {formatCurrency(proc.price)}</p>
+                  </div>
+                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button 
+                      onClick={() => onDeleteProcedure(proc.id)}
+                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {isAddingProc && (
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-rose-200 space-y-4 animate-in fade-in slide-in-from-top-2">
+              <input 
+                placeholder="Nome do Procedimento" 
+                value={newProc.name}
+                onChange={e => setNewProc(prev => ({ ...prev, name: e.target.value }))}
+                className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none"
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <input 
+                  placeholder="Preço (R$)" 
+                  type="number"
+                  value={newProc.price}
+                  onChange={e => setNewProc(prev => ({ ...prev, price: e.target.value }))}
+                  className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none"
+                />
+                <input 
+                  placeholder="Duração (min)" 
+                  type="number"
+                  value={newProc.duration}
+                  onChange={e => setNewProc(prev => ({ ...prev, duration: e.target.value }))}
+                  className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none"
+                />
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setIsAddingProc(false)} className="flex-1 py-3 font-bold text-gray-500">Cancelar</button>
+                <button onClick={handleAdd} className="flex-1 bg-rose-500 text-white py-3 rounded-xl font-bold">Adicionar</button>
+              </div>
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   );
 };
@@ -1085,6 +1380,22 @@ export default function App() {
   const [isNewClientModalOpen, setIsNewClientModalOpen] = useState(false);
   const [clientStep, setClientStep] = useState(1);
   const [selectedDateForNewApp, setSelectedDateForNewApp] = useState(new Date());
+
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
+  const [editingProcedure, setEditingProcedure] = useState<Procedure | null>(null);
+  const [editingFinancialEntry, setEditingFinancialEntry] = useState<FinancialEntry | null>(null);
+
+  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean, title: string, message: string, onConfirm: () => void }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  });
+
+  const showConfirm = (title: string, message: string, onConfirm: () => void) => {
+    setConfirmModal({ isOpen: true, title, message, onConfirm });
+  };
 
   const handleUpdateStatus = (id: string, status: AppointmentStatus) => {
     setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
@@ -1124,8 +1435,27 @@ export default function App() {
     setClients(prev => [...prev, client]);
   };
 
+  const handleUpdateClient = (id: string, updates: Partial<Client>) => {
+    setClients(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+  };
+
+  const handleDeleteClient = (id: string) => {
+    showConfirm('Excluir Cliente', 'Tem certeza que deseja excluir esta cliente? Todos os agendamentos dela também serão removidos.', () => {
+      setClients(prev => prev.filter(c => c.id !== id));
+      setAppointments(prev => prev.filter(a => a.clientId !== id));
+    });
+  };
+
   const handleAddFinancialEntry = (entry: FinancialEntry) => {
     setFinancialEntries(prev => [...prev, entry]);
+  };
+
+  const handleUpdateFinancialEntry = (id: string, updates: Partial<FinancialEntry>) => {
+    setFinancialEntries(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
+  };
+
+  const handleDeleteFinancialEntry = (id: string) => {
+    setFinancialEntries(prev => prev.filter(e => e.id !== id));
   };
 
   const handleUpdateLeadStatus = (id: string, status: Lead['status']) => {
@@ -1136,12 +1466,35 @@ export default function App() {
     setBudgets(prev => [...prev, budget]);
   };
 
+  const handleDeleteBudget = (id: string) => {
+    showConfirm('Excluir Orçamento', 'Tem certeza que deseja excluir este orçamento?', () => {
+      setBudgets(prev => prev.filter(b => b.id !== id));
+    });
+  };
+
   const handleAddProcedure = (proc: Procedure) => {
     setProcedures(prev => [...prev, proc]);
   };
 
   const handleUpdateProcedure = (id: string, updates: Partial<Procedure>) => {
     setProcedures(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+  };
+
+  const handleDeleteProcedure = (id: string) => {
+    showConfirm('Excluir Procedimento', 'Tem certeza que deseja excluir este procedimento?', () => {
+      setProcedures(prev => prev.filter(p => p.id !== id));
+    });
+  };
+
+  const handleUpdateAppointment = (id: string, updates: Partial<Appointment>) => {
+    setAppointments(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a));
+  };
+
+  const handleDeleteAppointment = (id: string) => {
+    showConfirm('Excluir Agendamento', 'Tem certeza que deseja excluir este agendamento?', () => {
+      setAppointments(prev => prev.filter(a => a.id !== id));
+      setFinancialEntries(prev => prev.filter(e => e.appointmentId !== id));
+    });
   };
 
   const menuItems = [
@@ -1170,14 +1523,61 @@ export default function App() {
             setSelectedDateForNewApp(date);
             setIsNewAppModalOpen(true);
           }}
+          onEditAppointment={setEditingAppointment}
+          onDeleteAppointment={handleDeleteAppointment}
         />
       );
-      case 'clientes': return <ClientsTab clients={clients} appointments={appointments} procedures={procedures} onOpenNewClient={() => { setClientStep(1); setIsNewClientModalOpen(true); }} />;
-      case 'atendimentos': return <AppointmentsTab appointments={appointments} clients={clients} procedures={procedures} onUpdateStatus={handleUpdateStatus} />;
-      case 'orcamentos': return <BudgetsTab budgets={budgets} clients={clients} procedures={procedures} onAddBudget={handleAddBudget} onAddProcedure={handleAddProcedure} onUpdateProcedure={handleUpdateProcedure} />;
+      case 'clientes': return (
+        <ClientsTab 
+          clients={clients} 
+          appointments={appointments} 
+          procedures={procedures} 
+          onOpenNewClient={() => { setClientStep(1); setIsNewClientModalOpen(true); }}
+          onEditClient={setEditingClient}
+          onDeleteClient={handleDeleteClient}
+        />
+      );
+      case 'atendimentos': return (
+        <AppointmentsTab 
+          appointments={appointments} 
+          clients={clients} 
+          procedures={procedures} 
+          onUpdateStatus={handleUpdateStatus}
+          onEditAppointment={setEditingAppointment}
+          onDeleteAppointment={handleDeleteAppointment}
+        />
+      );
+      case 'orcamentos': return (
+        <BudgetsTab 
+          budgets={budgets} 
+          clients={clients} 
+          procedures={procedures} 
+          onAddBudget={handleAddBudget} 
+          onAddProcedure={handleAddProcedure} 
+          onUpdateProcedure={handleUpdateProcedure}
+          onDeleteBudget={handleDeleteBudget}
+        />
+      );
       case 'follow-up': return <FollowUpTab leads={leads} appointments={appointments} clients={clients} procedures={procedures} onUpdateStatus={handleUpdateLeadStatus} />;
-      case 'financeiro': return <FinancialTab appointments={appointments} clients={clients} procedures={procedures} entries={financialEntries} onAddEntry={handleAddFinancialEntry} />;
-      case 'configuracoes': return <SettingsTab />;
+      case 'financeiro': return (
+        <FinancialTab 
+          appointments={appointments} 
+          clients={clients} 
+          procedures={procedures} 
+          entries={financialEntries} 
+          onAddEntry={handleAddFinancialEntry}
+          onEditEntry={setEditingFinancialEntry}
+          onDeleteEntry={handleDeleteFinancialEntry}
+        />
+      );
+      case 'configuracoes': return (
+        <SettingsTab 
+          procedures={procedures}
+          onAddProcedure={handleAddProcedure}
+          onUpdateProcedure={handleUpdateProcedure}
+          onDeleteProcedure={handleDeleteProcedure}
+        />
+      );
       default: return <Dashboard appointments={appointments} clients={clients} procedures={procedures} onNavigateToAgenda={() => setActiveTab('agenda')} />;
     }
   };
@@ -1378,7 +1778,7 @@ export default function App() {
               ) : (
                 <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
                   <div className="flex items-center gap-2 mb-2 text-rose-600">
-                    <Sparkles className="w-4 h-4" />
+                    <ShieldCheck className="w-4 h-4" />
                     <h3 className="text-sm font-bold">Preferências de Atendimento</h3>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
@@ -1430,16 +1830,176 @@ export default function App() {
         </div>
       )}
 
+      <ConfirmationModal 
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+      />
+
+      {/* Edit Client Modal */}
+      <AnimatePresence>
+        {editingClient && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl"
+            >
+              <h2 className="text-2xl font-black text-gray-900 mb-6">Editar Cliente</h2>
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.currentTarget);
+                  handleUpdateClient(editingClient.id, {
+                    name: formData.get('name') as string,
+                    phone: formData.get('phone') as string,
+                    email: formData.get('email') as string,
+                    observations: formData.get('observations') as string,
+                  });
+                  setEditingClient(null);
+                }}
+                className="space-y-4"
+              >
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase">Nome Completo</label>
+                  <input name="name" required defaultValue={editingClient.name} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase">Telefone</label>
+                  <input name="phone" required defaultValue={editingClient.phone} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase">E-mail</label>
+                  <input name="email" defaultValue={editingClient.email} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase">Observações</label>
+                  <textarea name="observations" defaultValue={editingClient.observations} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 resize-none" />
+                </div>
+                <div className="flex gap-3 pt-4">
+                  <button type="button" onClick={() => setEditingClient(null)} className="flex-1 py-3 font-bold text-gray-500">Cancelar</button>
+                  <button type="submit" className="flex-1 bg-rose-500 text-white py-3 rounded-xl font-bold">Salvar</button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Appointment Modal */}
+      <AnimatePresence>
+        {editingAppointment && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl"
+            >
+              <h2 className="text-2xl font-black text-gray-900 mb-6">Editar Agendamento</h2>
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.currentTarget);
+                  const date = formData.get('date') as string;
+                  const time = formData.get('time') as string;
+                  handleUpdateAppointment(editingAppointment.id, {
+                    date: `${date}T${time}:00`,
+                    procedureId: formData.get('procedureId') as string,
+                  });
+                  setEditingAppointment(null);
+                }}
+                className="space-y-4"
+              >
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase">Data</label>
+                  <input name="date" type="date" required defaultValue={editingAppointment.date.split('T')[0]} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase">Horário</label>
+                  <input name="time" type="time" required defaultValue={editingAppointment.date.split('T')[1].substring(0, 5)} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase">Serviço</label>
+                  <select name="procedureId" required defaultValue={editingAppointment.procedureId} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300">
+                    {procedures.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div className="flex gap-3 pt-4">
+                  <button type="button" onClick={() => setEditingAppointment(null)} className="flex-1 py-3 font-bold text-gray-500">Cancelar</button>
+                  <button type="submit" className="flex-1 bg-rose-500 text-white py-3 rounded-xl font-bold">Salvar</button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Financial Entry Modal */}
+      <AnimatePresence>
+        {editingFinancialEntry && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl"
+            >
+              <h2 className="text-2xl font-black text-gray-900 mb-6">Editar Lançamento</h2>
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.currentTarget);
+                  handleUpdateFinancialEntry(editingFinancialEntry.id, {
+                    description: formData.get('description') as string,
+                    amount: parseFloat(formData.get('amount') as string),
+                    type: formData.get('type') as any,
+                  });
+                  setEditingFinancialEntry(null);
+                }}
+                className="space-y-4"
+              >
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase">Descrição</label>
+                  <input name="description" required defaultValue={editingFinancialEntry.description} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase">Valor</label>
+                  <input name="amount" type="number" step="0.01" required defaultValue={editingFinancialEntry.amount} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase">Tipo</label>
+                  <select name="type" required defaultValue={editingFinancialEntry.type} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300">
+                    <option value="receita">Entrou</option>
+                    <option value="despesa">Saiu</option>
+                  </select>
+                </div>
+                <div className="flex gap-3 pt-4">
+                  <button type="button" onClick={() => setEditingFinancialEntry(null)} className="flex-1 py-3 font-bold text-gray-500">Cancelar</button>
+                  <button type="submit" className="flex-1 bg-rose-500 text-white py-3 rounded-xl font-bold">Salvar</button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <aside className={cn(
         "fixed lg:static inset-y-0 left-0 z-50 w-72 bg-white border-r border-rose-50 transition-transform duration-300 ease-in-out lg:translate-x-0",
         !isSidebarOpen && "-translate-x-full"
       )}>
         <div className="h-full flex flex-col p-6">
           <div className="flex items-center gap-3 mb-10 px-2">
-            <div className="w-10 h-10 bg-rose-500 rounded-xl flex items-center justify-center shadow-lg shadow-rose-200">
-              <Sparkles className="text-white w-6 h-6" />
+            <div className="w-10 h-10 bg-rose-600 rounded-xl flex items-center justify-center shadow-lg shadow-rose-200">
+              <ShieldCheck className="text-white w-6 h-6" />
             </div>
-            <span className="text-xl font-black tracking-tight text-gray-900">EstéticaPro</span>
+            <div className="flex flex-col">
+              <span className="text-lg font-black tracking-tight text-gray-900 leading-none">BF GESTÃO</span>
+              <span className="text-[10px] font-bold text-rose-500 uppercase tracking-widest">Sistema Profissional</span>
+            </div>
           </div>
 
           <nav className="flex-1 space-y-1">
