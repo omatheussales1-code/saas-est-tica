@@ -52,6 +52,20 @@ import {
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'motion/react';
+import { 
+  collection, 
+  onSnapshot, 
+  query, 
+  where, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc, 
+  setDoc,
+  Timestamp 
+} from 'firebase/firestore';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { db, auth, googleProvider, signInWithPopup, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword } from './firebase';
 import { cn } from './lib/utils';
 import { 
   Client, 
@@ -61,7 +75,8 @@ import {
   Lead, 
   Budget, 
   AppointmentStatus,
-  FollowUp
+  FollowUp,
+  UserProfile
 } from './types';
 import { 
   MOCK_CLIENTS, 
@@ -73,6 +88,59 @@ import {
 } from './mockData';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+
+// --- Types & Error Handling ---
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId: string | undefined;
+    email: string | null | undefined;
+    emailVerified: boolean | undefined;
+    isAnonymous: boolean | undefined;
+    tenantId: string | null | undefined;
+    providerInfo: {
+      providerId: string;
+      displayName: string | null;
+      email: string | null;
+      photoUrl: string | null;
+    }[];
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  // We can show a notification to the user here if needed
+}
 
 // --- Components ---
 
@@ -1489,20 +1557,99 @@ const SettingsTab = ({
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   
-  const [clients, setClients] = useState<Client[]>(MOCK_CLIENTS);
-  const [appointments, setAppointments] = useState<Appointment[]>(MOCK_APPOINTMENTS);
-  const [procedures, setProcedures] = useState<Procedure[]>(MOCK_PROCEDURES);
-  const [financialEntries, setFinancialEntries] = useState<FinancialEntry[]>(MOCK_FINANCIAL);
-  const [leads, setLeads] = useState<Lead[]>(MOCK_LEADS);
-  const [budgets, setBudgets] = useState<Budget[]>(MOCK_BUDGETS);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [procedures, setProcedures] = useState<Procedure[]>([]);
+  const [financialEntries, setFinancialEntries] = useState<FinancialEntry[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [budgets, setBudgets] = useState<Budget[]>([]);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
+
+  // Auth & Sync
+  React.useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      setIsAuthReady(true);
+    });
+    return () => unsubscribeAuth();
+  }, []);
+
+  React.useEffect(() => {
+    if (!user) {
+      setClients([]);
+      setAppointments([]);
+      setProcedures([]);
+      setFinancialEntries([]);
+      setLeads([]);
+      setBudgets([]);
+      setFollowUps([]);
+      return;
+    }
+
+    const q = (path: string) => query(collection(db, path), where('ownerId', '==', user.uid));
+
+    const unsubscribers = [
+      onSnapshot(q('clients'), (s) => setClients(s.docs.map(d => ({ id: d.id, ...d.data() } as Client))), (e) => handleFirestoreError(e, OperationType.LIST, 'clients')),
+      onSnapshot(q('appointments'), (s) => setAppointments(s.docs.map(d => ({ id: d.id, ...d.data() } as Appointment))), (e) => handleFirestoreError(e, OperationType.LIST, 'appointments')),
+      onSnapshot(q('procedures'), (s) => setProcedures(s.docs.map(d => ({ id: d.id, ...d.data() } as Procedure))), (e) => handleFirestoreError(e, OperationType.LIST, 'procedures')),
+      onSnapshot(q('financialEntries'), (s) => setFinancialEntries(s.docs.map(d => ({ id: d.id, ...d.data() } as FinancialEntry))), (e) => handleFirestoreError(e, OperationType.LIST, 'financialEntries')),
+      onSnapshot(q('leads'), (s) => setLeads(s.docs.map(d => ({ id: d.id, ...d.data() } as Lead))), (e) => handleFirestoreError(e, OperationType.LIST, 'leads')),
+      onSnapshot(q('budgets'), (s) => setBudgets(s.docs.map(d => ({ id: d.id, ...d.data() } as Budget))), (e) => handleFirestoreError(e, OperationType.LIST, 'budgets')),
+      onSnapshot(q('followUps'), (s) => setFollowUps(s.docs.map(d => ({ id: d.id, ...d.data() } as FollowUp))), (e) => handleFirestoreError(e, OperationType.LIST, 'followUps')),
+    ];
+
+    return () => unsubscribers.forEach(u => u());
+  }, [user]);
   
   const [isNewAppModalOpen, setIsNewAppModalOpen] = useState(false);
   const [isNewClientModalOpen, setIsNewClientModalOpen] = useState(false);
   const [isNewFollowUpModalOpen, setIsNewFollowUpModalOpen] = useState(false);
   const [clientStep, setClientStep] = useState(1);
   const [selectedDateForNewApp, setSelectedDateForNewApp] = useState(new Date());
+  
+  const [emailInput, setEmailInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+    const email = emailInput.toLowerCase().trim();
+    const password = passwordInput.toLowerCase(); // Per request: case-insensitive
+    
+    if (password.length < 6) {
+      setAuthError('A senha deve ter pelo menos 6 caracteres.');
+      return;
+    }
+
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (error: any) {
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+        // Se for o e-mail específico, tentamos cadastrar automaticamente para facilitar
+        if (email === 'brefer@gmail.com') {
+          try {
+            await createUserWithEmailAndPassword(auth, email, password);
+            return;
+          } catch (createErr: any) {
+            setAuthError('Erro ao criar conta. Verifique se o login por e-mail está ativado no Firebase Console.');
+          }
+        } else {
+          setAuthError('Usuário não encontrado ou senha incorreta.');
+        }
+      } else if (error.code === 'auth/wrong-password') {
+        setAuthError('Senha incorreta.');
+      } else if (error.code === 'auth/operation-not-allowed') {
+        setAuthError('O login por e-mail não está ativado no Firebase Console. Por favor, ative-o em "Authentication" > "Sign-in method".');
+      } else {
+        setAuthError('Ocorreu um erro ao entrar. Tente novamente.');
+      }
+    }
+  };
 
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
@@ -1575,9 +1722,14 @@ export default function App() {
       if (newAlerts.length > 0) {
         const historyEntries = newAlerts.map(a => ({ ...a, date: new Date() }));
         setNotificationHistory(prev => [...historyEntries, ...prev].slice(0, 20));
-        setAlerts(prev => [...prev, ...newAlerts].slice(-3));
         
-        // Remove alertas visuais após 10 segundos, mas eles continuam no 'shownAlerts' para não repetir
+        setAlerts(prev => {
+          // Filtrar alertas que já existem para evitar duplicatas de chaves
+          const uniqueNewAlerts = newAlerts.filter(na => !prev.some(p => p.id === na.id));
+          return [...prev, ...uniqueNewAlerts].slice(-3);
+        });
+        
+        // Remove alertas visuais após 10 segundos
         setTimeout(() => {
           setAlerts(prev => prev.filter(a => !newAlerts.some(na => na.id === a.id)));
         }, 10000);
@@ -1593,120 +1745,193 @@ export default function App() {
     setConfirmModal({ isOpen: true, title, message, onConfirm });
   };
 
-  const handleUpdateStatus = (id: string, status: AppointmentStatus) => {
-    setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
+  const handleUpdateStatus = async (id: string, status: AppointmentStatus) => {
+    if (!user) return;
+    try {
+      await updateDoc(doc(db, 'appointments', id), { status });
+    } catch (e) { handleFirestoreError(e, OperationType.UPDATE, `appointments/${id}`); }
   };
 
-  const handleMarkAsPaid = (id: string) => {
+  const handleMarkAsPaid = async (id: string) => {
+    if (!user) return;
     const app = appointments.find(a => a.id === id);
     if (!app) return;
 
     const client = clients.find(c => c.id === app.clientId);
     const proc = procedures.find(p => p.id === app.procedureId);
 
-    setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: 'realizado' } : a));
-
-    const newEntry: FinancialEntry = {
-      id: Math.random().toString(36).substr(2, 9),
-      description: `Atendimento: ${client?.name} (${proc?.name})`,
-      amount: app.price,
-      date: new Date().toISOString(),
-      type: 'receita',
-      category: 'Serviços',
-      appointmentId: id
-    };
-    setFinancialEntries(prev => [...prev, newEntry]);
+    try {
+      await updateDoc(doc(db, 'appointments', id), { status: 'realizado' });
+      await addDoc(collection(db, 'financialEntries'), {
+        description: `Atendimento: ${client?.name} (${proc?.name})`,
+        amount: app.price,
+        date: new Date().toISOString(),
+        type: 'receita',
+        category: 'Serviços',
+        appointmentId: id,
+        ownerId: user.uid
+      });
+    } catch (e) { handleFirestoreError(e, OperationType.WRITE, 'payment'); }
   };
 
-  const handleUndoMarkAsPaid = (id: string) => {
-    setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: 'confirmado' } : a));
-    setFinancialEntries(prev => prev.filter(e => e.appointmentId !== id));
+  const handleUndoMarkAsPaid = async (id: string) => {
+    if (!user) return;
+    try {
+      await updateDoc(doc(db, 'appointments', id), { status: 'confirmado' });
+      const entry = financialEntries.find(e => e.appointmentId === id);
+      if (entry) {
+        await deleteDoc(doc(db, 'financialEntries', entry.id));
+      }
+    } catch (e) { handleFirestoreError(e, OperationType.WRITE, 'undo-payment'); }
   };
 
-  const handleAddAppointment = (app: Appointment) => {
-    setAppointments(prev => [...prev, app]);
+  const handleAddAppointment = async (app: Appointment) => {
+    if (!user) return;
+    try {
+      const { id, ...data } = app;
+      await addDoc(collection(db, 'appointments'), { ...data, ownerId: user.uid });
+      setIsNewAppModalOpen(false);
+    } catch (e) { handleFirestoreError(e, OperationType.CREATE, 'appointments'); }
   };
 
-  const handleAddClient = (client: Client) => {
-    setClients(prev => [...prev, client]);
+  const handleAddClient = async (client: Client) => {
+    if (!user) return;
+    try {
+      const { id, ...data } = client;
+      await addDoc(collection(db, 'clients'), { ...data, ownerId: user.uid });
+      setIsNewClientModalOpen(false);
+    } catch (e) { handleFirestoreError(e, OperationType.CREATE, 'clients'); }
   };
 
-  const handleUpdateClient = (id: string, updates: Partial<Client>) => {
-    setClients(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+  const handleUpdateClient = async (id: string, updates: Partial<Client>) => {
+    if (!user) return;
+    try {
+      await updateDoc(doc(db, 'clients', id), updates);
+      setEditingClient(null);
+    } catch (e) { handleFirestoreError(e, OperationType.UPDATE, `clients/${id}`); }
   };
 
   const handleDeleteClient = (id: string) => {
-    showConfirm('Excluir Cliente', 'Tem certeza que deseja excluir esta cliente? Todos os agendamentos dela também serão removidos.', () => {
-      setClients(prev => prev.filter(c => c.id !== id));
-      setAppointments(prev => prev.filter(a => a.clientId !== id));
+    showConfirm('Excluir Cliente', 'Tem certeza que deseja excluir esta cliente? Todos os agendamentos dela também serão removidos.', async () => {
+      try {
+        await deleteDoc(doc(db, 'clients', id));
+        // Note: Rules or user logic should handle cascading if needed, but here we do it manually or assume cleanup.
+        appointments.filter(a => a.clientId === id).forEach(async a => await deleteDoc(doc(db, 'appointments', a.id)));
+      } catch (e) { handleFirestoreError(e, OperationType.DELETE, `clients/${id}`); }
     });
   };
 
-  const handleAddFinancialEntry = (entry: FinancialEntry) => {
-    setFinancialEntries(prev => [...prev, entry]);
+  const handleAddFinancialEntry = async (entry: FinancialEntry) => {
+    if (!user) return;
+    try {
+      const { id, ...data } = entry;
+      await addDoc(collection(db, 'financialEntries'), { ...data, ownerId: user.uid });
+    } catch (e) { handleFirestoreError(e, OperationType.CREATE, 'financialEntries'); }
   };
 
-  const handleUpdateFinancialEntry = (id: string, updates: Partial<FinancialEntry>) => {
-    setFinancialEntries(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
+  const handleUpdateFinancialEntry = async (id: string, updates: Partial<FinancialEntry>) => {
+    if (!user) return;
+    try {
+      await updateDoc(doc(db, 'financialEntries', id), updates);
+      setEditingFinancialEntry(null);
+    } catch (e) { handleFirestoreError(e, OperationType.UPDATE, `financialEntries/${id}`); }
   };
 
-  const handleDeleteFinancialEntry = (id: string) => {
-    setFinancialEntries(prev => prev.filter(e => e.id !== id));
+  const handleDeleteFinancialEntry = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'financialEntries', id));
+    } catch (e) { handleFirestoreError(e, OperationType.DELETE, `financialEntries/${id}`); }
   };
 
-  const handleUpdateLeadStatus = (id: string, status: Lead['status']) => {
-    setLeads(prev => prev.map(l => l.id === id ? { ...l, status } : l));
+  const handleUpdateLeadStatus = async (id: string, status: Lead['status']) => {
+    if (!user) return;
+    try {
+      await updateDoc(doc(db, 'leads', id), { status });
+    } catch (e) { handleFirestoreError(e, OperationType.UPDATE, `leads/${id}`); }
   };
 
-  const handleAddBudget = (budget: Budget) => {
-    setBudgets(prev => [...prev, budget]);
+  const handleAddBudget = async (budget: Budget) => {
+    if (!user) return;
+    try {
+      const { id, ...data } = budget;
+      await addDoc(collection(db, 'budgets'), { ...data, ownerId: user.uid });
+    } catch (e) { handleFirestoreError(e, OperationType.CREATE, 'budgets'); }
   };
 
-  const handleAddFollowUp = (followUp: FollowUp) => {
-    setFollowUps(prev => [followUp, ...prev]);
-    setIsNewFollowUpModalOpen(false);
+  const handleAddFollowUp = async (followUp: FollowUp) => {
+    if (!user) return;
+    try {
+      const { id, ...data } = followUp;
+      await addDoc(collection(db, 'followUps'), { ...data, ownerId: user.uid });
+      setIsNewFollowUpModalOpen(false);
+    } catch (e) { handleFirestoreError(e, OperationType.CREATE, 'followUps'); }
   };
 
-  const handleUpdateFollowUpStatus = (id: string, status: FollowUp['status']) => {
-    setFollowUps(prev => prev.map(fu => fu.id === id ? { ...fu, status } : fu));
+  const handleUpdateFollowUpStatus = async (id: string, status: FollowUp['status']) => {
+    if (!user) return;
+    try {
+      await updateDoc(doc(db, 'followUps', id), { status });
+    } catch (e) { handleFirestoreError(e, OperationType.UPDATE, `followUps/${id}`); }
   };
 
   const handleDeleteFollowUp = (id: string) => {
     showConfirm(
       'Excluir Follow-up',
       'Tem certeza que deseja excluir este acompanhamento?',
-      () => setFollowUps(prev => prev.filter(fu => fu.id !== id))
+      async () => {
+        try {
+          await deleteDoc(doc(db, 'followUps', id));
+        } catch (e) { handleFirestoreError(e, OperationType.DELETE, `followUps/${id}`); }
+      }
     );
   };
 
   const handleDeleteBudget = (id: string) => {
-    showConfirm('Excluir Orçamento', 'Tem certeza que deseja excluir este orçamento?', () => {
-      setBudgets(prev => prev.filter(b => b.id !== id));
+    showConfirm('Excluir Orçamento', 'Tem certeza que deseja excluir este orçamento?', async () => {
+      try {
+        await deleteDoc(doc(db, 'budgets', id));
+      } catch (e) { handleFirestoreError(e, OperationType.DELETE, `budgets/${id}`); }
     });
   };
 
-  const handleAddProcedure = (proc: Procedure) => {
-    setProcedures(prev => [...prev, proc]);
+  const handleAddProcedure = async (proc: Procedure) => {
+    if (!user) return;
+    try {
+      const { id, ...data } = proc;
+      await addDoc(collection(db, 'procedures'), { ...data, ownerId: user.uid });
+    } catch (e) { handleFirestoreError(e, OperationType.CREATE, 'procedures'); }
   };
 
-  const handleUpdateProcedure = (id: string, updates: Partial<Procedure>) => {
-    setProcedures(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+  const handleUpdateProcedure = async (id: string, updates: Partial<Procedure>) => {
+    if (!user) return;
+    try {
+      await updateDoc(doc(db, 'procedures', id), updates);
+      setEditingProcedure(null);
+    } catch (e) { handleFirestoreError(e, OperationType.UPDATE, `procedures/${id}`); }
   };
 
   const handleDeleteProcedure = (id: string) => {
-    showConfirm('Excluir Procedimento', 'Tem certeza que deseja excluir este procedimento?', () => {
-      setProcedures(prev => prev.filter(p => p.id !== id));
+    showConfirm('Excluir Procedimento', 'Tem certeza que deseja excluir este procedimento?', async () => {
+      try {
+        await deleteDoc(doc(db, 'procedures', id));
+      } catch (e) { handleFirestoreError(e, OperationType.DELETE, `procedures/${id}`); }
     });
   };
 
-  const handleUpdateAppointment = (id: string, updates: Partial<Appointment>) => {
-    setAppointments(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a));
+  const handleUpdateAppointment = async (id: string, updates: Partial<Appointment>) => {
+    if (!user) return;
+    try {
+      await updateDoc(doc(db, 'appointments', id), updates);
+      setEditingAppointment(null);
+    } catch (e) { handleFirestoreError(e, OperationType.UPDATE, `appointments/${id}`); }
   };
 
   const handleDeleteAppointment = (id: string) => {
-    showConfirm('Excluir Agendamento', 'Tem certeza que deseja excluir este agendamento?', () => {
-      setAppointments(prev => prev.filter(a => a.id !== id));
-      setFinancialEntries(prev => prev.filter(e => e.appointmentId !== id));
+    showConfirm('Excluir Agendamento', 'Tem certeza que deseja excluir este agendamento?', async () => {
+      try {
+        await deleteDoc(doc(db, 'appointments', id));
+        financialEntries.filter(e => e.appointmentId === id).forEach(async e => await deleteDoc(doc(db, 'financialEntries', e.id)));
+      } catch (e) { handleFirestoreError(e, OperationType.DELETE, `appointments/${id}`); }
     });
   };
 
@@ -1818,6 +2043,85 @@ export default function App() {
     }
   };
 
+  if (!isAuthReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#FFF9F9]">
+        <motion.div 
+          animate={{ scale: [1, 1.1, 1], opacity: [1, 0.5, 1] }}
+          transition={{ duration: 1.5, repeat: Infinity }}
+          className="w-16 h-16 bg-rose-500 rounded-2xl shadow-xl shadow-rose-200"
+        />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#FFF9F9] p-4">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white p-10 rounded-[40px] shadow-2xl border border-rose-50 w-full max-w-md text-center"
+        >
+          <div className="w-20 h-20 bg-rose-500 rounded-3xl flex items-center justify-center shadow-xl shadow-rose-200 mx-auto mb-8">
+            <ShieldCheck className="text-white w-10 h-10" />
+          </div>
+          <h1 className="text-3xl font-black text-gray-900 mb-2">BF GESTÃO</h1>
+          <p className="text-gray-500 font-medium mb-10">Sistema Profissional para Estética</p>
+          
+          <form onSubmit={handleEmailLogin} className="space-y-4 mb-6">
+            <div className="text-left">
+              <label className="block text-xs font-bold text-gray-400 uppercase mb-2 ml-4">E-mail</label>
+              <input 
+                type="email" 
+                value={emailInput}
+                onChange={e => setEmailInput(e.target.value)}
+                placeholder="exemplo@gmail.com"
+                className="w-full bg-gray-50 border-none rounded-2xl p-4 font-bold text-gray-700 outline-none focus:ring-2 focus:ring-rose-500 transition-all"
+                required
+              />
+            </div>
+            <div className="text-left">
+              <label className="block text-xs font-bold text-gray-400 uppercase mb-2 ml-4">Senha</label>
+              <input 
+                type="password" 
+                value={passwordInput}
+                onChange={e => setPasswordInput(e.target.value)}
+                placeholder="Sua senha"
+                className="w-full bg-gray-50 border-none rounded-2xl p-4 font-bold text-gray-700 outline-none focus:ring-2 focus:ring-rose-500 transition-all"
+                required
+              />
+            </div>
+            {authError && <p className="text-rose-500 text-xs font-bold">{authError}</p>}
+            <button 
+              type="submit"
+              className="w-full bg-rose-500 text-white p-4 rounded-2xl font-bold shadow-lg shadow-rose-200 active:scale-95 transition-all"
+            >
+              Entrar no Sistema
+            </button>
+          </form>
+
+          <div className="relative flex items-center justify-center mb-6">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-100"></div></div>
+            <span className="relative bg-white px-4 text-xs font-bold text-gray-300 uppercase">ou use</span>
+          </div>
+
+          <button 
+            onClick={() => signInWithPopup(auth, googleProvider)}
+            className="w-full bg-white border-2 border-gray-100 hover:border-rose-200 p-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all active:scale-95 group"
+          >
+            <img src="https://www.google.com/favicon.ico" className="w-5 h-5 group-hover:grayscale-0 grayscale transition-all" alt="Google" referrerPolicy="no-referrer" />
+            Entrar com Google
+          </button>
+          
+          <p className="mt-8 text-xs text-gray-400 font-medium">
+            Seus dados são salvos de forma segura e privada.
+          </p>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex font-sans transition-colors duration-300 bg-[#FFF9F9] text-gray-900">
       <NotificationCenter alerts={alerts} />
@@ -1839,7 +2143,14 @@ export default function App() {
                 const clientId = formData.get('clientId') as string;
                 const procedureId = formData.get('procedureId') as string;
                 
-                if (!clientId || !procedureId || !date || !time) return;
+                if (!clientId) {
+                  setAlerts(prev => [...prev, { id: 'error-client', message: 'Por favor, selecione uma cliente da lista.', type: 'error' }].slice(-3));
+                  return;
+                }
+                if (!procedureId || !date || !time) {
+                  setAlerts(prev => [...prev, { id: 'error-fields', message: 'Por favor, preencha todos os campos do agendamento.', type: 'error' }].slice(-3));
+                  return;
+                }
 
                 const proc = procedures.find(p => p.id === procedureId);
                 const newApp: Appointment = {
@@ -1878,10 +2189,21 @@ export default function App() {
                     placeholder="Digite o nome da cliente..."
                     className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300"
                     onChange={(e) => {
-                      const selected = clients.find(c => c.name === e.target.value);
+                      const val = e.target.value;
+                      const selected = clients.find(c => c.name === val);
                       const hiddenInput = document.getElementById('selected-client-id') as HTMLInputElement;
-                      if (selected && hiddenInput) {
-                        hiddenInput.value = selected.id;
+                      if (hiddenInput) {
+                        hiddenInput.value = selected ? selected.id : '';
+                      }
+                    }}
+                    onBlur={(e) => {
+                      // Se o usuário digitou mas não selecionou, tentamos encontrar uma correspondência exata
+                      if (!(document.getElementById('selected-client-id') as HTMLInputElement).value) {
+                         const match = clients.find(c => c.name.toLowerCase() === e.target.value.toLowerCase());
+                         if (match) {
+                           (document.getElementById('selected-client-id') as HTMLInputElement).value = match.id;
+                           e.target.value = match.name;
+                         }
                       }
                     }}
                   />
@@ -2332,6 +2654,16 @@ export default function App() {
               </button>
             ))}
           </nav>
+
+          <div className="pt-6 border-t border-rose-50">
+            <button 
+              onClick={() => signOut(auth)}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-gray-400 hover:bg-red-50 hover:text-red-500 transition-all group"
+            >
+              <Trash2 className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+              Sair do Sistema
+            </button>
+          </div>
         </div>
       </aside>
 
