@@ -16,6 +16,8 @@ import {
   Clock, 
   TrendingUp, 
   CheckCircle2, 
+  CheckCircle,
+  Eye,
   AlertCircle, 
   Menu, 
   ShieldCheck,
@@ -43,7 +45,10 @@ import {
   endOfWeek,
   startOfDay,
   endOfDay,
-  subDays
+  subDays,
+  isTomorrow,
+  differenceInMinutes,
+  isAfter
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'motion/react';
@@ -55,7 +60,8 @@ import {
   FinancialEntry, 
   Lead, 
   Budget, 
-  AppointmentStatus 
+  AppointmentStatus,
+  FollowUp
 } from './types';
 import { 
   MOCK_CLIENTS, 
@@ -69,6 +75,30 @@ import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
 // --- Components ---
+
+const NotificationCenter = ({ alerts }: { alerts: { id: string, message: string, type: 'info' | 'warning' | 'error' }[] }) => (
+  <div className="fixed bottom-4 right-4 z-[150] flex flex-col gap-2 max-w-xs w-full">
+    <AnimatePresence>
+      {alerts.map(alert => (
+        <motion.div
+          key={alert.id}
+          initial={{ opacity: 0, x: 50, scale: 0.9 }}
+          animate={{ opacity: 1, x: 0, scale: 1 }}
+          exit={{ opacity: 0, x: 50, scale: 0.9 }}
+          className={cn(
+            "p-4 rounded-2xl shadow-xl border flex items-center gap-3",
+            alert.type === 'info' ? "bg-blue-50 border-blue-100 text-blue-800" :
+            alert.type === 'warning' ? "bg-amber-50 border-amber-100 text-amber-800" :
+            "bg-red-50 border-red-100 text-red-800"
+          )}
+        >
+          {alert.type === 'error' ? <AlertCircle className="w-5 h-5 flex-shrink-0" /> : <BellRing className="w-5 h-5 flex-shrink-0" />}
+          <p className="text-sm font-bold leading-tight">{alert.message}</p>
+        </motion.div>
+      ))}
+    </AnimatePresence>
+  </div>
+);
 
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }: { isOpen: boolean, onClose: () => void, onConfirm: () => void, title: string, message: string }) => (
   <AnimatePresence>
@@ -124,27 +154,124 @@ const StatCard = ({ title, value, icon, color, onClick, clickable }: { title: st
   </div>
 );
 
-const Dashboard = ({ appointments, clients, procedures, onNavigateToAgenda }: { appointments: Appointment[], clients: Client[], procedures: Procedure[], onNavigateToAgenda: () => void }) => {
+const Dashboard = ({ 
+  appointments, 
+  clients, 
+  procedures, 
+  onNavigateToAgenda, 
+  notificationHistory 
+}: { 
+  appointments: Appointment[], 
+  clients: Client[], 
+  procedures: Procedure[], 
+  onNavigateToAgenda: () => void, 
+  notificationHistory: { id: string, message: string, type: 'info' | 'warning' | 'error', date: Date }[]
+}) => {
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const todayAppointments = appointments.filter(a => isToday(parseISO(a.date)));
-  
-  const dailyRevenue = todayAppointments
-    .filter(a => a.status === 'realizado')
-    .reduce((acc, curr) => acc + curr.price, 0);
+  const tomorrowAppointments = appointments.filter(a => isTomorrow(parseISO(a.date)));
+  const delayedAppointments = appointments.filter(a => a.status === 'atrasado');
   
   const missedAppointments = appointments.filter(a => a.status === 'faltou').length;
   
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-gray-900 tracking-tight">Painel de Controle</h1>
-          <p className="text-sm font-medium text-gray-500">Bem-vinda, Dra. Brenda Fernandes</p>
+          <p className="text-sm font-medium text-gray-500">Bem-vinda de volta!</p>
         </div>
-        <div className="bg-white px-4 py-2 rounded-xl border border-rose-100 shadow-sm flex items-center gap-3">
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-          <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">Sistema Online</span>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+            className="relative p-3 bg-white rounded-xl border border-rose-100 shadow-sm text-gray-400 hover:text-rose-500 hover:border-rose-200 transition-all"
+          >
+            <BellRing className="w-5 h-5" />
+            {notificationHistory.length > 0 && (
+              <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white" />
+            )}
+          </button>
+
+          <div className="bg-white px-4 py-2 rounded-xl border border-rose-100 shadow-sm flex items-center gap-3">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+            <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">Sistema Online</span>
+          </div>
         </div>
       </header>
+
+      {/* Painel de Histórico de Notificações */}
+      <AnimatePresence>
+        {isHistoryOpen && (
+          <>
+            <div className="fixed inset-0 z-[140]" onClick={() => setIsHistoryOpen(false)} />
+            <motion.div
+              initial={{ opacity: 0, y: -20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.95 }}
+              className="absolute right-0 top-16 z-[145] w-80 bg-white rounded-3xl shadow-2xl border border-rose-50 overflow-hidden"
+            >
+              <div className="p-4 border-b border-rose-50 bg-rose-50/30 flex justify-between items-center">
+                <h3 className="font-bold text-gray-900">Notificações Recentes</h3>
+                <span className="text-[10px] font-bold text-rose-500 bg-rose-100 px-2 py-1 rounded-full">
+                  {notificationHistory.length}
+                </span>
+              </div>
+              <div className="max-h-96 overflow-y-auto divide-y divide-gray-50">
+                {notificationHistory.length > 0 ? (
+                  notificationHistory.map((notif) => (
+                    <div key={notif.id} className="p-4 hover:bg-gray-50 transition-colors flex gap-3">
+                      <div className={cn(
+                        "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
+                        notif.type === 'info' ? "bg-blue-100 text-blue-600" :
+                        notif.type === 'warning' ? "bg-amber-100 text-amber-600" :
+                        "bg-red-100 text-red-600"
+                      )}>
+                        {notif.type === 'error' ? <AlertCircle className="w-4 h-4" /> : <BellRing className="w-4 h-4" />}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-900 leading-tight mb-1">{notif.message}</p>
+                        <p className="text-[10px] text-gray-400">{format(notif.date, 'HH:mm', { locale: ptBR })}</p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-8 text-center">
+                    <BellRing className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+                    <p className="text-sm text-gray-400">Nenhuma notificação por enquanto.</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Alertas Rápidos */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {tomorrowAppointments.length > 0 && (
+          <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl flex items-center gap-3">
+            <div className="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200">
+              <CalendarIcon className="text-white w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-blue-400 uppercase">Amanhã</p>
+              <p className="text-sm font-bold text-blue-800">Você tem {tomorrowAppointments.length} atendimentos agendados para amanhã</p>
+            </div>
+          </div>
+        )}
+
+        {delayedAppointments.length > 0 && (
+          <div className="bg-red-50 border border-red-100 p-4 rounded-2xl flex items-center gap-3">
+            <div className="w-10 h-10 bg-red-500 rounded-xl flex items-center justify-center shadow-lg shadow-red-200">
+              <AlertCircle className="text-white w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-red-400 uppercase">Atraso</p>
+              <p className="text-sm font-bold text-red-800">{delayedAppointments.length} atendimento(s) em atraso</p>
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <StatCard 
@@ -156,10 +283,10 @@ const Dashboard = ({ appointments, clients, procedures, onNavigateToAgenda }: { 
           clickable
         />
         <StatCard 
-          title="Faturamento Hoje" 
-          value={formatCurrency(dailyRevenue)} 
-          icon={<DollarSign className="w-5 h-5" />} 
-          color="bg-green-100 text-green-600" 
+          title="Próximo em" 
+          value={todayAppointments.find(a => a.status === 'confirmado')?.date ? format(parseISO(todayAppointments.find(a => a.status === 'confirmado')!.date), 'HH:mm') : '--:--'} 
+          icon={<Clock className="w-5 h-5" />} 
+          color="bg-blue-100 text-blue-600" 
         />
         <StatCard 
           title="Pendentes (Não foram)" 
@@ -170,7 +297,7 @@ const Dashboard = ({ appointments, clients, procedures, onNavigateToAgenda }: { 
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-rose-50">
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-rose-50 lg:col-span-3">
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <Clock className="w-5 h-5 text-rose-500" />
             Próximos Atendimentos
@@ -181,9 +308,15 @@ const Dashboard = ({ appointments, clients, procedures, onNavigateToAgenda }: { 
                 const client = clients.find(c => c.id === app.clientId);
                 const proc = procedures.find(p => p.id === app.procedureId);
                 return (
-                  <div key={app.id} className="flex items-center justify-between p-4 rounded-xl bg-gray-50 hover:bg-rose-50 transition-colors">
+                  <div key={app.id} className={cn(
+                    "flex items-center justify-between p-4 rounded-xl transition-colors",
+                    app.status === 'atrasado' ? "bg-red-50 border border-red-100 animate-pulse" : "bg-gray-50 hover:bg-rose-50"
+                  )}>
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-full bg-rose-200 flex items-center justify-center text-rose-700 font-bold">
+                      <div className={cn(
+                        "w-12 h-12 rounded-full flex items-center justify-center font-bold",
+                        app.status === 'atrasado' ? "bg-red-500 text-white" : "bg-rose-200 text-rose-700"
+                      )}>
                         {client?.name.charAt(0)}
                       </div>
                       <div>
@@ -195,7 +328,8 @@ const Dashboard = ({ appointments, clients, procedures, onNavigateToAgenda }: { 
                       "px-3 py-1 rounded-full text-xs font-medium",
                       app.status === 'confirmado' ? "bg-blue-100 text-blue-700" : 
                       app.status === 'realizado' ? "bg-green-100 text-green-700" : 
-                      app.status === 'pendente' ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"
+                      app.status === 'pendente' ? "bg-amber-100 text-amber-700" : 
+                      app.status === 'atrasado' ? "bg-red-500 text-white" : "bg-red-100 text-red-700"
                     )}>
                       {app.status.charAt(0).toUpperCase() + app.status.slice(1)}
                     </div>
@@ -205,28 +339,6 @@ const Dashboard = ({ appointments, clients, procedures, onNavigateToAgenda }: { 
             ) : (
               <p className="text-gray-500 text-center py-8">Nenhum atendimento para hoje.</p>
             )}
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-rose-50">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-rose-500" />
-            Resumo da Semana
-          </h2>
-          <div className="space-y-6">
-            <div className="flex justify-between items-end h-32 gap-2">
-              {[4, 6, 3, 8, 5, 2, 0].map((h, i) => (
-                <div key={i} className="flex-1 flex flex-col items-center gap-2">
-                  <div 
-                    className="w-full bg-rose-200 rounded-t-lg transition-all hover:bg-rose-400" 
-                    style={{ height: `${(h / 8) * 100}%` }}
-                  />
-                  <span className="text-[10px] text-gray-400 font-medium">
-                    {['S', 'T', 'Q', 'Q', 'S', 'S', 'D'][i]}
-                  </span>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
       </div>
@@ -274,7 +386,8 @@ const Agenda = ({
     realizado: "text-green-500",
     faltou: "text-red-500",
     pendente: "text-amber-500",
-    desmarcado: "text-gray-400"
+    desmarcado: "text-gray-400",
+    atrasado: "text-red-600 font-bold animate-pulse"
   };
 
   const statusLabels: Record<AppointmentStatus, string> = {
@@ -282,7 +395,8 @@ const Agenda = ({
     realizado: "Realizado",
     faltou: "Pendente (Follow-up)",
     pendente: "Aguardando",
-    desmarcado: "Desmarcado"
+    desmarcado: "Desmarcado",
+    atrasado: "Atrasado"
   };
 
   return (
@@ -664,7 +778,8 @@ const AppointmentsTab = ({
     realizado: "Realizado",
     faltou: "Pendente (Follow-up)",
     pendente: "Aguardando",
-    desmarcado: "Desmarcado"
+    desmarcado: "Desmarcado",
+    atrasado: "Atrasado"
   };
 
   const statusColors: Record<AppointmentStatus, string> = {
@@ -672,7 +787,8 @@ const AppointmentsTab = ({
     realizado: "bg-green-100 text-green-700",
     faltou: "bg-red-100 text-red-700",
     pendente: "bg-amber-100 text-amber-700",
-    desmarcado: "bg-gray-400 text-white"
+    desmarcado: "bg-gray-400 text-white",
+    atrasado: "bg-red-500 text-white animate-pulse shadow-lg shadow-red-200"
   };
 
   return (
@@ -700,7 +816,7 @@ const AppointmentsTab = ({
             />
           </div>
           <div className="flex gap-2 bg-white p-1 rounded-xl border border-rose-50 shadow-sm">
-            {(['todos', 'pendente', 'confirmado', 'realizado', 'faltou'] as const).map((s) => (
+            {(['todos', 'pendente', 'confirmado', 'atrasado', 'realizado', 'faltou'] as const).map((s) => (
               <button
                 key={s}
                 onClick={() => setFilter(s)}
@@ -964,113 +1080,118 @@ const BudgetsTab = ({
   );
 };
 
-const FollowUpTab = ({ leads, appointments, clients, procedures, onUpdateStatus }: { leads: Lead[], appointments: Appointment[], clients: Client[], procedures: Procedure[], onUpdateStatus: (id: string, status: Lead['status']) => void }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'leads' | 'post-proc' | 'immediate'>('leads');
-
-  const missedAppointments = appointments
-    .filter(a => a.status === 'faltou')
-    .sort((a, b) => parseISO(b.date).getTime() - parseISO(a.date).getTime());
-
-  const completedAppointments = appointments
-    .filter(a => a.status === 'realizado')
-    .sort((a, b) => parseISO(b.date).getTime() - parseISO(a.date).getTime());
-
+const FollowUpTab = ({ 
+  followUps, 
+  onOpenNewFollowUp,
+  onUpdateStatus,
+  onDelete
+}: { 
+  followUps: FollowUp[], 
+  onOpenNewFollowUp: () => void,
+  onUpdateStatus: (id: string, status: FollowUp['status']) => void,
+  onDelete: (id: string) => void
+}) => {
   return (
     <div className="space-y-6">
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+      <header className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Follow-up Inteligente</h1>
-          <p className="text-sm text-gray-500">Mantenha o relacionamento com suas clientes ativo.</p>
+          <h1 className="text-2xl font-black text-gray-900 tracking-tight">Follow-up</h1>
+          <p className="text-sm font-medium text-gray-500 text-balance">Gerencie o acompanhamento pós-procedimento de suas clientes.</p>
         </div>
-        <div className="flex bg-white p-1 rounded-2xl border border-rose-50 shadow-sm">
-          {['leads', 'post-proc', 'immediate'].map((tab) => (
-            <button 
-              key={tab}
-              onClick={() => setActiveSubTab(tab as any)}
-              className={cn(
-                "px-4 py-2 rounded-xl text-xs font-bold transition-all capitalize",
-                activeSubTab === tab ? "bg-rose-500 text-white shadow-md" : "text-gray-500 hover:bg-rose-50"
-              )}
-            >
-              {tab === 'leads' ? 'Leads' : tab === 'post-proc' ? 'Pós-Procedimento' : 'Pendentes (Não foram)'}
-            </button>
-          ))}
-        </div>
+        <button 
+          onClick={onOpenNewFollowUp}
+          className="bg-rose-500 text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-rose-200 hover:bg-rose-600 transition-all flex items-center gap-2"
+        >
+          <Plus className="w-5 h-5" />
+          Novo Follow-up
+        </button>
       </header>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-4">
-          {activeSubTab === 'leads' ? (
-            leads.map((lead) => (
-              <div key={lead.id} className="bg-white p-5 rounded-3xl shadow-sm border border-rose-50 flex items-center justify-between group hover:border-rose-200 transition-all">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-rose-100 flex items-center justify-center text-rose-600 font-bold">
-                    {lead.name.charAt(0)}
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-gray-900">{lead.name}</h3>
-                    <p className="text-xs text-gray-500 italic">"{lead.lastMessage}"</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase">{lead.platform}</span>
-                  <button className="p-2 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-500 hover:text-white transition-all">
-                    <MessageCircle className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-            ))
-          ) : activeSubTab === 'post-proc' ? (
-            completedAppointments.map((app) => {
-              const client = clients.find(c => c.id === app.clientId);
-              const proc = procedures.find(p => p.id === app.procedureId);
-              return (
-                <div key={app.id} className="bg-white p-5 rounded-3xl shadow-sm border border-rose-50 flex items-center justify-between group hover:border-rose-200 transition-all">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-green-100 flex items-center justify-center text-green-600 font-bold">
-                      {client?.name.charAt(0)}
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-gray-900">{client?.name}</h3>
-                      <p className="text-xs text-gray-500">{proc?.name} • Realizado em {format(parseISO(app.date), 'dd/MM')}</p>
-                    </div>
-                  </div>
-                  <button className="p-2 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-500 hover:text-white transition-all">
-                    <MessageCircle className="w-5 h-5" />
-                  </button>
-                </div>
-              );
-            })
-          ) : (
-            missedAppointments.map((app) => {
-              const client = clients.find(c => c.id === app.clientId);
-              const proc = procedures.find(p => p.id === app.procedureId);
-              return (
-                <div key={app.id} className="bg-white p-5 rounded-3xl shadow-sm border border-rose-50 flex items-center justify-between group hover:border-rose-200 transition-all">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center text-amber-600 font-bold">
-                      {client?.name.charAt(0)}
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-gray-900">{client?.name}</h3>
-                      <p className="text-xs text-gray-500">{proc?.name} • Faltou em {format(parseISO(app.date), 'dd/MM')}</p>
-                    </div>
-                  </div>
-                  <button className="p-2 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-500 hover:text-white transition-all">
-                    <MessageCircle className="w-5 h-5" />
-                  </button>
-                </div>
-              );
-            })
-          )}
-        </div>
 
-        <div className="space-y-6">
-          <div className="bg-rose-500 p-6 rounded-3xl text-white shadow-lg shadow-rose-200">
-            <Activity className="w-8 h-8 mb-4 opacity-80" />
-            <h2 className="text-xl font-bold mb-2">Régua de Relacionamento</h2>
-            <p className="text-xs text-rose-50">Dicas automáticas para aumentar sua conversão.</p>
-          </div>
+      <div className="bg-white rounded-3xl shadow-sm border border-rose-50 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-rose-50/50">
+                <th className="p-4 text-[10px] font-black text-rose-400 uppercase tracking-wider">Cliente</th>
+                <th className="p-4 text-[10px] font-black text-rose-400 uppercase tracking-wider">Procedimento</th>
+                <th className="p-4 text-[10px] font-black text-rose-400 uppercase tracking-wider">Profissional</th>
+                <th className="p-4 text-[10px] font-black text-rose-400 uppercase tracking-wider">Data Follow-up</th>
+                <th className="p-4 text-[10px] font-black text-rose-400 uppercase tracking-wider">Status</th>
+                <th className="p-4 text-[10px] font-black text-rose-400 uppercase tracking-wider">Observação</th>
+                <th className="p-4 text-[10px] font-black text-rose-400 uppercase tracking-wider text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {followUps.length > 0 ? (
+                followUps.map(fu => (
+                  <tr key={fu.id} className="hover:bg-rose-50/30 transition-colors">
+                    <td className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center font-bold text-rose-600 text-xs">
+                          {fu.clientName.charAt(0)}
+                        </div>
+                        <span className="font-bold text-gray-900">{fu.clientName}</span>
+                      </div>
+                    </td>
+                    <td className="p-4 text-sm text-gray-600 font-medium">{fu.procedureName}</td>
+                    <td className="p-4 text-sm text-gray-600">{fu.professionalName}</td>
+                    <td className="p-4 text-sm text-gray-600">{format(parseISO(fu.date), 'dd/MM/yyyy')}</td>
+                    <td className="p-4">
+                      <span className={cn(
+                        "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider",
+                        fu.status === 'Pendente' ? "bg-amber-100 text-amber-700" :
+                        fu.status === 'Em andamento' ? "bg-blue-100 text-blue-700" :
+                        "bg-green-100 text-green-700"
+                      )}>
+                        {fu.status}
+                      </span>
+                    </td>
+                    <td className="p-4 text-sm text-gray-500 max-w-xs truncate">{fu.observation}</td>
+                    <td className="p-4 text-right">
+                      <div className="flex justify-end gap-2">
+                        <button className="p-2 text-gray-400 hover:text-rose-500 transition-colors" title="Ver detalhes">
+                          <Eye className="w-5 h-5" />
+                        </button>
+                        <button className="p-2 text-green-500 hover:bg-green-50 rounded-lg transition-colors" title="Abrir WhatsApp">
+                          <MessageCircle className="w-5 h-5" />
+                        </button>
+                        {fu.status !== 'Concluído' && (
+                          <button 
+                            onClick={() => onUpdateStatus(fu.id, 'Concluído')}
+                            className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors" 
+                            title="Marcar como concluído"
+                          >
+                            <CheckCircle className="w-5 h-5" />
+                          </button>
+                        )}
+                        <button 
+                          onClick={() => onDelete(fu.id)}
+                          className="p-2 text-gray-300 hover:text-red-500 transition-colors" 
+                          title="Excluir"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={7} className="p-12 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center">
+                        <BellRing className="w-8 h-8 text-rose-200" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-gray-900">Nenhum follow-up pendente</p>
+                        <p className="text-xs text-gray-400">Clique em "Novo Follow-up" para criar um acompanhamento manual.</p>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -1375,9 +1496,11 @@ export default function App() {
   const [financialEntries, setFinancialEntries] = useState<FinancialEntry[]>(MOCK_FINANCIAL);
   const [leads, setLeads] = useState<Lead[]>(MOCK_LEADS);
   const [budgets, setBudgets] = useState<Budget[]>(MOCK_BUDGETS);
+  const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   
   const [isNewAppModalOpen, setIsNewAppModalOpen] = useState(false);
   const [isNewClientModalOpen, setIsNewClientModalOpen] = useState(false);
+  const [isNewFollowUpModalOpen, setIsNewFollowUpModalOpen] = useState(false);
   const [clientStep, setClientStep] = useState(1);
   const [selectedDateForNewApp, setSelectedDateForNewApp] = useState(new Date());
 
@@ -1392,6 +1515,79 @@ export default function App() {
     message: '',
     onConfirm: () => {}
   });
+
+  const [alerts, setAlerts] = useState<{ id: string, message: string, type: 'info' | 'warning' | 'error' }[]>([]);
+  const [notificationHistory, setNotificationHistory] = useState<{ id: string, message: string, type: 'info' | 'warning' | 'error', date: Date }[]>([]);
+  const shownAlerts = React.useRef<Set<string>>(new Set());
+
+  // Lógica de Alertas
+  React.useEffect(() => {
+    const checkAlerts = () => {
+      const now = new Date();
+      const newAlerts: { id: string, message: string, type: 'info' | 'warning' | 'error' }[] = [];
+      const updatedAppointments = [...appointments];
+      let hasChanges = false;
+
+      appointments.forEach(app => {
+        const appDate = parseISO(app.date);
+        const diffMinutes = differenceInMinutes(appDate, now);
+
+        // 1. Alerta de 1 dia antes
+        if (isTomorrow(appDate)) {
+          const alertId = `tomorrow-${app.id}`;
+          if (!shownAlerts.current.has(alertId)) {
+            if (!newAlerts.find(a => a.id === 'tomorrow-general')) {
+              newAlerts.push({ id: 'tomorrow-general', message: 'Você tem atendimentos agendados para amanhã', type: 'info' });
+              shownAlerts.current.add(alertId);
+            }
+          }
+        }
+
+        // 2. Alerta de 10 minutos antes
+        if (diffMinutes <= 10 && diffMinutes > 0 && app.status === 'confirmado') {
+          const alertId = `10min-${app.id}`;
+          if (!shownAlerts.current.has(alertId)) {
+            newAlerts.push({ id: alertId, message: `Seu próximo atendimento começa em ${diffMinutes} minutos`, type: 'warning' });
+            shownAlerts.current.add(alertId);
+          }
+        }
+
+        // 3. Alerta de Atraso
+        if (isAfter(now, appDate) && app.status === 'confirmado') {
+          const alertId = `delay-${app.id}`;
+          const index = updatedAppointments.findIndex(a => a.id === app.id);
+          if (index !== -1 && updatedAppointments[index].status !== 'atrasado') {
+            updatedAppointments[index] = { ...updatedAppointments[index], status: 'atrasado' };
+            hasChanges = true;
+            
+            if (!shownAlerts.current.has(alertId)) {
+              newAlerts.push({ id: alertId, message: `Atendimento atrasado: Verifique o horário`, type: 'error' });
+              shownAlerts.current.add(alertId);
+            }
+          }
+        }
+      });
+
+      if (hasChanges) {
+        setAppointments(updatedAppointments);
+      }
+
+      if (newAlerts.length > 0) {
+        const historyEntries = newAlerts.map(a => ({ ...a, date: new Date() }));
+        setNotificationHistory(prev => [...historyEntries, ...prev].slice(0, 20));
+        setAlerts(prev => [...prev, ...newAlerts].slice(-3));
+        
+        // Remove alertas visuais após 10 segundos, mas eles continuam no 'shownAlerts' para não repetir
+        setTimeout(() => {
+          setAlerts(prev => prev.filter(a => !newAlerts.some(na => na.id === a.id)));
+        }, 10000);
+      }
+    };
+
+    checkAlerts();
+    const interval = setInterval(checkAlerts, 30000); // Checa a cada 30s
+    return () => clearInterval(interval);
+  }, [appointments]); // Removido 'role' da dependência
 
   const showConfirm = (title: string, message: string, onConfirm: () => void) => {
     setConfirmModal({ isOpen: true, title, message, onConfirm });
@@ -1466,6 +1662,23 @@ export default function App() {
     setBudgets(prev => [...prev, budget]);
   };
 
+  const handleAddFollowUp = (followUp: FollowUp) => {
+    setFollowUps(prev => [followUp, ...prev]);
+    setIsNewFollowUpModalOpen(false);
+  };
+
+  const handleUpdateFollowUpStatus = (id: string, status: FollowUp['status']) => {
+    setFollowUps(prev => prev.map(fu => fu.id === id ? { ...fu, status } : fu));
+  };
+
+  const handleDeleteFollowUp = (id: string) => {
+    showConfirm(
+      'Excluir Follow-up',
+      'Tem certeza que deseja excluir este acompanhamento?',
+      () => setFollowUps(prev => prev.filter(fu => fu.id !== id))
+    );
+  };
+
   const handleDeleteBudget = (id: string) => {
     showConfirm('Excluir Orçamento', 'Tem certeza que deseja excluir este orçamento?', () => {
       setBudgets(prev => prev.filter(b => b.id !== id));
@@ -1510,7 +1723,15 @@ export default function App() {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'dashboard': return <Dashboard appointments={appointments} clients={clients} procedures={procedures} onNavigateToAgenda={() => setActiveTab('agenda')} />;
+      case 'dashboard': return (
+        <Dashboard 
+          appointments={appointments} 
+          clients={clients} 
+          procedures={procedures} 
+          onNavigateToAgenda={() => setActiveTab('agenda')} 
+          notificationHistory={notificationHistory}
+        />
+      );
       case 'agenda': return (
         <Agenda 
           appointments={appointments} 
@@ -1558,7 +1779,14 @@ export default function App() {
           onDeleteBudget={handleDeleteBudget}
         />
       );
-      case 'follow-up': return <FollowUpTab leads={leads} appointments={appointments} clients={clients} procedures={procedures} onUpdateStatus={handleUpdateLeadStatus} />;
+      case 'follow-up': return (
+        <FollowUpTab 
+          followUps={followUps} 
+          onOpenNewFollowUp={() => setIsNewFollowUpModalOpen(true)}
+          onUpdateStatus={handleUpdateFollowUpStatus}
+          onDelete={handleDeleteFollowUp}
+        />
+      );
       case 'financeiro': return (
         <FinancialTab 
           appointments={appointments} 
@@ -1578,12 +1806,21 @@ export default function App() {
           onDeleteProcedure={handleDeleteProcedure}
         />
       );
-      default: return <Dashboard appointments={appointments} clients={clients} procedures={procedures} onNavigateToAgenda={() => setActiveTab('agenda')} />;
+      default: return (
+        <Dashboard 
+          appointments={appointments} 
+          clients={clients} 
+          procedures={procedures} 
+          onNavigateToAgenda={() => setActiveTab('agenda')} 
+          notificationHistory={notificationHistory}
+        />
+      );
     }
   };
 
   return (
     <div className="min-h-screen flex font-sans transition-colors duration-300 bg-[#FFF9F9] text-gray-900">
+      <NotificationCenter alerts={alerts} />
       {/* Modals (Placeholders for reconstruction) */}
       {isNewAppModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -1708,6 +1945,79 @@ export default function App() {
                 >
                   Agendar
                 </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {isNewFollowUpModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl"
+          >
+            <h2 className="text-2xl font-black text-gray-900 mb-6">Novo Follow-up</h2>
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                
+                const clientName = formData.get('clientName') as string;
+                const procedureName = formData.get('procedureName') as string;
+                const professionalName = formData.get('professionalName') as string;
+                const date = formData.get('date') as string;
+                const status = formData.get('status') as FollowUp['status'];
+                const observation = formData.get('observation') as string;
+                
+                if (!clientName || !procedureName || !date) return;
+
+                handleAddFollowUp({
+                  id: Math.random().toString(36).substr(2, 9),
+                  clientName,
+                  procedureName,
+                  professionalName,
+                  date,
+                  status,
+                  observation
+                });
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-xs font-black text-gray-400 uppercase mb-2">Nome da Cliente</label>
+                <input type="text" name="clientName" required className="w-full bg-gray-50 border-none rounded-2xl p-4 font-bold text-gray-700 focus:ring-2 focus:ring-rose-500" placeholder="Ex: Maria Silva" />
+              </div>
+              <div>
+                <label className="block text-xs font-black text-gray-400 uppercase mb-2">Procedimento Realizado</label>
+                <input type="text" name="procedureName" required className="w-full bg-gray-50 border-none rounded-2xl p-4 font-bold text-gray-700 focus:ring-2 focus:ring-rose-500" placeholder="Ex: Limpeza de Pele" />
+              </div>
+              <div>
+                <label className="block text-xs font-black text-gray-400 uppercase mb-2">Profissional Responsável</label>
+                <input type="text" name="professionalName" className="w-full bg-gray-50 border-none rounded-2xl p-4 font-bold text-gray-700 focus:ring-2 focus:ring-rose-500" placeholder="Ex: Dra. Brenda" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-black text-gray-400 uppercase mb-2">Data Follow-up</label>
+                  <input type="date" name="date" required defaultValue={format(new Date(), 'yyyy-MM-dd')} className="w-full bg-gray-50 border-none rounded-2xl p-4 font-bold text-gray-700 focus:ring-2 focus:ring-rose-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-gray-400 uppercase mb-2">Status</label>
+                  <select name="status" className="w-full bg-gray-50 border-none rounded-2xl p-4 font-bold text-gray-700 focus:ring-2 focus:ring-rose-500">
+                    <option value="Pendente">Pendente</option>
+                    <option value="Em andamento">Em andamento</option>
+                    <option value="Concluído">Concluído</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-black text-gray-400 uppercase mb-2">Observação</label>
+                <textarea name="observation" rows={3} className="w-full bg-gray-50 border-none rounded-2xl p-4 font-bold text-gray-700 focus:ring-2 focus:ring-rose-500" placeholder="Detalhes do acompanhamento..."></textarea>
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button type="button" onClick={() => setIsNewFollowUpModalOpen(false)} className="flex-1 py-4 rounded-2xl font-bold text-gray-500 hover:bg-gray-50 transition-all">Cancelar</button>
+                <button type="submit" className="flex-1 bg-rose-500 text-white py-4 rounded-2xl font-bold shadow-lg shadow-rose-200">Salvar</button>
               </div>
             </form>
           </motion.div>

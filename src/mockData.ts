@@ -50,6 +50,30 @@ export const MOCK_APPOINTMENTS: Appointment[] = [
     date: new Date(Date.now() + 7200000).toISOString(),
     status: 'confirmado',
     price: 100
+  },
+  {
+    id: 'a4',
+    clientId: 'c4',
+    procedureId: '4',
+    date: new Date(Date.now() + 300000).toISOString(), // 5 min
+    status: 'confirmado',
+    price: 100
+  },
+  {
+    id: 'a5',
+    clientId: 'c1',
+    procedureId: '1',
+    date: new Date(new Date().setDate(new Date().getDate() + 1)).toISOString(), // Amanhã
+    status: 'confirmado',
+    price: 150
+  },
+  {
+    id: 'a6',
+    clientId: 'c2',
+    procedureId: '2',
+    date: new Date(Date.now() - 600000).toISOString(), // 10 min atrás
+    status: 'confirmado',
+    price: 180
   }
 ];
 

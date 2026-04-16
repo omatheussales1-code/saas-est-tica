@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export type AppointmentStatus = 'confirmado' | 'realizado' | 'faltou' | 'pendente' | 'desmarcado';
+export type AppointmentStatus = 'confirmado' | 'realizado' | 'faltou' | 'pendente' | 'desmarcado' | 'atrasado';
 
 export interface Procedure {
   id: string;
@@ -82,4 +82,14 @@ export interface Budget {
   date: string;
   status: 'pendente' | 'aprovado' | 'rejeitado';
   validUntil: string;
+}
+
+export interface FollowUp {
+  id: string;
+  clientName: string;
+  procedureName: string;
+  professionalName: string;
+  date: string;
+  status: 'Pendente' | 'Em andamento' | 'Concluído';
+  observation: string;
 }
