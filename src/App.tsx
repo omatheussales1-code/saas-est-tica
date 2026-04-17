@@ -48,7 +48,8 @@ import {
   subDays,
   isTomorrow,
   differenceInMinutes,
-  isAfter
+  isAfter,
+  isValid
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'motion/react';
@@ -62,6 +63,8 @@ import {
   deleteDoc, 
   doc, 
   setDoc,
+  getDoc,
+  getDocs,
   Timestamp 
 } from 'firebase/firestore';
 import { onAuthStateChanged, User } from 'firebase/auth';
@@ -139,7 +142,6 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     path
   };
   console.error('Firestore Error: ', JSON.stringify(errInfo));
-  // We can show a notification to the user here if needed
 }
 
 // --- Components ---
@@ -236,10 +238,11 @@ const Dashboard = ({
   notificationHistory: { id: string, message: string, type: 'info' | 'warning' | 'error', date: Date }[]
 }) => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const todayAppointments = appointments.filter(a => isToday(parseISO(a.date)));
-  const tomorrowAppointments = appointments.filter(a => isTomorrow(parseISO(a.date)));
+  const todayAppointments = appointments.filter(a => a.date && isToday(parseISO(a.date)));
+  const tomorrowAppointments = appointments.filter(a => a.date && isTomorrow(parseISO(a.date)));
   const delayedAppointments = appointments.filter(a => a.status === 'atrasado');
   
+  const nextApp = todayAppointments.find(a => a.status === 'confirmado');
   const missedAppointments = appointments.filter(a => a.status === 'faltou').length;
   
   return (
@@ -352,7 +355,7 @@ const Dashboard = ({
         />
         <StatCard 
           title="Próximo em" 
-          value={todayAppointments.find(a => a.status === 'confirmado')?.date ? format(parseISO(todayAppointments.find(a => a.status === 'confirmado')!.date), 'HH:mm') : '--:--'} 
+          value={nextApp?.date ? format(parseISO(nextApp.date), 'HH:mm') : '--:--'} 
           icon={<Clock className="w-5 h-5" />} 
           color="bg-blue-100 text-blue-600" 
         />
@@ -385,11 +388,11 @@ const Dashboard = ({
                         "w-12 h-12 rounded-full flex items-center justify-center font-bold",
                         app.status === 'atrasado' ? "bg-red-500 text-white" : "bg-rose-200 text-rose-700"
                       )}>
-                        {client?.name.charAt(0)}
+                        {client?.name?.charAt(0) || '?'}
                       </div>
                       <div>
                         <p className="font-medium text-gray-900">{client?.name}</p>
-                        <p className="text-sm text-gray-500">{proc?.name} • {format(parseISO(app.date), 'HH:mm')}</p>
+                        <p className="text-sm text-gray-500">{proc?.name} • {app.date ? format(parseISO(app.date), 'HH:mm') : '--:--'}</p>
                       </div>
                     </div>
                     <div className={cn(
@@ -399,7 +402,7 @@ const Dashboard = ({
                       app.status === 'pendente' ? "bg-amber-100 text-amber-700" : 
                       app.status === 'atrasado' ? "bg-red-500 text-white" : "bg-red-100 text-red-700"
                     )}>
-                      {app.status.charAt(0).toUpperCase() + app.status.slice(1)}
+                      {(app.status || '').charAt(0).toUpperCase() + (app.status || '').slice(1)}
                     </div>
                   </div>
                 );
@@ -443,10 +446,10 @@ const Agenda = ({
   const calendarDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
   const dayAppointments = appointments.filter(a => isSameDay(parseISO(a.date), selectedDate))
-    .sort((a, b) => a.date.localeCompare(b.date));
+    .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
   const getAppointmentsForDay = (date: Date) => {
-    return appointments.filter(a => isSameDay(parseISO(a.date), date));
+    return appointments.filter(a => a.date && isSameDay(parseISO(a.date), date));
   };
 
   const statusColors: Record<AppointmentStatus, string> = {
@@ -535,7 +538,7 @@ const Agenda = ({
                           app.status === 'faltou' ? 'bg-red-500' : 'bg-amber-500'
                         )} />
                         <span className="text-[10px] font-medium text-gray-500 truncate">
-                          {clients.find(c => c.id === app.clientId)?.name.split(' ')[0]}
+                          {clients.find(c => c.id === app.clientId)?.name?.split(' ')[0] || 'Cliente'}
                         </span>
                       </div>
                     ))}
@@ -576,11 +579,11 @@ const Agenda = ({
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center text-rose-600 font-bold">
-                          {client?.name.charAt(0)}
+                          {client?.name?.charAt(0) || '?'}
                         </div>
                         <div>
-                          <p className="font-bold text-gray-900 text-sm">{client?.name}</p>
-                          <p className="text-xs text-gray-500">{format(parseISO(app.date), 'HH:mm')} • {proc?.name}</p>
+                          <p className="font-bold text-gray-900 text-sm">{client?.name || 'Cliente Excluída'}</p>
+                          <p className="text-xs text-gray-500">{app.date ? format(parseISO(app.date), 'HH:mm') : '--:--'} • {proc?.name || 'Procedimento'}</p>
                         </div>
                       </div>
                     </div>
@@ -655,13 +658,13 @@ const ClientsTab = ({
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   
   const filteredClients = clients.filter(c => 
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    c.phone.includes(searchTerm)
+    (c.name || '').toLowerCase().includes((searchTerm || '').toLowerCase()) || 
+    (c.phone || '').includes(searchTerm)
   );
 
   if (selectedClient) {
     const clientAppointments = appointments.filter(a => a.clientId === selectedClient.id)
-      .sort((a, b) => b.date.localeCompare(a.date));
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
     return (
       <div className="space-y-6">
@@ -694,9 +697,9 @@ const ClientsTab = ({
                 </button>
               </div>
               <div className="w-24 h-24 rounded-3xl bg-rose-100 flex items-center justify-center text-rose-600 text-3xl font-black mx-auto mb-4">
-                {selectedClient.name.charAt(0)}
+                {selectedClient.name?.charAt(0) || '?'}
               </div>
-              <h2 className="text-xl font-black text-gray-900">{selectedClient.name}</h2>
+              <h2 className="text-xl font-black text-gray-900">{selectedClient.name || 'Cliente'}</h2>
               <p className="text-gray-500 mb-6">{selectedClient.phone}</p>
             </div>
 
@@ -736,7 +739,7 @@ const ClientsTab = ({
                     <div key={app.id} className="flex justify-between items-center p-4 rounded-xl bg-gray-50">
                       <div>
                         <p className="font-bold text-gray-900">{proc?.name}</p>
-                        <p className="text-xs text-gray-500">{format(parseISO(app.date), "dd/MM/yyyy")}</p>
+                        <p className="text-xs text-gray-500">{app.date ? format(parseISO(app.date), "dd/MM/yyyy") : '-'}</p>
                       </div>
                       <span className="font-bold text-rose-600">{formatCurrency(app.price)}</span>
                     </div>
@@ -797,11 +800,11 @@ const ClientsTab = ({
             <div onClick={() => setSelectedClient(client)}>
               <div className="flex items-center gap-4 mb-4">
                 <div className="w-14 h-14 rounded-2xl bg-rose-100 flex items-center justify-center text-rose-600 text-xl font-bold">
-                  {client.name.charAt(0)}
+                  {client.name?.charAt(0) || '?'}
                 </div>
                 <div>
-                  <h3 className="font-bold text-gray-900 group-hover:text-rose-600 transition-colors">{client.name}</h3>
-                  <p className="text-sm text-gray-500">{client.phone}</p>
+                  <h3 className="font-bold text-gray-900 group-hover:text-rose-600 transition-colors">{client.name || 'Cliente'}</h3>
+                  <p className="text-sm text-gray-500">{client.phone || '-'}</p>
                 </div>
               </div>
             </div>
@@ -839,7 +842,7 @@ const AppointmentsTab = ({
       end: endOfDay(parseISO(endDate))
     });
     return statusMatch && dateMatch;
-  }).sort((a, b) => b.date.localeCompare(a.date));
+  }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
   const statusLabels: Record<AppointmentStatus, string> = {
     confirmado: "Confirmado",
@@ -919,15 +922,15 @@ const AppointmentsTab = ({
                 return (
                   <tr key={app.id} className="hover:bg-rose-50/30 transition-colors group">
                     <td className="px-6 py-4">
-                      <div className="text-sm font-bold text-gray-900">{format(parseISO(app.date), 'dd/MM/yyyy')}</div>
-                      <div className="text-xs text-gray-400">{format(parseISO(app.date), 'HH:mm')}</div>
+                      <div className="text-sm font-bold text-gray-900">{app.date ? format(parseISO(app.date), 'dd/MM/yyyy') : '-'}</div>
+                      <div className="text-xs text-gray-400">{app.date ? format(parseISO(app.date), 'HH:mm') : '--:--'}</div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-lg bg-rose-100 flex items-center justify-center text-rose-600 text-xs font-bold">
-                          {client?.name.charAt(0)}
+                          {client?.name?.charAt(0) || '?'}
                         </div>
-                        <div className="font-medium text-gray-900">{client?.name}</div>
+                        <div className="font-medium text-gray-900">{client?.name || 'Cliente Excluída'}</div>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">{proc?.name}</td>
@@ -1018,11 +1021,11 @@ const BudgetsTab = ({
     if (!client) return;
     const items = budget.items.map(item => {
       const p = procedures.find(proc => proc.id === item.procedureId);
-      return `${p?.name}: ${formatCurrency(item.price)}`;
+      return `${p?.name || 'Procedimento'}: ${formatCurrency(item.price)}`;
     }).join('\n');
     
-    const text = `Olá ${client.name}! Segue seu orçamento:\n\n${items}\n\nTotal: ${formatCurrency(budget.total)}\nVálido até: ${format(parseISO(budget.validUntil), 'dd/MM/yyyy')}`;
-    window.open(`https://wa.me/${client.phone.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`);
+    const text = `Olá ${client.name || 'Cliente'}! Segue seu orçamento:\n\n${items}\n\nTotal: ${formatCurrency(budget.total)}\nVálido até: ${budget.validUntil ? format(parseISO(budget.validUntil), 'dd/MM/yyyy') : '-'}`;
+    window.open(`https://wa.me/${(client.phone || '').replace(/\D/g, '')}?text=${encodeURIComponent(text)}`);
   };
 
   return (
@@ -1053,8 +1056,8 @@ const BudgetsTab = ({
               </div>
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h3 className="font-bold text-gray-900">{client?.name}</h3>
-                  <p className="text-xs text-gray-500">{format(parseISO(budget.date), 'dd/MM/yyyy')}</p>
+                  <h3 className="font-bold text-gray-900">{client?.name || 'Cliente'}</h3>
+                  <p className="text-xs text-gray-500">{budget.date ? format(parseISO(budget.date), 'dd/MM/yyyy') : '-'}</p>
                 </div>
                 <span className="px-2 py-1 rounded-lg bg-amber-100 text-amber-700 text-[10px] font-bold uppercase">
                   {budget.status}
@@ -1196,14 +1199,14 @@ const FollowUpTab = ({
                     <td className="p-4">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center font-bold text-rose-600 text-xs">
-                          {fu.clientName.charAt(0)}
+                          {fu.clientName?.charAt(0) || '?'}
                         </div>
-                        <span className="font-bold text-gray-900">{fu.clientName}</span>
+                        <span className="font-bold text-gray-900">{fu.clientName || 'Cliente'}</span>
                       </div>
                     </td>
-                    <td className="p-4 text-sm text-gray-600 font-medium">{fu.procedureName}</td>
-                    <td className="p-4 text-sm text-gray-600">{fu.professionalName}</td>
-                    <td className="p-4 text-sm text-gray-600">{format(parseISO(fu.date), 'dd/MM/yyyy')}</td>
+                    <td className="p-4 text-sm text-gray-600 font-medium">{fu.procedureName || 'Procedimento'}</td>
+                    <td className="p-4 text-sm text-gray-600">{fu.professionalName || '-'}</td>
+                    <td className="p-4 text-sm text-gray-600">{fu.date ? format(parseISO(fu.date), 'dd/MM/yyyy') : '-'}</td>
                     <td className="p-4">
                       <span className={cn(
                         "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider",
@@ -1294,7 +1297,7 @@ const FinancialTab = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!desc || !amount) return;
+    if (!desc || isNaN(parseFloat(amount))) return;
     onAddEntry({
       id: Math.random().toString(36).substr(2, 9),
       description: desc,
@@ -1322,10 +1325,10 @@ const FinancialTab = ({
     doc.text(`Gerado em: ${dateStr}`, 14, 38);
     
     const tableData = entries.map(e => [
-      format(parseISO(e.date), 'dd/MM/yyyy'),
-      e.description,
+      e.date ? format(parseISO(e.date), 'dd/MM/yyyy') : '-',
+      e.description || 'Sem descrição',
       e.type === 'receita' ? 'Entrou' : 'Saiu',
-      formatCurrency(e.amount)
+      formatCurrency(e.amount || 0)
     ]);
     
     (doc as any).autoTable({
@@ -1398,9 +1401,9 @@ const FinancialTab = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {entries.sort((a,b) => b.date.localeCompare(a.date)).map(entry => (
+              {[...entries].sort((a,b) => (b.date || '').localeCompare(a.date || '')).map(entry => (
                 <tr key={entry.id} className="group transition-colors hover:bg-rose-50/30">
-                  <td className="px-6 py-4 text-xs text-gray-400">{format(parseISO(entry.date), 'dd/MM/yy')}</td>
+                  <td className="px-6 py-4 text-xs text-gray-400">{entry.date ? format(parseISO(entry.date), 'dd/MM/yy') : '-'}</td>
                   <td className="px-6 py-4">
                     <div className="text-sm font-bold text-gray-900">{entry.description}</div>
                     <div className="text-[10px] uppercase text-gray-400">{entry.type === 'receita' ? 'Entrou' : 'Saiu'}</div>
@@ -1434,7 +1437,7 @@ const FinancialTab = ({
   );
 };
 
-const SettingsTab = ({ 
+const ServicesTab = ({ 
   procedures, 
   onAddProcedure, 
   onUpdateProcedure, 
@@ -1461,91 +1464,149 @@ const SettingsTab = ({
   };
 
   return (
-    <div className="max-w-4xl space-y-8">
-      <h1 className="text-2xl font-bold text-gray-800">Configurações</h1>
+    <div className="max-w-5xl space-y-8">
+      <div className="flex justify-between items-center text-left">
+        <div>
+          <h1 className="text-3xl font-black text-gray-900 tracking-tight">Serviços</h1>
+          <p className="text-sm font-medium text-gray-500">Gerencie seu catálogo de procedimentos e valores</p>
+        </div>
+        <button 
+          onClick={() => setIsAddingProc(true)}
+          className="bg-rose-500 text-white px-6 py-4 rounded-2xl font-bold shadow-lg shadow-rose-200 hover:bg-rose-600 transition-all flex items-center gap-2 active:scale-95"
+        >
+          <Plus className="w-5 h-5" /> Novo Serviço
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {procedures.map(proc => (
+          <motion.div 
+            key={proc.id}
+            layout
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white p-6 rounded-[32px] shadow-sm border border-rose-50 group hover:shadow-xl hover:shadow-rose-100/30 transition-all"
+          >
+            <div className="flex justify-between items-start mb-6">
+              <div className="w-14 h-14 bg-rose-50 rounded-2xl flex items-center justify-center text-rose-500 shadow-inner group-hover:scale-110 transition-transform">
+                <Activity className="w-7 h-7" />
+              </div>
+              <button 
+                onClick={() => onDeleteProcedure(proc.id)}
+                className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
+            </div>
+            <h3 className="text-xl font-black text-gray-900 mb-2">{proc.name}</h3>
+            <div className="flex items-center gap-3 text-sm font-bold text-gray-400 mb-8">
+              <span className="flex items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-lg"><Clock className="w-4 h-4 text-rose-400" /> {proc.duration} min</span>
+              <span className="text-rose-600 bg-rose-50 px-3 py-1.5 rounded-lg">{formatCurrency(proc.price)}</span>
+            </div>
+            <button className="w-full py-3.5 rounded-2xl border-2 border-gray-50 text-gray-400 font-bold hover:border-rose-100 hover:text-rose-600 hover:bg-rose-50/50 transition-all active:scale-95">
+              Editar Procedimento
+            </button>
+          </motion.div>
+        ))}
+      </div>
+
+      <AnimatePresence>
+        {isAddingProc && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-white p-10 rounded-[40px] w-full max-w-md shadow-2xl relative border border-rose-50"
+            >
+              <h2 className="text-3xl font-black text-gray-900 mb-8">Novo Serviço</h2>
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-gray-400 uppercase ml-4 tracking-widest text-left block">Nome do Serviço</label>
+                  <input 
+                    placeholder="Ex: Limpeza de Pele" 
+                    value={newProc.name}
+                    onChange={e => setNewProc(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full p-5 rounded-2xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-rose-500 transition-all font-bold text-gray-700 placeholder:text-gray-300"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-gray-400 uppercase ml-4 tracking-widest text-left block">Preço</label>
+                    <input 
+                      placeholder="0,00" 
+                      type="number"
+                      value={newProc.price}
+                      onChange={e => setNewProc(prev => ({ ...prev, price: e.target.value }))}
+                      className="w-full p-5 rounded-2xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-rose-500 transition-all font-bold text-gray-700 placeholder:text-gray-300"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-gray-400 uppercase ml-4 tracking-widest text-left block">Minutos</label>
+                    <input 
+                      placeholder="60" 
+                      type="number"
+                      value={newProc.duration}
+                      onChange={e => setNewProc(prev => ({ ...prev, duration: e.target.value }))}
+                      className="w-full p-5 rounded-2xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-rose-500 transition-all font-bold text-gray-700 placeholder:text-gray-300"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-4 pt-8">
+                  <button onClick={() => setIsAddingProc(false)} className="flex-1 py-5 font-bold text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-2xl transition-all">Cancelar</button>
+                  <button onClick={handleAdd} className="flex-1 bg-rose-500 text-white py-5 rounded-2xl font-bold shadow-xl shadow-rose-200 hover:bg-rose-600 hover:-translate-y-1 transition-all active:translate-y-0">Salvar</button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+const SettingsTab = ({ 
+  onResetMocks
+}: { 
+  onResetMocks: () => void
+}) => {
+  return (
+    <div className="max-w-4xl space-y-8 text-left">
+      <h1 className="text-3xl font-black text-gray-900 tracking-tight">Configurações</h1>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <section className="space-y-4">
-          <h2 className="text-lg font-semibold text-gray-700">Perfil Profissional</h2>
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-rose-50 space-y-4">
+          <h2 className="text-lg font-bold text-gray-800">Perfil Profissional</h2>
+          <div className="bg-white p-8 rounded-[32px] shadow-sm border border-rose-50 space-y-6">
             <div className="space-y-4">
               <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-400 uppercase">Nome Completo</label>
-                <input type="text" defaultValue="Brenda Fernandes" className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 transition-all" />
+                <label className="text-xs font-bold text-gray-400 uppercase ml-4">Nome Completo</label>
+                <input type="text" defaultValue="Brenda Fernandes" className="w-full p-4 rounded-2xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-rose-500 font-bold text-gray-700" />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-400 uppercase">Nome do Negócio</label>
-                <input type="text" defaultValue="Brenda Fernandes Estética" className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 transition-all" />
+                <label className="text-xs font-bold text-gray-400 uppercase ml-4">Nome do Negócio</label>
+                <input type="text" defaultValue="Brenda Fernandes Estética" className="w-full p-4 rounded-2xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-rose-500 font-bold text-gray-700" />
               </div>
-              <button className="w-full bg-rose-500 text-white py-3 rounded-xl font-bold shadow-lg shadow-rose-200 hover:bg-rose-600 transition-all">
-                Salvar Perfil
+              <button className="w-full bg-rose-500 text-white py-4 rounded-2xl font-bold shadow-lg shadow-rose-200 hover:bg-rose-600 transition-all">
+                Salvar Alterações
               </button>
             </div>
           </div>
         </section>
 
         <section className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h2 className="text-lg font-semibold text-gray-700">Procedimentos e Preços</h2>
+          <h2 className="text-lg font-bold text-gray-800">Dados de Demonstração</h2>
+          <div className="bg-white p-8 rounded-[32px] shadow-sm border border-rose-50 space-y-4">
+            <p className="text-sm text-gray-500 font-medium">
+              Esta opção irá carregar dados fictícios para teste. Use com cautela!
+            </p>
             <button 
-              onClick={() => setIsAddingProc(true)}
-              className="text-rose-500 font-bold text-sm flex items-center gap-1 hover:underline"
+              onClick={onResetMocks}
+              className="w-full bg-gray-900 text-white py-4 rounded-2xl font-bold hover:bg-black transition-all flex items-center justify-center gap-2"
             >
-              <Plus className="w-4 h-4" /> Adicionar
+              <Activity className="w-4 h-4 text-rose-500" /> Carregar Dados Mocks
             </button>
           </div>
-          
-          <div className="bg-white rounded-2xl shadow-sm border border-rose-50 overflow-hidden">
-            <div className="divide-y divide-gray-50">
-              {procedures.map(proc => (
-                <div key={proc.id} className="p-4 flex justify-between items-center group hover:bg-rose-50/30 transition-all">
-                  <div>
-                    <p className="font-bold text-gray-900">{proc.name}</p>
-                    <p className="text-xs text-gray-500">{proc.duration} min • {formatCurrency(proc.price)}</p>
-                  </div>
-                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button 
-                      onClick={() => onDeleteProcedure(proc.id)}
-                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {isAddingProc && (
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-rose-200 space-y-4 animate-in fade-in slide-in-from-top-2">
-              <input 
-                placeholder="Nome do Procedimento" 
-                value={newProc.name}
-                onChange={e => setNewProc(prev => ({ ...prev, name: e.target.value }))}
-                className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none"
-              />
-              <div className="grid grid-cols-2 gap-4">
-                <input 
-                  placeholder="Preço (R$)" 
-                  type="number"
-                  value={newProc.price}
-                  onChange={e => setNewProc(prev => ({ ...prev, price: e.target.value }))}
-                  className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none"
-                />
-                <input 
-                  placeholder="Duração (min)" 
-                  type="number"
-                  value={newProc.duration}
-                  onChange={e => setNewProc(prev => ({ ...prev, duration: e.target.value }))}
-                  className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none"
-                />
-              </div>
-              <div className="flex gap-3">
-                <button onClick={() => setIsAddingProc(false)} className="flex-1 py-3 font-bold text-gray-500">Cancelar</button>
-                <button onClick={handleAdd} className="flex-1 bg-rose-500 text-white py-3 rounded-xl font-bold">Adicionar</button>
-              </div>
-            </div>
-          )}
         </section>
       </div>
     </div>
@@ -1559,7 +1620,6 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   
   const [clients, setClients] = useState<Client[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -1569,7 +1629,7 @@ export default function App() {
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
 
-  // Auth & Sync
+  // Firebase Auth
   React.useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (u) => {
       setUser(u);
@@ -1578,6 +1638,7 @@ export default function App() {
     return () => unsubscribeAuth();
   }, []);
 
+  // Firebase Firestore Sync
   React.useEffect(() => {
     if (!user) {
       setClients([]);
@@ -1604,6 +1665,21 @@ export default function App() {
 
     return () => unsubscribers.forEach(u => u());
   }, [user]);
+
+  const signOutUser = async () => {
+    try {
+      await signOut(auth);
+    } catch (e) { console.error(e); }
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (e) {
+      console.error(e);
+      setAuthError('Falha ao entrar com Google. Tente o login por e-mail.');
+    }
+  };
   
   const [isNewAppModalOpen, setIsNewAppModalOpen] = useState(false);
   const [isNewClientModalOpen, setIsNewClientModalOpen] = useState(false);
@@ -1629,24 +1705,23 @@ export default function App() {
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (error: any) {
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-        // Se for o e-mail específico, tentamos cadastrar automaticamente para facilitar
-        if (email === 'brefer@gmail.com') {
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
+        const isDefaultAdmin = email === 'brefer@gmail.com' && password === 'brefer';
+        
+        if (isDefaultAdmin) {
           try {
+            // Attempt to sign in, if fails, create
+            await signInWithEmailAndPassword(auth, email, password);
+          } catch (signInErr: any) {
             await createUserWithEmailAndPassword(auth, email, password);
-            return;
-          } catch (createErr: any) {
-            setAuthError('Erro ao criar conta. Verifique se o login por e-mail está ativado no Firebase Console.');
           }
         } else {
           setAuthError('Usuário não encontrado ou senha incorreta.');
         }
-      } else if (error.code === 'auth/wrong-password') {
-        setAuthError('Senha incorreta.');
       } else if (error.code === 'auth/operation-not-allowed') {
-        setAuthError('O login por e-mail não está ativado no Firebase Console. Por favor, ative-o em "Authentication" > "Sign-in method".');
+        setAuthError('O login por e-mail não está ativado no Firebase Console.');
       } else {
-        setAuthError('Ocorreu um erro ao entrar. Tente novamente.');
+        setAuthError('Erro ao entrar. ' + error.message);
       }
     }
   };
@@ -1677,6 +1752,7 @@ export default function App() {
 
       appointments.forEach(app => {
         const appDate = parseISO(app.date);
+        if (!isValid(appDate)) return;
         const diffMinutes = differenceInMinutes(appDate, now);
 
         // 1. Alerta de 1 dia antes
@@ -1746,7 +1822,6 @@ export default function App() {
   };
 
   const handleUpdateStatus = async (id: string, status: AppointmentStatus) => {
-    if (!user) return;
     try {
       await updateDoc(doc(db, 'appointments', id), { status });
     } catch (e) { handleFirestoreError(e, OperationType.UPDATE, `appointments/${id}`); }
@@ -1775,7 +1850,6 @@ export default function App() {
   };
 
   const handleUndoMarkAsPaid = async (id: string) => {
-    if (!user) return;
     try {
       await updateDoc(doc(db, 'appointments', id), { status: 'confirmado' });
       const entry = financialEntries.find(e => e.appointmentId === id);
@@ -1804,7 +1878,6 @@ export default function App() {
   };
 
   const handleUpdateClient = async (id: string, updates: Partial<Client>) => {
-    if (!user) return;
     try {
       await updateDoc(doc(db, 'clients', id), updates);
       setEditingClient(null);
@@ -1815,8 +1888,10 @@ export default function App() {
     showConfirm('Excluir Cliente', 'Tem certeza que deseja excluir esta cliente? Todos os agendamentos dela também serão removidos.', async () => {
       try {
         await deleteDoc(doc(db, 'clients', id));
-        // Note: Rules or user logic should handle cascading if needed, but here we do it manually or assume cleanup.
-        appointments.filter(a => a.clientId === id).forEach(async a => await deleteDoc(doc(db, 'appointments', a.id)));
+        const toDelete = appointments.filter(a => a.clientId === id);
+        for (const app of toDelete) {
+          await deleteDoc(doc(db, 'appointments', app.id));
+        }
       } catch (e) { handleFirestoreError(e, OperationType.DELETE, `clients/${id}`); }
     });
   };
@@ -1830,7 +1905,6 @@ export default function App() {
   };
 
   const handleUpdateFinancialEntry = async (id: string, updates: Partial<FinancialEntry>) => {
-    if (!user) return;
     try {
       await updateDoc(doc(db, 'financialEntries', id), updates);
       setEditingFinancialEntry(null);
@@ -1844,7 +1918,6 @@ export default function App() {
   };
 
   const handleUpdateLeadStatus = async (id: string, status: Lead['status']) => {
-    if (!user) return;
     try {
       await updateDoc(doc(db, 'leads', id), { status });
     } catch (e) { handleFirestoreError(e, OperationType.UPDATE, `leads/${id}`); }
@@ -1868,7 +1941,6 @@ export default function App() {
   };
 
   const handleUpdateFollowUpStatus = async (id: string, status: FollowUp['status']) => {
-    if (!user) return;
     try {
       await updateDoc(doc(db, 'followUps', id), { status });
     } catch (e) { handleFirestoreError(e, OperationType.UPDATE, `followUps/${id}`); }
@@ -1903,7 +1975,6 @@ export default function App() {
   };
 
   const handleUpdateProcedure = async (id: string, updates: Partial<Procedure>) => {
-    if (!user) return;
     try {
       await updateDoc(doc(db, 'procedures', id), updates);
       setEditingProcedure(null);
@@ -1919,18 +1990,34 @@ export default function App() {
   };
 
   const handleUpdateAppointment = async (id: string, updates: Partial<Appointment>) => {
-    if (!user) return;
     try {
       await updateDoc(doc(db, 'appointments', id), updates);
       setEditingAppointment(null);
     } catch (e) { handleFirestoreError(e, OperationType.UPDATE, `appointments/${id}`); }
   };
 
+  const handleResetMocks = () => {
+    if (!user) return;
+    showConfirm('Carregar Dados de Exemplo', 'Isso irá carregar dados de teste no banco de dados com seus relacionamentos preservados. Deseja continuar?', async () => {
+      try {
+        for (const p of MOCK_PROCEDURES) await setDoc(doc(db, 'procedures', p.id), { ...p, ownerId: user.uid });
+        for (const c of MOCK_CLIENTS) await setDoc(doc(db, 'clients', c.id), { ...c, ownerId: user.uid });
+        for (const a of MOCK_APPOINTMENTS) await setDoc(doc(db, 'appointments', a.id), { ...a, ownerId: user.uid });
+        for (const f of MOCK_FINANCIAL) await setDoc(doc(db, 'financialEntries', f.id), { ...f, ownerId: user.uid });
+        for (const l of MOCK_LEADS) await setDoc(doc(db, 'leads', l.id), { ...l, ownerId: user.uid });
+        for (const b of MOCK_BUDGETS) await setDoc(doc(db, 'budgets', b.id), { ...b, ownerId: user.uid });
+        
+        setAlerts([{ id: 'mock-loaded', message: 'Dados de exemplo carregados com sucesso no Firebase!', type: 'info' }]);
+      } catch (e) { handleFirestoreError(e, OperationType.WRITE, 'reset-mocks'); }
+    });
+  };
+
   const handleDeleteAppointment = (id: string) => {
     showConfirm('Excluir Agendamento', 'Tem certeza que deseja excluir este agendamento?', async () => {
       try {
         await deleteDoc(doc(db, 'appointments', id));
-        financialEntries.filter(e => e.appointmentId === id).forEach(async e => await deleteDoc(doc(db, 'financialEntries', e.id)));
+        const entries = financialEntries.filter(e => e.appointmentId === id);
+        for (const entry of entries) await deleteDoc(doc(db, 'financialEntries', entry.id));
       } catch (e) { handleFirestoreError(e, OperationType.DELETE, `appointments/${id}`); }
     });
   };
@@ -1940,6 +2027,7 @@ export default function App() {
     { id: 'agenda', label: 'Agenda', icon: CalendarIcon },
     { id: 'clientes', label: 'Clientes', icon: Users },
     { id: 'atendimentos', label: 'Atendimentos', icon: ClipboardList },
+    { id: 'servicos', label: 'Serviços', icon: Activity },
     { id: 'orcamentos', label: 'Orçamentos', icon: FileText },
     { id: 'follow-up', label: 'Follow-up', icon: BellRing },
     { id: 'financeiro', label: 'Financeiro', icon: DollarSign },
@@ -2023,12 +2111,17 @@ export default function App() {
           onDeleteEntry={handleDeleteFinancialEntry}
         />
       );
-      case 'configuracoes': return (
-        <SettingsTab 
+      case 'servicos': return (
+        <ServicesTab 
           procedures={procedures}
           onAddProcedure={handleAddProcedure}
           onUpdateProcedure={handleUpdateProcedure}
           onDeleteProcedure={handleDeleteProcedure}
+        />
+      );
+      case 'configuracoes': return (
+        <SettingsTab 
+          onResetMocks={handleResetMocks}
         />
       );
       default: return (
@@ -2107,7 +2200,7 @@ export default function App() {
           </div>
 
           <button 
-            onClick={() => signInWithPopup(auth, googleProvider)}
+            onClick={handleGoogleLogin}
             className="w-full bg-white border-2 border-gray-100 hover:border-rose-200 p-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all active:scale-95 group"
           >
             <img src="https://www.google.com/favicon.ico" className="w-5 h-5 group-hover:grayscale-0 grayscale transition-all" alt="Google" referrerPolicy="no-referrer" />
@@ -2190,7 +2283,7 @@ export default function App() {
                     className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300"
                     onChange={(e) => {
                       const val = e.target.value;
-                      const selected = clients.find(c => c.name === val);
+                      const selected = clients.find(c => (c.name || '').toLowerCase() === val.toLowerCase());
                       const hiddenInput = document.getElementById('selected-client-id') as HTMLInputElement;
                       if (hiddenInput) {
                         hiddenInput.value = selected ? selected.id : '';
@@ -2199,7 +2292,7 @@ export default function App() {
                     onBlur={(e) => {
                       // Se o usuário digitou mas não selecionou, tentamos encontrar uma correspondência exata
                       if (!(document.getElementById('selected-client-id') as HTMLInputElement).value) {
-                         const match = clients.find(c => c.name.toLowerCase() === e.target.value.toLowerCase());
+                         const match = clients.find(c => (c.name || '').toLowerCase() === (e.target.value || '').toLowerCase());
                          if (match) {
                            (document.getElementById('selected-client-id') as HTMLInputElement).value = match.id;
                            e.target.value = match.name;
@@ -2208,11 +2301,11 @@ export default function App() {
                     }}
                   />
                   <datalist id="clients-list">
-                    {clients.sort((a,b) => a.name.localeCompare(b.name)).map(c => (
+                    {[...clients].sort((a,b) => (a.name || '').localeCompare(b.name || '')).map(c => (
                       <option key={c.id} value={c.name} />
                     ))}
                   </datalist>
-                  <input type="hidden" name="clientId" id="selected-client-id" required />
+                  <input type="hidden" name="clientId" id="selected-client-id" />
                 </div>
               </div>
 
@@ -2383,66 +2476,66 @@ export default function App() {
                   }
                 };
                 handleAddClient(newClient);
+                e.currentTarget.reset();
                 setIsNewClientModalOpen(false);
                 setClientStep(1);
+                setAlerts(prev => [...prev, { id: 'client-added', message: 'Cliente cadastrada com sucesso!', type: 'info' }].slice(-3));
               }}
               className="space-y-4"
             >
-              {clientStep === 1 ? (
-                <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+              <div className={cn("space-y-4 animate-in fade-in slide-in-from-right-4 duration-300", clientStep !== 1 && "hidden")}>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase">Nome Completo</label>
+                  <input name="name" required type="text" placeholder="Ex: Maria Silva" className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase">Telefone / WhatsApp</label>
+                  <input name="phone" required type="tel" placeholder="(00) 00000-0000" className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase">E-mail (Opcional)</label>
+                  <input name="email" type="email" placeholder="maria@email.com" className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase">Observações</label>
+                  <textarea name="observations" rows={2} placeholder="Alergias, preferências, etc..." className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 resize-none" />
+                </div>
+              </div>
+
+              <div className={cn("space-y-4 animate-in fade-in slide-in-from-right-4 duration-300", clientStep !== 2 && "hidden")}>
+                <div className="flex items-center gap-2 mb-2 text-rose-600">
+                  <ShieldCheck className="w-4 h-4" />
+                  <h3 className="text-sm font-bold">Preferências de Atendimento</h3>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-400 uppercase">Nome Completo</label>
-                    <input name="name" required type="text" placeholder="Ex: Maria Silva" className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                    <label className="text-[10px] font-bold text-gray-400 uppercase">Ar Condicionado</label>
+                    <select name="airConditioning" className="w-full p-2 rounded-lg bg-gray-50 border border-gray-100 text-sm outline-none">
+                      <option value="">Não definido</option>
+                      <option value="gelado">Gelado</option>
+                      <option value="fresco">Fresco</option>
+                      <option value="natural">Natural</option>
+                    </select>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-400 uppercase">Telefone / WhatsApp</label>
-                    <input name="phone" required type="tel" placeholder="(00) 00000-0000" className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                    <label className="text-[10px] font-bold text-gray-400 uppercase">Conversa</label>
+                    <select name="conversation" className="w-full p-2 rounded-lg bg-gray-50 border border-gray-100 text-sm outline-none">
+                      <option value="">Não definido</option>
+                      <option value="gosta">Gosta de conversar</option>
+                      <option value="quieta">Prefere silêncio</option>
+                      <option value="neutra">Neutra</option>
+                    </select>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-400 uppercase">E-mail (Opcional)</label>
-                    <input name="email" type="email" placeholder="maria@email.com" className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                    <label className="text-[10px] font-bold text-gray-400 uppercase">Música Preferida</label>
+                    <input name="music" type="text" placeholder="Ex: MPB, Jazz" className="w-full p-2 rounded-lg bg-gray-50 border border-gray-100 text-sm outline-none" />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-400 uppercase">Observações</label>
-                    <textarea name="observations" rows={2} placeholder="Alergias, preferências, etc..." className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 resize-none" />
+                    <label className="text-[10px] font-bold text-gray-400 uppercase">Bebida Preferida</label>
+                    <input name="beverage" type="text" placeholder="Ex: Café, Água" className="w-full p-2 rounded-lg bg-gray-50 border border-gray-100 text-sm outline-none" />
                   </div>
                 </div>
-              ) : (
-                <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
-                  <div className="flex items-center gap-2 mb-2 text-rose-600">
-                    <ShieldCheck className="w-4 h-4" />
-                    <h3 className="text-sm font-bold">Preferências de Atendimento</h3>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-gray-400 uppercase">Ar Condicionado</label>
-                      <select name="airConditioning" className="w-full p-2 rounded-lg bg-gray-50 border border-gray-100 text-sm outline-none">
-                        <option value="">Não definido</option>
-                        <option value="gelado">Gelado</option>
-                        <option value="fresco">Fresco</option>
-                        <option value="natural">Natural</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-gray-400 uppercase">Conversa</label>
-                      <select name="conversation" className="w-full p-2 rounded-lg bg-gray-50 border border-gray-100 text-sm outline-none">
-                        <option value="">Não definido</option>
-                        <option value="gosta">Gosta de conversar</option>
-                        <option value="quieta">Prefere silêncio</option>
-                        <option value="neutra">Neutra</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-gray-400 uppercase">Música Preferida</label>
-                      <input name="music" type="text" placeholder="Ex: MPB, Jazz" className="w-full p-2 rounded-lg bg-gray-50 border border-gray-100 text-sm outline-none" />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-gray-400 uppercase">Bebida Preferida</label>
-                      <input name="beverage" type="text" placeholder="Ex: Café, Água" className="w-full p-2 rounded-lg bg-gray-50 border border-gray-100 text-sm outline-none" />
-                    </div>
-                  </div>
-                </div>
-              )}
+              </div>
 
               <div className="flex gap-3 pt-4">
                 {clientStep === 1 ? (
@@ -2548,11 +2641,11 @@ export default function App() {
               >
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-gray-400 uppercase">Data</label>
-                  <input name="date" type="date" required defaultValue={editingAppointment.date.split('T')[0]} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                  <input name="date" type="date" required defaultValue={editingAppointment?.date?.split('T')[0] || ''} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-gray-400 uppercase">Horário</label>
-                  <input name="time" type="time" required defaultValue={editingAppointment.date.split('T')[1].substring(0, 5)} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                  <input name="time" type="time" required defaultValue={editingAppointment?.date?.split('T')[1]?.substring(0, 5) || ''} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-gray-400 uppercase">Serviço</label>
@@ -2657,7 +2750,7 @@ export default function App() {
 
           <div className="pt-6 border-t border-rose-50">
             <button 
-              onClick={() => signOut(auth)}
+              onClick={signOutUser}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-gray-400 hover:bg-red-50 hover:text-red-500 transition-all group"
             >
               <Trash2 className="w-5 h-5 group-hover:rotate-12 transition-transform" />

@@ -10,6 +10,7 @@ export interface Procedure {
   name: string;
   price: number;
   duration: number; // in minutes
+  ownerId?: string;
 }
 
 export interface Client {
@@ -21,6 +22,7 @@ export interface Client {
   createdAt: string;
   photoBefore?: string;
   photoAfter?: string;
+  ownerId?: string;
   preferences?: {
     airConditioning?: 'gelado' | 'fresco' | 'natural';
     conversation?: 'gosta' | 'quieta' | 'neutra';
@@ -40,6 +42,7 @@ export interface Appointment {
   price: number;
   photoBefore?: string;
   photoAfter?: string;
+  ownerId?: string;
 }
 
 export interface UserProfile {
@@ -60,6 +63,7 @@ export interface FinancialEntry {
   type: 'receita' | 'despesa';
   category: string;
   appointmentId?: string;
+  ownerId?: string;
 }
 
 export interface Lead {
@@ -69,6 +73,7 @@ export interface Lead {
   lastMessageDate: string;
   status: 'novo' | 'follow-up-1' | 'follow-up-3' | 'follow-up-7' | 'convertido' | 'perdido';
   lastMessage: string;
+  ownerId?: string;
 }
 
 export interface Budget {
@@ -82,6 +87,7 @@ export interface Budget {
   date: string;
   status: 'pendente' | 'aprovado' | 'rejeitado';
   validUntil: string;
+  ownerId?: string;
 }
 
 export interface FollowUp {
@@ -92,4 +98,5 @@ export interface FollowUp {
   date: string;
   status: 'Pendente' | 'Em andamento' | 'Concluído';
   observation: string;
+  ownerId?: string;
 }

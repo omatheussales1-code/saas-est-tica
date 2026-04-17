@@ -1,106 +1,60 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: clients, appointments, procedures, financialEntries, leads, budgets, followUps
+// Fields:
+//   - ownerId: string (required, immutable) - ID of the user who owns the data
+//   - various other fields based on entities
+//
+// ===============================================================
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
 
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
-    }
-
-    function isDocOwner() {
-      return isAuthenticated() && request.auth.uid == resource.data.ownerId;
+    function isOwner(ownerId) {
+      return isAuthenticated() && request.auth.uid == ownerId;
     }
 
     function isAdmin() {
       return isAuthenticated() && 
         ((request.auth.token.email == "teus.rma@gmail.com" && request.auth.token.email_verified == true) ||
-         (request.auth.token.email == "brefer@gmail.com" && request.auth.token.email_verified == true) ||
-         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+         (request.auth.token.email == "brefer@gmail.com" && request.auth.token.email_verified == true));
     }
 
-    function hasOnlyAllowedFields(data, allowedFields) {
-      return data.keys().hasOnly(allowedFields);
+    function isValidString(val, min, max) {
+      return val is string && val.size() >= min && val.size() <= max;
     }
 
-    function isValidClient(data) {
-      return data.keys().hasAll(['name', 'phone', 'ownerId']) &&
-             data.name is string && data.name.size() >= 2 && data.name.size() <= 100 &&
-             data.phone is string && data.phone.size() >= 8 && data.phone.size() <= 20 &&
-             data.ownerId == request.auth.uid;
+    function isValidNumber(val, min, max) {
+      return val is number && val >= min && val <= max;
     }
 
-    function isValidAppointment(data) {
-      return data.keys().hasAll(['clientId', 'procedureId', 'date', 'status', 'price', 'ownerId']) &&
-             data.price is number && data.price >= 0 &&
-             data.status in ['confirmado', 'realizado', 'faltou', 'pendente', 'desmarcado', 'atrasado'] &&
-             data.ownerId == request.auth.uid;
-    }
+    // ===============================================================
+    // Rules
+    // ===============================================================
 
-    function isValidProcedure(data) {
-      return data.keys().hasAll(['name', 'price', 'duration', 'ownerId']) &&
-             data.name is string && data.name.size() >= 2 && data.name.size() <= 100 &&
-             data.price is number &&
-             data.duration is number &&
-             data.ownerId == request.auth.uid;
-    }
-
-    match /users/{uid} {
-      allow read: if isOwner(uid) || isAdmin();
-      allow create: if isOwner(uid);
-      allow update: if isOwner(uid) && request.resource.data.role == resource.data.role || isAdmin();
-    }
-
-    match /clients/{clientId} {
-      allow read: if isDocOwner() || isAdmin() || (isAuthenticated() && request.resource.data.ownerId == request.auth.uid);
-      allow create: if isValidClient(request.resource.data);
-      allow update: if isDocOwner() && isValidClient(request.resource.data);
-      allow delete: if isDocOwner() || isAdmin();
-    }
-
-    match /appointments/{appointmentId} {
-      allow read: if isDocOwner() || isAdmin();
-      allow create: if isValidAppointment(request.resource.data);
-      allow update: if isDocOwner() && isValidAppointment(request.resource.data);
-      allow delete: if isDocOwner() || isAdmin();
-    }
-
-    match /procedures/{procedureId} {
-      allow read: if isDocOwner() || isAdmin();
-      allow create: if isValidProcedure(request.resource.data);
-      allow update: if isDocOwner() && isValidProcedure(request.resource.data);
-      allow delete: if isDocOwner() || isAdmin();
-    }
-
-    match /financialEntries/{entryId} {
-      allow read: if isDocOwner() || isAdmin();
-      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
-      allow update: if isDocOwner() && request.resource.data.ownerId == request.auth.uid;
-      allow delete: if isDocOwner() || isAdmin();
-    }
-
-    match /leads/{leadId} {
-      allow read: if isDocOwner() || isAdmin();
-      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
-      allow update: if isDocOwner() && request.resource.data.ownerId == request.auth.uid;
-      allow delete: if isDocOwner() || isAdmin();
-    }
-
-    match /budgets/{budgetId} {
-      allow read: if isDocOwner() || isAdmin();
-      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
-      allow update: if isDocOwner() && request.resource.data.ownerId == request.auth.uid;
-      allow delete: if isDocOwner() || isAdmin();
-    }
-
-    match /followUps/{followUpId} {
-      allow read: if isDocOwner() || isAdmin();
-      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
-      allow update: if isDocOwner() && request.resource.data.ownerId == request.auth.uid;
-      allow delete: if isDocOwner() || isAdmin();
+    match /{collection}/{docId} {
+      allow read: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      
+      allow create: if isAuthenticated() && 
+        request.resource.data.ownerId == request.auth.uid &&
+        (request.resource.data.keys().hasAll(['ownerId']));
+        
+      allow update: if isAuthenticated() && 
+        (resource.data.ownerId == request.auth.uid || isAdmin()) &&
+        request.resource.data.ownerId == resource.data.ownerId; // ownerId is immutable
+        
+      allow delete: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin());
     }
   }
 }

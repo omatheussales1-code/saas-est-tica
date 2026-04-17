@@ -1,10 +1,10 @@
 {
-  "projectId": "gen-lang-client-0542974600",
-  "appId": "1:697449431336:web:c1a68d96827317731bd01d",
-  "apiKey": "AIzaSyBcEbzz0mzJEv_NbsJW-SYPG6yqPfcz0FU",
-  "authDomain": "gen-lang-client-0542974600.firebaseapp.com",
+  "projectId": "brefer",
+  "appId": "1:95800534492:web:ea4c108c82a2570fa1db19",
+  "apiKey": "AIzaSyChAc2Y_VytA76AVw8CPXkwLXnirvvHKK4",
+  "authDomain": "brefer.firebaseapp.com",
   "firestoreDatabaseId": "ai-studio-3e2f12e2-b01b-4da0-b986-294c04a94a5c",
-  "storageBucket": "gen-lang-client-0542974600.firebasestorage.app",
-  "messagingSenderId": "697449431336",
+  "storageBucket": "brefer.firebasestorage.app",
+  "messagingSenderId": "95800534492",
   "measurementId": ""
 }

@@ -2,68 +2,48 @@
   "entities": {
     "Client": {
       "title": "Client",
-      "description": "Customer information and preferences",
+      "description": "Esthetics clinic client",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "name": { "type": "string" },
         "phone": { "type": "string" },
-        "email": { "type": "string", "format": "email" },
-        "observations": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" },
-        "photoBefore": { "type": "string" },
-        "photoAfter": { "type": "string" },
-        "preferences": {
-          "type": "object",
-          "properties": {
-            "airConditioning": { "type": "string", "enum": ["gelado", "fresco", "natural"] },
-            "conversation": { "type": "string", "enum": ["gosta", "quieta", "neutra"] },
-            "music": { "type": "string" },
-            "beverage": { "type": "string" },
-            "other": { "type": "string" }
-          }
-        },
-        "ownerId": { "type": "string", "description": "UID of the user who owns this data" }
+        "preferences": { "type": "object" },
+        "ownerId": { "type": "string" }
       },
-      "required": ["name", "phone", "ownerId"]
+      "required": ["name", "ownerId"]
     },
     "Appointment": {
       "title": "Appointment",
-      "description": "Scheduled service for a client",
+      "description": "Scheduled service",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "clientId": { "type": "string" },
         "procedureId": { "type": "string" },
         "date": { "type": "string", "format": "date-time" },
-        "status": { "type": "string", "enum": ["confirmado", "realizado", "faltou", "pendente", "desmarcado", "atrasado"] },
-        "notes": { "type": "string" },
+        "status": { "type": "string", "enum": ["pendente", "confirmado", "realizado", "faltou", "atrasado"] },
         "price": { "type": "number" },
-        "photoBefore": { "type": "string" },
-        "photoAfter": { "type": "string" },
         "ownerId": { "type": "string" }
       },
-      "required": ["clientId", "procedureId", "date", "status", "price", "ownerId"]
+      "required": ["clientId", "procedureId", "date", "ownerId"]
     },
     "Procedure": {
       "title": "Procedure",
-      "description": "Available service offered by the business",
+      "description": "Clinic service",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "name": { "type": "string" },
         "price": { "type": "number" },
         "duration": { "type": "number" },
         "ownerId": { "type": "string" }
       },
-      "required": ["name", "price", "duration", "ownerId"]
+      "required": ["name", "price", "ownerId"]
     },
     "FinancialEntry": {
-      "title": "Financial Entry",
-      "description": "Income or expense record",
+      "title": "FinancialEntry",
+      "description": "Income or expense",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "description": { "type": "string" },
         "amount": { "type": "number" },
         "date": { "type": "string", "format": "date-time" },
@@ -72,117 +52,58 @@
         "appointmentId": { "type": "string" },
         "ownerId": { "type": "string" }
       },
-      "required": ["description", "amount", "date", "type", "category", "ownerId"]
+      "required": ["description", "amount", "date", "type", "ownerId"]
     },
     "Lead": {
       "title": "Lead",
-      "description": "Potential customer from marketing platforms",
+      "description": "Potential customer from social media",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "name": { "type": "string" },
-        "platform": { "type": "string", "enum": ["instagram", "whatsapp"] },
+        "platform": { "type": "string" },
         "lastMessageDate": { "type": "string", "format": "date-time" },
-        "status": { "type": "string", "enum": ["novo", "follow-up-1", "follow-up-3", "follow-up-7", "convertido", "perdido"] },
+        "status": { "type": "string" },
         "lastMessage": { "type": "string" },
         "ownerId": { "type": "string" }
       },
-      "required": ["name", "platform", "status", "ownerId"]
+      "required": ["name", "ownerId"]
     },
     "Budget": {
       "title": "Budget",
-      "description": "Price quote for services",
+      "description": "Service quote",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "clientId": { "type": "string" },
-        "items": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "procedureId": { "type": "string" },
-              "price": { "type": "number" }
-            }
-          }
-        },
+        "items": { "type": "array" },
         "total": { "type": "number" },
         "date": { "type": "string", "format": "date-time" },
-        "status": { "type": "string", "enum": ["pendente", "aprovado", "rejeitado"] },
+        "status": { "type": "string" },
         "validUntil": { "type": "string", "format": "date-time" },
         "ownerId": { "type": "string" }
       },
-      "required": ["clientId", "total", "date", "status", "ownerId"]
+      "required": ["clientId", "items", "total", "ownerId"]
     },
     "FollowUp": {
       "title": "FollowUp",
-      "description": "Post-procedure follow-up record",
+      "description": "Customer follow-up task",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "clientName": { "type": "string" },
-        "procedureName": { "type": "string" },
-        "professionalName": { "type": "string" },
+        "clientId": { "type": "string" },
         "date": { "type": "string", "format": "date-time" },
-        "status": { "type": "string", "enum": ["Pendente", "Em andamento", "Concluído"] },
-        "observation": { "type": "string" },
+        "notes": { "type": "string" },
+        "status": { "type": "string" },
         "ownerId": { "type": "string" }
       },
-      "required": ["clientName", "procedureName", "date", "status", "ownerId"]
-    },
-    "User": {
-      "title": "User",
-      "description": "User profile and settings",
-      "type": "object",
-      "properties": {
-        "uid": { "type": "string" },
-        "name": { "type": "string" },
-        "email": { "type": "string", "format": "email" },
-        "businessName": { "type": "string" },
-        "role": { "type": "string", "enum": ["admin", "staff"] },
-        "workingHours": {
-          "type": "object",
-          "properties": {
-            "start": { "type": "string" },
-            "end": { "type": "string" }
-          }
-        }
-      },
-      "required": ["uid", "email"]
+      "required": ["clientId", "date", "ownerId"]
     }
   },
   "firestore": {
-    "/clients/{clientId}": {
-      "schema": "Client",
-      "description": "Collection of clients"
-    },
-    "/appointments/{appointmentId}": {
-      "schema": "Appointment",
-      "description": "Collection of service appointments"
-    },
-    "/procedures/{procedureId}": {
-      "schema": "Procedure",
-      "description": "Collection of business procedures"
-    },
-    "/financialEntries/{entryId}": {
-      "schema": "FinancialEntry",
-      "description": "Collection of financial records"
-    },
-    "/leads/{leadId}": {
-      "schema": "Lead",
-      "description": "Collection of marketing leads"
-    },
-    "/budgets/{budgetId}": {
-      "schema": "Budget",
-      "description": "Collection of customer budgets"
-    },
-    "/followUps/{followUpId}": {
-      "schema": "FollowUp",
-      "description": "Collection of manual follow-ups"
-    },
-    "/users/{uid}": {
-      "schema": "User",
-      "description": "User profile documents"
-    }
+    "/clients/{clientId}": { "schema": "Client", "description": "Clinic clients" },
+    "/appointments/{appId}": { "schema": "Appointment", "description": "Service schedule" },
+    "/procedures/{procId}": { "schema": "Procedure", "description": "Available services" },
+    "/financialEntries/{entryId}": { "schema": "FinancialEntry", "description": "Financial records" },
+    "/leads/{leadId}": { "schema": "Lead", "description": "Sales leads" },
+    "/budgets/{budgetId}": { "schema": "Budget", "description": "Price quotes" },
+    "/followUps/{fUpId}": { "schema": "FollowUp", "description": "Post-service follow-ups" }
   }
 }
