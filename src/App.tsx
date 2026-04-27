@@ -443,9 +443,12 @@ const Agenda = ({
   
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(monthStart);
-  const calendarDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+  const calendarDays = eachDayOfInterval({ 
+    start: startOfWeek(monthStart, { weekStartsOn: 0 }), 
+    end: endOfWeek(monthEnd, { weekStartsOn: 0 }) 
+  });
 
-  const dayAppointments = appointments.filter(a => isSameDay(parseISO(a.date), selectedDate))
+  const dayAppointments = appointments.filter(a => a.date && isSameDay(parseISO(a.date), selectedDate))
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
   const getAppointmentsForDay = (date: Date) => {
@@ -489,13 +492,25 @@ const Agenda = ({
             <h2 className="text-xl font-black text-gray-900 capitalize">
               {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
             </h2>
-            <div className="flex gap-2">
-              <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="p-2 hover:bg-rose-50 rounded-xl text-rose-500 transition-colors">
-                <ChevronLeft className="w-5 h-5" />
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => {
+                  const now = new Date();
+                  setCurrentMonth(now);
+                  setSelectedDate(now);
+                }}
+                className="text-xs font-bold text-rose-500 hover:bg-rose-50 px-3 py-1.5 rounded-xl transition-colors border border-rose-100"
+              >
+                Hoje
               </button>
-              <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-2 hover:bg-rose-50 rounded-xl text-rose-500 transition-colors">
-                <ChevronRight className="w-5 h-5" />
-              </button>
+              <div className="flex gap-1">
+                <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="p-2 hover:bg-rose-50 rounded-xl text-rose-500 transition-colors">
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-2 hover:bg-rose-50 rounded-xl text-rose-500 transition-colors">
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1865,6 +1880,7 @@ export default function App() {
       const { id, ...data } = app;
       await addDoc(collection(db, 'appointments'), { ...data, ownerId: user.uid });
       setIsNewAppModalOpen(false);
+      setAlerts(prev => [...prev, { id: Math.random().toString(), message: 'Agendamento salvo com sucesso!', type: 'info' }].slice(-3));
     } catch (e) { handleFirestoreError(e, OperationType.CREATE, 'appointments'); }
   };
 
