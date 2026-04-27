@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   LayoutDashboard, 
   Calendar as CalendarIcon, 
@@ -27,7 +27,10 @@ import {
   Moon,
   Trash2,
   Download,
-  Pencil
+  Pencil,
+  Zap,
+  Rocket,
+  ArrowRight
 } from 'lucide-react';
 import { 
   format, 
@@ -49,7 +52,8 @@ import {
   isTomorrow,
   differenceInMinutes,
   isAfter,
-  isValid
+  isValid,
+  addDays
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'motion/react';
@@ -206,6 +210,37 @@ const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 };
 
+const LoadingScreen = () => (
+  <div className="fixed inset-0 z-[1000] bg-rose-50 flex flex-col items-center justify-center p-6 text-center">
+    <motion.div
+      initial={{ scale: 0.8, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      className="bg-white p-12 rounded-[48px] shadow-2xl border-4 border-white flex flex-col items-center gap-8"
+    >
+      <div className="relative">
+        <div className="w-24 h-24 bg-rose-500 rounded-[32px] flex items-center justify-center shadow-2xl shadow-rose-200 animate-bounce">
+          <ShieldCheck className="text-white w-12 h-12" />
+        </div>
+        <div className="absolute -inset-4 border-2 border-dashed border-rose-200 rounded-[40px] animate-spin-slow" />
+      </div>
+      <div>
+        <h2 className="text-2xl font-black text-gray-900 mb-2">Preparando Tudo...</h2>
+        <p className="text-gray-500 font-medium">Organizando sua agenda e seus dados.</p>
+      </div>
+      <div className="flex gap-2">
+        {[0, 1, 2].map(i => (
+          <motion.div
+            key={i}
+            animate={{ scale: [1, 1.5, 1], opacity: [0.3, 1, 0.3] }}
+            transition={{ repeat: Infinity, duration: 1, delay: i * 0.2 }}
+            className="w-3 h-3 bg-rose-500 rounded-full"
+          />
+        ))}
+      </div>
+    </motion.div>
+  </div>
+);
+
 const StatCard = ({ title, value, icon, color, onClick, clickable }: { title: string, value: string | number, icon: React.ReactNode, color: string, onClick?: () => void, clickable?: boolean }) => (
   <div 
     onClick={onClick}
@@ -229,13 +264,21 @@ const Dashboard = ({
   clients, 
   procedures, 
   onNavigateToAgenda, 
-  notificationHistory 
+  notificationHistory,
+  csLabel,
+  user,
+  userProfile,
+  leads
 }: { 
   appointments: Appointment[], 
   clients: Client[], 
   procedures: Procedure[], 
   onNavigateToAgenda: () => void, 
-  notificationHistory: { id: string, message: string, type: 'info' | 'warning' | 'error', date: Date }[]
+  notificationHistory: { id: string, message: string, type: 'info' | 'warning' | 'error', date: Date }[],
+  csLabel: string,
+  user: User | null,
+  userProfile: UserProfile | null,
+  leads: Lead[]
 }) => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const todayAppointments = appointments.filter(a => a.date && isToday(parseISO(a.date)));
@@ -250,7 +293,7 @@ const Dashboard = ({
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-gray-900 tracking-tight">Painel de Controle</h1>
-          <p className="text-sm font-medium text-gray-500">Bem-vinda de volta!</p>
+          <p className="text-sm font-medium text-gray-500">Bem-vindo(a) de volta, {userProfile?.name?.split(' ')[0] || user.displayName || 'Profissional'}!</p>
         </div>
         <div className="flex items-center gap-3">
           <button 
@@ -365,6 +408,18 @@ const Dashboard = ({
           icon={<BellRing className="w-5 h-5" />} 
           color="bg-amber-100 text-amber-600" 
         />
+        <StatCard 
+          title={`Total ${csLabel}`} 
+          value={clients.length} 
+          icon={<Users className="w-5 h-5 text-blue-600" />} 
+          color="bg-blue-50"
+        />
+        <StatCard 
+          title="Leads Ativos" 
+          value={leads.filter(l => l.status !== 'convertido' && l.status !== 'perdido').length} 
+          icon={<MessageCircle className="w-5 h-5 text-purple-600" />} 
+          color="bg-purple-50"
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -426,7 +481,8 @@ const Agenda = ({
   onUndoMarkAsPaid,
   onOpenNewAppointment,
   onEditAppointment,
-  onDeleteAppointment
+  onDeleteAppointment,
+  cLabel
 }: { 
   appointments: Appointment[], 
   clients: Client[],
@@ -436,7 +492,8 @@ const Agenda = ({
   onUndoMarkAsPaid: (id: string) => void,
   onOpenNewAppointment: (date: Date) => void,
   onEditAppointment: (app: Appointment) => void,
-  onDeleteAppointment: (id: string) => void
+  onDeleteAppointment: (id: string) => void,
+  cLabel: string
 }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -553,7 +610,7 @@ const Agenda = ({
                           app.status === 'faltou' ? 'bg-red-500' : 'bg-amber-500'
                         )} />
                         <span className="text-[10px] font-medium text-gray-500 truncate">
-                          {clients.find(c => c.id === app.clientId)?.name?.split(' ')[0] || 'Cliente'}
+                          {clients.find(c => c.id === app.clientId)?.name?.split(' ')[0] || cLabel}
                         </span>
                       </div>
                     ))}
@@ -660,14 +717,18 @@ const ClientsTab = ({
   procedures, 
   onOpenNewClient,
   onEditClient,
-  onDeleteClient
+  onDeleteClient,
+  cLabel,
+  csLabel
 }: { 
   clients: Client[], 
   appointments: Appointment[], 
   procedures: Procedure[], 
   onOpenNewClient: () => void,
   onEditClient: (client: Client) => void,
-  onDeleteClient: (id: string) => void
+  onDeleteClient: (id: string) => void,
+  cLabel: string,
+  csLabel: string
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
@@ -714,7 +775,7 @@ const ClientsTab = ({
               <div className="w-24 h-24 rounded-3xl bg-rose-100 flex items-center justify-center text-rose-600 text-3xl font-black mx-auto mb-4">
                 {selectedClient.name?.charAt(0) || '?'}
               </div>
-              <h2 className="text-xl font-black text-gray-900">{selectedClient.name || 'Cliente'}</h2>
+              <h2 className="text-xl font-black text-gray-900">{selectedClient.name || cLabel}</h2>
               <p className="text-gray-500 mb-6">{selectedClient.phone}</p>
             </div>
 
@@ -818,7 +879,7 @@ const ClientsTab = ({
                   {client.name?.charAt(0) || '?'}
                 </div>
                 <div>
-                  <h3 className="font-bold text-gray-900 group-hover:text-rose-600 transition-colors">{client.name || 'Cliente'}</h3>
+                  <h3 className="font-bold text-gray-900 group-hover:text-rose-600 transition-colors">{client.name || cLabel}</h3>
                   <p className="text-sm text-gray-500">{client.phone || '-'}</p>
                 </div>
               </div>
@@ -836,14 +897,16 @@ const AppointmentsTab = ({
   procedures, 
   onUpdateStatus,
   onEditAppointment,
-  onDeleteAppointment
+  onDeleteAppointment,
+  cLabel
 }: { 
   appointments: Appointment[], 
   clients: Client[], 
   procedures: Procedure[], 
   onUpdateStatus: (id: string, status: AppointmentStatus) => void,
   onEditAppointment: (app: Appointment) => void,
-  onDeleteAppointment: (id: string) => void
+  onDeleteAppointment: (id: string) => void,
+  cLabel: string
 }) => {
   const [filter, setFilter] = useState<AppointmentStatus | 'todos'>('todos');
   const [startDate, setStartDate] = useState(format(subMonths(new Date(), 1), 'yyyy-MM-dd'));
@@ -918,13 +981,13 @@ const AppointmentsTab = ({
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-rose-50 overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-sm border border-rose-50 overflow-hidden text-left">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead className="bg-rose-50 text-rose-700 text-xs font-bold uppercase tracking-wider">
               <tr>
                 <th className="px-6 py-4">Data & Hora</th>
-                <th className="px-6 py-4">Cliente</th>
+                <th className="px-6 py-4">{cLabel}</th>
                 <th className="px-6 py-4">Procedimento</th>
                 <th className="px-6 py-4">Valor</th>
                 <th className="px-6 py-4">Status</th>
@@ -945,7 +1008,7 @@ const AppointmentsTab = ({
                         <div className="w-8 h-8 rounded-lg bg-rose-100 flex items-center justify-center text-rose-600 text-xs font-bold">
                           {client?.name?.charAt(0) || '?'}
                         </div>
-                        <div className="font-medium text-gray-900">{client?.name || 'Cliente Excluída'}</div>
+                        <div className="font-medium text-gray-900">{client?.name || `${cLabel} Excluída`}</div>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">{proc?.name}</td>
@@ -992,7 +1055,9 @@ const BudgetsTab = ({
   onAddBudget, 
   onAddProcedure, 
   onUpdateProcedure,
-  onDeleteBudget
+  onDeleteBudget,
+  cLabel,
+  userProfile
 }: { 
   budgets: Budget[], 
   clients: Client[], 
@@ -1000,7 +1065,9 @@ const BudgetsTab = ({
   onAddBudget: (b: Budget) => void, 
   onAddProcedure: (p: Procedure) => void, 
   onUpdateProcedure: (id: string, u: Partial<Procedure>) => void,
-  onDeleteBudget: (id: string) => void
+  onDeleteBudget: (id: string) => void,
+  cLabel: string,
+  userProfile: UserProfile | null
 }) => {
   const [isNewBudgetModalOpen, setIsNewBudgetModalOpen] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState('');
@@ -1021,7 +1088,7 @@ const BudgetsTab = ({
       total: price,
       date: new Date().toISOString(),
       status: 'pendente',
-      validUntil: addMonths(new Date(), 1).toISOString()
+      validUntil: addDays(new Date(), userProfile?.budgetValidityDays || 7).toISOString()
     };
 
     onAddBudget(newBudget);
@@ -1039,7 +1106,7 @@ const BudgetsTab = ({
       return `${p?.name || 'Procedimento'}: ${formatCurrency(item.price)}`;
     }).join('\n');
     
-    const text = `Olá ${client.name || 'Cliente'}! Segue seu orçamento:\n\n${items}\n\nTotal: ${formatCurrency(budget.total)}\nVálido até: ${budget.validUntil ? format(parseISO(budget.validUntil), 'dd/MM/yyyy') : '-'}`;
+    const text = `Olá ${client.name || cLabel}! Segue seu orçamento:\n\n${items}\n\nTotal: ${formatCurrency(budget.total)}\nVálido até: ${budget.validUntil ? format(parseISO(budget.validUntil), 'dd/MM/yyyy') : '-'}`;
     window.open(`https://wa.me/${(client.phone || '').replace(/\D/g, '')}?text=${encodeURIComponent(text)}`);
   };
 
@@ -1071,7 +1138,7 @@ const BudgetsTab = ({
               </div>
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h3 className="font-bold text-gray-900">{client?.name || 'Cliente'}</h3>
+                  <h3 className="font-bold text-gray-900">{client?.name || cLabel}</h3>
                   <p className="text-xs text-gray-500">{budget.date ? format(parseISO(budget.date), 'dd/MM/yyyy') : '-'}</p>
                 </div>
                 <span className="px-2 py-1 rounded-lg bg-amber-100 text-amber-700 text-[10px] font-bold uppercase">
@@ -1166,16 +1233,185 @@ const BudgetsTab = ({
   );
 };
 
+const LeadsTab = ({ 
+  leads, 
+  onUpdateStatus,
+  onDelete
+}: { 
+  leads: Lead[], 
+  onUpdateStatus: (id: string, status: Lead['status']) => void,
+  onDelete: (id: string) => void
+}) => {
+  const statusLabels: Record<Lead['status'], string> = {
+    'novo': 'Novo',
+    'follow-up-1': '1º Contato',
+    'follow-up-3': '3º Contato',
+    'follow-up-7': '7º Contato',
+    'convertido': 'Convertido',
+    'perdido': 'Perdido'
+  };
+
+  const statusColors: Record<Lead['status'], string> = {
+    'novo': 'bg-blue-100 text-blue-700',
+    'follow-up-1': 'bg-amber-100 text-amber-700',
+    'follow-up-3': 'bg-orange-100 text-orange-700',
+    'follow-up-7': 'bg-rose-100 text-rose-700',
+    'convertido': 'bg-green-100 text-green-700',
+    'perdido': 'bg-gray-100 text-gray-700'
+  };
+
+  return (
+    <div className="space-y-6">
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-gray-900 tracking-tight">Prospecção de Clientes</h1>
+          <p className="text-sm font-medium text-gray-500">Transforme interessados em faturamento real.</p>
+        </div>
+        <div className="flex items-center gap-2 bg-rose-50 px-4 py-2 rounded-2xl border border-rose-100 animate-pulse">
+          <Zap className="w-4 h-4 text-rose-500 fill-rose-500" />
+          <span className="text-xs font-black text-rose-600 uppercase">Aceleração Ativa</span>
+        </div>
+      </header>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Main Leads List */}
+        <div className="lg:col-span-8 space-y-6">
+          {leads.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {leads.map(lead => (
+                <div key={lead.id} className="bg-white p-6 rounded-[32px] shadow-sm border border-rose-50 flex flex-col gap-4 group transition-all hover:shadow-xl hover:shadow-rose-100/30">
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        "p-2 rounded-xl",
+                        lead.platform === 'instagram' ? "bg-gradient-to-tr from-amber-400 via-rose-500 to-purple-600 text-white" : "bg-green-500 text-white"
+                      )}>
+                        {lead.platform === 'instagram' ? <MessageCircle className="w-5 h-5" /> : <MessageCircle className="w-5 h-5" />}
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-gray-900">{lead.name}</h3>
+                        <p className="text-[10px] text-gray-400 uppercase font-black">{lead.platform}</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => onDelete(lead.id)}
+                      className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="bg-gray-50 p-4 rounded-2xl relative">
+                    <p className="text-xs text-gray-600 line-clamp-3 italic">"{lead.lastMessage}"</p>
+                    <div className="absolute -top-2 -left-2 bg-white p-1 rounded-lg border border-gray-100">
+                      <Clock className="w-3 h-3 text-rose-500" />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <span className={cn("px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider", statusColors[lead.status])}>
+                      {statusLabels[lead.status]}
+                    </span>
+                    {lead.estimatedValue && (
+                      <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-50 text-blue-600">
+                        Potencial: {formatCurrency(lead.estimatedValue)}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mt-auto pt-4 flex gap-2">
+                    <select 
+                      className="flex-1 bg-gray-50 border-none rounded-xl p-3 text-xs font-bold text-gray-500 outline-none focus:ring-2 focus:ring-rose-500"
+                      value={lead.status}
+                      onChange={(e) => onUpdateStatus(lead.id, e.target.value as any)}
+                    >
+                      {Object.entries(statusLabels).map(([val, label]) => (
+                        <option key={val} value={val}>{label}</option>
+                      ))}
+                    </select>
+                    <button className="p-3 bg-rose-500 text-white rounded-xl shadow-lg shadow-rose-100 hover:bg-rose-600 transition-all active:scale-95">
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-white rounded-[40px] border-2 border-dashed border-rose-100 p-12 text-center">
+              <div className="w-20 h-20 bg-rose-50 rounded-3xl flex items-center justify-center mx-auto mb-6 transform rotate-3">
+                <Rocket className="w-10 h-10 text-rose-400" />
+              </div>
+              <h3 className="text-xl font-black text-gray-900 mb-2">Sua agenda está pronta, mas faltam clientes?</h3>
+              <p className="text-sm text-gray-500 max-w-sm mx-auto mb-8 font-medium">
+                O sistema é sua máquina de vendas, mas você precisa de combustível (leads). Comece a capturar dados de possíveis clientes agora.
+              </p>
+              <button 
+                onClick={() => window.open('https://wa.me/seunumerodecontato', '_blank')}
+                className="bg-gray-900 text-white px-8 py-4 rounded-2xl font-bold hover:scale-105 transition-all shadow-xl shadow-gray-200 flex items-center gap-3 mx-auto"
+              >
+                <Zap className="w-5 h-5 text-amber-400 fill-amber-400" />
+                Quero LOTAR minha agenda
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Traffic Manager Sidebar Section */}
+        <div className="lg:col-span-4 space-y-6">
+          <div className="bg-gradient-to-br from-gray-900 to-gray-800 p-8 rounded-[40px] text-white shadow-2xl relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/10 rounded-full -mr-16 -mt-16 blur-3xl" />
+            <div className="relative z-10">
+              <div className="bg-rose-500 w-12 h-12 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-rose-500/20">
+                <Users className="w-6 h-6 text-white" />
+              </div>
+              <h2 className="text-2xl font-black mb-4 leading-tight">Impulsione seu Negócio com Tráfego Pago 🚀</h2>
+              <p className="text-gray-400 text-sm mb-6 leading-relaxed">
+                Nós configuramos suas campanhas no **Facebook, Instagram e Google** para que as pessoas certas encontrem o seu serviço.
+              </p>
+              
+              <ul className="space-y-3 mb-8">
+                {['Anúncios segmentados', 'Relatórios semanais', 'Novos leads todos os dias', 'Estratégia personalizada'].map((item, idx) => (
+                  <li key={idx} className="flex items-center gap-3 text-xs font-bold text-gray-300">
+                    <div className="w-1.5 h-1.5 bg-rose-500 rounded-full" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+
+              <button 
+                onClick={() => window.open('https://wa.me/seunumerodecontato', '_blank')}
+                className="w-full bg-white text-gray-900 py-4 rounded-2xl font-black text-sm hover:bg-rose-50 transition-all flex items-center justify-center gap-2 group-hover:gap-4 transition-all"
+              >
+                Falar com Especialista
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-rose-50 p-6 rounded-[32px] border border-rose-100">
+            <h4 className="text-xs font-black text-rose-500 uppercase tracking-widest mb-2">Dica de Crescimento</h4>
+            <p className="text-xs font-medium text-rose-800 leading-relaxed">
+              Responder um lead nos primeiros 5 minutos aumenta em até 9x a chance de conversão. Use este dashboard para não perder tempo.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const FollowUpTab = ({ 
   followUps, 
   onOpenNewFollowUp,
   onUpdateStatus,
-  onDelete
+  onDelete,
+  cLabel
 }: { 
   followUps: FollowUp[], 
   onOpenNewFollowUp: () => void,
   onUpdateStatus: (id: string, status: FollowUp['status']) => void,
-  onDelete: (id: string) => void
+  onDelete: (id: string) => void,
+  cLabel: string
 }) => {
   return (
     <div className="space-y-6">
@@ -1216,7 +1452,7 @@ const FollowUpTab = ({
                         <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center font-bold text-rose-600 text-xs">
                           {fu.clientName?.charAt(0) || '?'}
                         </div>
-                        <span className="font-bold text-gray-900">{fu.clientName || 'Cliente'}</span>
+                        <span className="font-bold text-gray-900">{fu.clientName || cLabel}</span>
                       </div>
                     </td>
                     <td className="p-4 text-sm text-gray-600 font-medium">{fu.procedureName || 'Procedimento'}</td>
@@ -1291,7 +1527,8 @@ const FinancialTab = ({
   entries, 
   onAddEntry,
   onEditEntry,
-  onDeleteEntry
+  onDeleteEntry,
+  userProfile
 }: { 
   appointments: Appointment[], 
   clients: Client[], 
@@ -1299,12 +1536,19 @@ const FinancialTab = ({
   entries: FinancialEntry[], 
   onAddEntry: (e: FinancialEntry) => void,
   onEditEntry: (e: FinancialEntry) => void,
-  onDeleteEntry: (id: string) => void
+  onDeleteEntry: (id: string) => void,
+  userProfile: UserProfile | null
 }) => {
   const [desc, setDesc] = useState('');
   const [amount, setAmount] = useState('');
   const [type, setType] = useState<'receita' | 'despesa'>('receita');
   const [category, setCategory] = useState('Geral');
+  const [paymentMethod, setPaymentMethod] = useState<'pix' | 'cartao' | 'dinheiro' | 'outro'>('pix');
+
+  const categories = {
+    receita: ['Procedimento', 'Venda de Produto', 'Cursos', 'Outro'],
+    despesa: ['Aluguel', 'Produtos', 'Marketing', 'Energia/Água', 'Outro']
+  };
 
   const totalRevenue = entries.filter(e => e.type === 'receita').reduce((acc, curr) => acc + curr.amount, 0);
   const totalExpenses = entries.filter(e => e.type === 'despesa').reduce((acc, curr) => acc + curr.amount, 0);
@@ -1319,15 +1563,17 @@ const FinancialTab = ({
       amount: parseFloat(amount),
       date: new Date().toISOString(),
       type,
-      category
+      category,
+      paymentMethod
     });
     setDesc('');
     setAmount('');
+    setCategory(type === 'receita' ? categories.receita[0] : categories.despesa[0]);
   };
 
   const exportPDF = () => {
     const doc = new jsPDF();
-    const businessName = "Brenda Fernandes Estética";
+    const businessName = userProfile?.businessName || "Meu Negócio";
     const dateStr = format(new Date(), 'dd/MM/yyyy HH:mm');
     
     doc.setFontSize(20);
@@ -1397,13 +1643,43 @@ const FinancialTab = ({
               placeholder="Valor" className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none" 
             />
             <select 
-              value={type} onChange={e => setType(e.target.value as any)}
-              className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none"
+              value={type} onChange={e => {
+                const newType = e.target.value as 'receita' | 'despesa';
+                setType(newType);
+                setCategory(newType === 'receita' ? categories.receita[0] : categories.despesa[0]);
+              }}
+              className="w-full p-4 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:ring-2 focus:ring-rose-500 font-bold"
             >
-              <option value="receita">Entrou</option>
-              <option value="despesa">Saiu</option>
+              <option value="receita">Dinheiro Entrando (Receita)</option>
+              <option value="despesa">Dinheiro Saindo (Despesa)</option>
             </select>
-            <button type="submit" className="w-full bg-rose-500 text-white py-3 rounded-xl font-bold">Lançar</button>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-gray-400 uppercase ml-4">Categoria</label>
+              <select 
+                value={category} onChange={e => setCategory(e.target.value)}
+                className="w-full p-4 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:ring-2 focus:ring-rose-500 font-bold text-gray-700"
+              >
+                {categories[type].map(cat => <option key={cat} value={cat}>{cat}</option>)}
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-gray-400 uppercase ml-4">Forma de Pagamento</label>
+              <select 
+                value={paymentMethod} onChange={e => setPaymentMethod(e.target.value as any)}
+                className="w-full p-4 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:ring-2 focus:ring-rose-500 font-bold text-gray-700"
+              >
+                <option value="pix">PIX</option>
+                <option value="cartao">Cartão</option>
+                <option value="dinheiro">Dinheiro</option>
+                <option value="outro">Outro</option>
+              </select>
+            </div>
+
+            <button type="submit" className="w-full bg-rose-500 text-white py-4 rounded-2xl font-bold shadow-lg shadow-rose-100 hover:bg-rose-600 transition-all active:scale-95">
+              Confirmar Lançamento
+            </button>
           </form>
         </div>
         <div className="lg:col-span-8 bg-white rounded-3xl shadow-sm border border-rose-50 overflow-hidden">
@@ -1421,7 +1697,10 @@ const FinancialTab = ({
                   <td className="px-6 py-4 text-xs text-gray-400">{entry.date ? format(parseISO(entry.date), 'dd/MM/yy') : '-'}</td>
                   <td className="px-6 py-4">
                     <div className="text-sm font-bold text-gray-900">{entry.description}</div>
-                    <div className="text-[10px] uppercase text-gray-400">{entry.type === 'receita' ? 'Entrou' : 'Saiu'}</div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[9px] font-black uppercase text-gray-400 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">{entry.category || 'Geral'}</span>
+                      {entry.paymentMethod && <span className="text-[9px] font-black uppercase text-blue-500 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">{entry.paymentMethod}</span>}
+                    </div>
                   </td>
                   <td className={cn("px-6 py-4 text-sm font-black text-right", entry.type === 'receita' ? "text-green-600" : "text-red-500")}>
                     <div className="flex items-center justify-end gap-3">
@@ -1581,48 +1860,234 @@ const ServicesTab = ({
 };
 
 const SettingsTab = ({ 
+  userProfile,
+  onUpdateProfile,
   onResetMocks
 }: { 
+  userProfile: UserProfile | null,
+  onUpdateProfile: (updates: Partial<UserProfile>) => void,
   onResetMocks: () => void
 }) => {
+  const [profile, setProfile] = useState<Partial<UserProfile>>(userProfile || {});
+
+  useEffect(() => {
+    if (userProfile) setProfile(userProfile);
+  }, [userProfile]);
+
+  const daysOfWeek = [
+    { label: 'Dom', value: 0 },
+    { label: 'Seg', value: 1 },
+    { label: 'Ter', value: 2 },
+    { label: 'Qua', value: 3 },
+    { label: 'Qui', value: 4 },
+    { label: 'Sex', value: 5 },
+    { label: 'Sáb', value: 6 }
+  ];
+
   return (
-    <div className="max-w-4xl space-y-8 text-left">
-      <h1 className="text-3xl font-black text-gray-900 tracking-tight">Configurações</h1>
+    <div className="max-w-5xl space-y-8 text-left pb-20">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-black text-gray-900 tracking-tight">Configurações</h1>
+          <p className="text-sm font-medium text-gray-500">Ajuste os detalhes do seu negócio e atendimento</p>
+        </div>
+        <button 
+          onClick={() => onUpdateProfile(profile)}
+          className="bg-rose-500 text-white px-8 py-4 rounded-2xl font-bold shadow-lg shadow-rose-200 hover:bg-rose-600 transition-all active:scale-95"
+        >
+          Salvar Tudo
+        </button>
+      </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <section className="space-y-4">
-          <h2 className="text-lg font-bold text-gray-800">Perfil Profissional</h2>
-          <div className="bg-white p-8 rounded-[32px] shadow-sm border border-rose-50 space-y-6">
-            <div className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-400 uppercase ml-4">Nome Completo</label>
-                <input type="text" defaultValue="Brenda Fernandes" className="w-full p-4 rounded-2xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-rose-500 font-bold text-gray-700" />
+        <div className="space-y-8">
+          <section className="space-y-4">
+            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+              <Users className="w-5 h-5 text-rose-500" /> Perfil Profissional
+            </h2>
+            <div className="bg-white p-8 rounded-[32px] shadow-sm border border-rose-50 space-y-6">
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase ml-4">Nome Completo</label>
+                  <input 
+                    type="text" 
+                    value={profile.name || ''} 
+                    onChange={e => setProfile(p => ({ ...p, name: e.target.value }))}
+                    className="w-full p-4 rounded-2xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-rose-500 font-bold text-gray-700" 
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase ml-4">Nome do Negócio</label>
+                  <input 
+                    type="text" 
+                    value={profile.businessName || ''} 
+                    onChange={e => setProfile(p => ({ ...p, businessName: e.target.value }))}
+                    className="w-full p-4 rounded-2xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-rose-500 font-bold text-gray-700" 
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-400 uppercase ml-4">WhatsApp (DDD)</label>
+                    <input 
+                      type="text" 
+                      placeholder="(00) 00000-0000"
+                      value={profile.phone || ''} 
+                      onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))}
+                      className="w-full p-4 rounded-2xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-rose-500 font-bold text-gray-700" 
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-400 uppercase ml-4">Instagram</label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">@</span>
+                      <input 
+                        type="text" 
+                        placeholder="seu.perfil"
+                        value={profile.instagram || ''} 
+                        onChange={e => setProfile(p => ({ ...p, instagram: e.target.value }))}
+                        className="w-full p-4 pl-10 rounded-2xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-rose-500 font-bold text-gray-700" 
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase ml-4">Endereço do Estúdio</label>
+                  <input 
+                    type="text" 
+                    placeholder="Rua, Número, Bairro, Cidade"
+                    value={profile.address || ''} 
+                    onChange={e => setProfile(p => ({ ...p, address: e.target.value }))}
+                    className="w-full p-4 rounded-2xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-rose-500 font-bold text-gray-700" 
+                  />
+                </div>
               </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-400 uppercase ml-4">Nome do Negócio</label>
-                <input type="text" defaultValue="Brenda Fernandes Estética" className="w-full p-4 rounded-2xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-rose-500 font-bold text-gray-700" />
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+              <FileText className="w-5 h-5 text-rose-500" /> Detalhes do Negócio
+            </h2>
+            <div className="bg-white p-8 rounded-[32px] shadow-sm border border-rose-50 space-y-6">
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase ml-4">Especialidade / Ramo</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ex: Estética, Nutrição, Fisioterapia"
+                    value={profile.specialty || ''} 
+                    onChange={e => setProfile(p => ({ ...p, specialty: e.target.value }))}
+                    className="w-full p-4 rounded-2xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-rose-500 font-bold text-gray-700" 
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase ml-4">Validade de Orçamentos (Dias)</label>
+                  <input 
+                    type="number" 
+                    value={profile.budgetValidityDays || 7} 
+                    onChange={e => setProfile(p => ({ ...p, budgetValidityDays: parseInt(e.target.value) }))}
+                    className="w-full p-4 rounded-2xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-rose-500 font-bold text-gray-700" 
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase ml-4">Como você chama seus clientes?</label>
+                  <div className="flex gap-2 p-1 bg-gray-50 rounded-2xl">
+                    {['Cliente', 'Paciente', 'Aluno', 'Membro'].map(label => (
+                      <button
+                        key={label}
+                        onClick={() => setProfile(p => ({ ...p, clientLabel: label as any }))}
+                        className={cn(
+                          "flex-1 py-3 rounded-xl text-sm font-bold transition-all",
+                          profile.clientLabel === label 
+                            ? "bg-white text-rose-500 shadow-sm" 
+                            : "text-gray-400 hover:text-gray-600"
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
-              <button className="w-full bg-rose-500 text-white py-4 rounded-2xl font-bold shadow-lg shadow-rose-200 hover:bg-rose-600 transition-all">
-                Salvar Alterações
+            </div>
+          </section>
+        </div>
+
+        <div className="space-y-8">
+          <section className="space-y-4">
+            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+              <Clock className="w-5 h-5 text-rose-500" /> Horário de Atendimento
+            </h2>
+            <div className="bg-white p-8 rounded-[32px] shadow-sm border border-rose-50 space-y-8">
+              <div className="space-y-4">
+                <label className="text-xs font-bold text-gray-400 uppercase ml-1 block">Dias Úteis</label>
+                <div className="flex flex-wrap gap-2">
+                  {daysOfWeek.map(day => {
+                    const isSelected = profile.workingDays?.includes(day.value);
+                    return (
+                      <button
+                        key={day.value}
+                        onClick={() => {
+                          const current = profile.workingDays || [];
+                          const next = isSelected 
+                            ? current.filter(v => v !== day.value)
+                            : [...current, day.value].sort();
+                          setProfile(p => ({ ...p, workingDays: next }));
+                        }}
+                        className={cn(
+                          "px-4 py-2 rounded-xl text-sm font-bold transition-all",
+                          isSelected 
+                            ? "bg-rose-500 text-white shadow-md shadow-rose-100" 
+                            : "bg-gray-50 text-gray-400 hover:bg-gray-100"
+                        )}
+                      >
+                        {day.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase ml-4">Abertura</label>
+                  <input 
+                    type="time"
+                    value={profile.workingHours?.start || '08:00'}
+                    onChange={e => setProfile(p => ({ ...p, workingHours: { ...p.workingHours!, start: e.target.value } }))}
+                    className="w-full p-4 rounded-2xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-rose-500 font-bold text-gray-700" 
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase ml-4">Fechamento</label>
+                  <input 
+                    type="time" 
+                    value={profile.workingHours?.end || '18:00'}
+                    onChange={e => setProfile(p => ({ ...p, workingHours: { ...p.workingHours!, end: e.target.value } }))}
+                    className="w-full p-4 rounded-2xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-rose-500 font-bold text-gray-700" 
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+              <Activity className="w-5 h-5 text-rose-500" /> Sistema
+            </h2>
+            <div className="bg-white p-8 rounded-[32px] shadow-sm border border-rose-50 space-y-4">
+              <p className="text-sm text-gray-500 font-medium">
+                Precisa de dados fictícios para testar as ferramentas do sistema?
+              </p>
+              <button 
+                onClick={onResetMocks}
+                className="w-full bg-gray-900 text-white py-4 rounded-2xl font-bold hover:bg-black transition-all flex items-center justify-center gap-2"
+              >
+                <Activity className="w-4 h-4 text-rose-500" /> Restaurar Dados de Exemplo
               </button>
             </div>
-          </div>
-        </section>
-
-        <section className="space-y-4">
-          <h2 className="text-lg font-bold text-gray-800">Dados de Demonstração</h2>
-          <div className="bg-white p-8 rounded-[32px] shadow-sm border border-rose-50 space-y-4">
-            <p className="text-sm text-gray-500 font-medium">
-              Esta opção irá carregar dados fictícios para teste. Use com cautela!
-            </p>
-            <button 
-              onClick={onResetMocks}
-              className="w-full bg-gray-900 text-white py-4 rounded-2xl font-bold hover:bg-black transition-all flex items-center justify-center gap-2"
-            >
-              <Activity className="w-4 h-4 text-rose-500" /> Carregar Dados Mocks
-            </button>
-          </div>
-        </section>
+          </section>
+        </div>
       </div>
     </div>
   );
@@ -1643,6 +2108,8 @@ export default function App() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
 
   // Firebase Auth
   React.useEffect(() => {
@@ -1676,6 +2143,29 @@ export default function App() {
       onSnapshot(q('leads'), (s) => setLeads(s.docs.map(d => ({ id: d.id, ...d.data() } as Lead))), (e) => handleFirestoreError(e, OperationType.LIST, 'leads')),
       onSnapshot(q('budgets'), (s) => setBudgets(s.docs.map(d => ({ id: d.id, ...d.data() } as Budget))), (e) => handleFirestoreError(e, OperationType.LIST, 'budgets')),
       onSnapshot(q('followUps'), (s) => setFollowUps(s.docs.map(d => ({ id: d.id, ...d.data() } as FollowUp))), (e) => handleFirestoreError(e, OperationType.LIST, 'followUps')),
+      onSnapshot(doc(db, 'userProfiles', user.uid), (s) => {
+        if (s.exists()) {
+          setUserProfile({ id: s.id, ...s.data() } as UserProfile);
+        } else {
+          // Initialize default profile
+          const defaultProfile: UserProfile = {
+            name: user.displayName || '',
+            businessName: '',
+            specialty: 'Estética',
+            phone: '',
+            address: '',
+            instagram: '',
+            workingHours: { start: '08:00', end: '18:00' },
+            workingDays: [1, 2, 3, 4, 5],
+            budgetValidityDays: 7,
+            clientLabel: 'Cliente',
+            ownerId: user.uid
+          };
+          setDoc(doc(db, 'userProfiles', user.uid), defaultProfile);
+        }
+        // After loading profile and setting up listeners, we can stop loading
+        setTimeout(() => setIsInitialLoading(false), 800);
+      }, (e) => handleFirestoreError(e, OperationType.GET, 'userProfile')),
     ];
 
     return () => unsubscribers.forEach(u => u());
@@ -1939,6 +2429,14 @@ export default function App() {
     } catch (e) { handleFirestoreError(e, OperationType.UPDATE, `leads/${id}`); }
   };
 
+  const handleDeleteLead = (id: string) => {
+    showConfirm('Excluir Lead', 'Deseja remover este contato da prospecção?', async () => {
+      try {
+        await deleteDoc(doc(db, 'leads', id));
+      } catch (e) { handleFirestoreError(e, OperationType.DELETE, `leads/${id}`); }
+    });
+  };
+
   const handleAddBudget = async (budget: Budget) => {
     if (!user) return;
     try {
@@ -2038,10 +2536,24 @@ export default function App() {
     });
   };
 
+  const handleUpdateProfile = async (updates: Partial<UserProfile>) => {
+    if (!user) return;
+    try {
+      await setDoc(doc(db, 'userProfiles', user.uid), updates, { merge: true });
+      setAlerts(prev => [...prev, { id: Math.random().toString(), message: 'Configurações salvas!', type: 'info' }].slice(-3));
+    } catch (e) { handleFirestoreError(e, OperationType.UPDATE, 'userProfile'); }
+  };
+
+  const cLabel = userProfile?.clientLabel || 'Cliente';
+  const csLabel = cLabel === 'Cliente' ? 'Clientes' : 
+                 cLabel === 'Paciente' ? 'Pacientes' :
+                 cLabel === 'Aluno' ? 'Alunos' : 'Membros';
+
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'agenda', label: 'Agenda', icon: CalendarIcon },
-    { id: 'clientes', label: 'Clientes', icon: Users },
+    { id: 'clientes', label: csLabel, icon: Users },
+    { id: 'prospeccao', label: 'Prospecção', icon: MessageCircle },
     { id: 'atendimentos', label: 'Atendimentos', icon: ClipboardList },
     { id: 'servicos', label: 'Serviços', icon: Activity },
     { id: 'orcamentos', label: 'Orçamentos', icon: FileText },
@@ -2059,6 +2571,10 @@ export default function App() {
           procedures={procedures} 
           onNavigateToAgenda={() => setActiveTab('agenda')} 
           notificationHistory={notificationHistory}
+          csLabel={csLabel}
+          user={user}
+          userProfile={userProfile}
+          leads={leads}
         />
       );
       case 'agenda': return (
@@ -2075,6 +2591,7 @@ export default function App() {
           }}
           onEditAppointment={setEditingAppointment}
           onDeleteAppointment={handleDeleteAppointment}
+          cLabel={cLabel}
         />
       );
       case 'clientes': return (
@@ -2085,6 +2602,15 @@ export default function App() {
           onOpenNewClient={() => { setClientStep(1); setIsNewClientModalOpen(true); }}
           onEditClient={setEditingClient}
           onDeleteClient={handleDeleteClient}
+          cLabel={cLabel}
+          csLabel={csLabel}
+        />
+      );
+      case 'prospeccao': return (
+        <LeadsTab 
+          leads={leads} 
+          onUpdateStatus={handleUpdateLeadStatus} 
+          onDelete={handleDeleteLead} 
         />
       );
       case 'atendimentos': return (
@@ -2095,6 +2621,7 @@ export default function App() {
           onUpdateStatus={handleUpdateStatus}
           onEditAppointment={setEditingAppointment}
           onDeleteAppointment={handleDeleteAppointment}
+          cLabel={cLabel}
         />
       );
       case 'orcamentos': return (
@@ -2106,6 +2633,8 @@ export default function App() {
           onAddProcedure={handleAddProcedure} 
           onUpdateProcedure={handleUpdateProcedure}
           onDeleteBudget={handleDeleteBudget}
+          cLabel={cLabel}
+          userProfile={userProfile}
         />
       );
       case 'follow-up': return (
@@ -2114,6 +2643,7 @@ export default function App() {
           onOpenNewFollowUp={() => setIsNewFollowUpModalOpen(true)}
           onUpdateStatus={handleUpdateFollowUpStatus}
           onDelete={handleDeleteFollowUp}
+          cLabel={cLabel}
         />
       );
       case 'financeiro': return (
@@ -2125,6 +2655,7 @@ export default function App() {
           onAddEntry={handleAddFinancialEntry}
           onEditEntry={setEditingFinancialEntry}
           onDeleteEntry={handleDeleteFinancialEntry}
+          userProfile={userProfile}
         />
       );
       case 'servicos': return (
@@ -2137,6 +2668,8 @@ export default function App() {
       );
       case 'configuracoes': return (
         <SettingsTab 
+          userProfile={userProfile}
+          onUpdateProfile={handleUpdateProfile}
           onResetMocks={handleResetMocks}
         />
       );
@@ -2147,6 +2680,10 @@ export default function App() {
           procedures={procedures} 
           onNavigateToAgenda={() => setActiveTab('agenda')} 
           notificationHistory={notificationHistory}
+          csLabel={csLabel}
+          user={user}
+          userProfile={userProfile}
+          leads={leads}
         />
       );
     }
@@ -2175,8 +2712,8 @@ export default function App() {
           <div className="w-20 h-20 bg-rose-500 rounded-3xl flex items-center justify-center shadow-xl shadow-rose-200 mx-auto mb-8">
             <ShieldCheck className="text-white w-10 h-10" />
           </div>
-          <h1 className="text-3xl font-black text-gray-900 mb-2">BF GESTÃO</h1>
-          <p className="text-gray-500 font-medium mb-10">Sistema Profissional para Estética</p>
+          <h1 className="text-3xl font-black text-gray-900 mb-2 uppercase tracking-tight">Gestão Profissional</h1>
+          <p className="text-gray-500 font-medium mb-10 px-4">O sistema inteligente para organizar sua agenda, clientes e financeiro.</p>
           
           <form onSubmit={handleEmailLogin} className="space-y-4 mb-6">
             <div className="text-left">
@@ -2738,8 +3275,8 @@ export default function App() {
               <ShieldCheck className="text-white w-6 h-6" />
             </div>
             <div className="flex flex-col">
-              <span className="text-lg font-black tracking-tight text-gray-900 leading-none">BF GESTÃO</span>
-              <span className="text-[10px] font-bold text-rose-500 uppercase tracking-widest">Sistema Profissional</span>
+              <span className="text-lg font-black tracking-tight text-gray-900 leading-none truncate max-w-[180px]">{userProfile?.businessName || 'MEU SISTEMA'}</span>
+              <span className="text-[10px] font-bold text-rose-500 uppercase tracking-widest">{userProfile?.specialty || 'Gestão Profissional'}</span>
             </div>
           </div>
 

@@ -95,6 +95,25 @@
         "ownerId": { "type": "string" }
       },
       "required": ["clientId", "date", "ownerId"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Professional's profile and business settings",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "businessName": { "type": "string" },
+        "specialty": { "type": "string" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "instagram": { "type": "string" },
+        "workingHours": { "type": "object" },
+        "workingDays": { "type": "array" },
+        "budgetValidityDays": { "type": "number" },
+        "clientLabel": { "type": "string" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["name", "businessName", "ownerId"]
     }
   },
   "firestore": {
@@ -104,6 +123,7 @@
     "/financialEntries/{entryId}": { "schema": "FinancialEntry", "description": "Financial records" },
     "/leads/{leadId}": { "schema": "Lead", "description": "Sales leads" },
     "/budgets/{budgetId}": { "schema": "Budget", "description": "Price quotes" },
-    "/followUps/{fUpId}": { "schema": "FollowUp", "description": "Post-service follow-ups" }
+    "/followUps/{fUpId}": { "schema": "FollowUp", "description": "Post-service follow-ups" },
+    "/userProfiles/{userId}": { "schema": "UserProfile", "description": "User profile settings" }
   }
 }

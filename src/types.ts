@@ -46,13 +46,21 @@ export interface Appointment {
 }
 
 export interface UserProfile {
+  id?: string;
   name: string;
   businessName: string;
-  procedures: Procedure[];
+  specialty?: string;
+  phone?: string;
+  address?: string;
+  instagram?: string;
   workingHours: {
     start: string; // "08:00"
     end: string;   // "18:00"
   };
+  workingDays: number[]; // 0-6 where 0 is Sunday
+  budgetValidityDays?: number;
+  clientLabel: 'Cliente' | 'Paciente' | 'Aluno' | 'Membro';
+  ownerId?: string;
 }
 
 export interface FinancialEntry {
@@ -62,6 +70,7 @@ export interface FinancialEntry {
   date: string;
   type: 'receita' | 'despesa';
   category: string;
+  paymentMethod?: 'pix' | 'cartao' | 'dinheiro' | 'outro';
   appointmentId?: string;
   ownerId?: string;
 }
@@ -70,6 +79,8 @@ export interface Lead {
   id: string;
   name: string;
   platform: 'instagram' | 'whatsapp';
+  source?: 'direct' | 'ad' | 'referral' | 'other';
+  estimatedValue?: number;
   lastMessageDate: string;
   status: 'novo' | 'follow-up-1' | 'follow-up-3' | 'follow-up-7' | 'convertido' | 'perdido';
   lastMessage: string;

@@ -1,60 +1,158 @@
-// ===============================================================
-// Assumed Data Model
-// ===============================================================
-//
-// Collection: clients, appointments, procedures, financialEntries, leads, budgets, followUps
-// Fields:
-//   - ownerId: string (required, immutable) - ID of the user who owns the data
-//   - various other fields based on entities
-//
-// ===============================================================
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
 
     // ===============================================================
     // Helper Functions
     // ===============================================================
-
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-
-    function isOwner(ownerId) {
-      return isAuthenticated() && request.auth.uid == ownerId;
+    function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
     }
 
     function isAdmin() {
-      return isAuthenticated() && 
-        ((request.auth.token.email == "teus.rma@gmail.com" && request.auth.token.email_verified == true) ||
-         (request.auth.token.email == "brefer@gmail.com" && request.auth.token.email_verified == true));
+      // Identity check + Verification check
+      return isVerified() && (
+        request.auth.token.email == 'teus.rma@gmail.com' || 
+        request.auth.token.email == 'brefer@gmail.com'
+      );
     }
 
-    function isValidString(val, min, max) {
-      return val is string && val.size() >= min && val.size() <= max;
-    }
-
-    function isValidNumber(val, min, max) {
-      return val is number && val >= min && val <= max;
+    // Generic Ownership Validator for collections using ownerId field
+    function isDocOwner() {
+      return isSignedIn() && (existing().ownerId == request.auth.uid || isAdmin());
     }
 
     // ===============================================================
-    // Rules
+    // Entity Validators
     // ===============================================================
 
-    match /{collection}/{docId} {
-      allow read: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin());
-      
-      allow create: if isAuthenticated() && 
-        request.resource.data.ownerId == request.auth.uid &&
-        (request.resource.data.keys().hasAll(['ownerId']));
-        
-      allow update: if isAuthenticated() && 
-        (resource.data.ownerId == request.auth.uid || isAdmin()) &&
-        request.resource.data.ownerId == resource.data.ownerId; // ownerId is immutable
-        
-      allow delete: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin());
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['name', 'businessName', 'ownerId']) &&
+             data.name is string && data.name.size() <= 100 &&
+             data.businessName is string && data.businessName.size() <= 100 &&
+             data.ownerId == request.auth.uid &&
+             (data.get('specialty', '') is string) &&
+             (data.get('phone', '') is string) &&
+             (data.get('clientLabel', 'Cliente') in ['Cliente', 'Paciente', 'Aluno', 'Membro']);
+    }
+
+    function isValidClient(data) {
+      return data.keys().hasAll(['name', 'ownerId']) &&
+             data.name is string && data.name.size() <= 100 &&
+             data.ownerId == request.auth.uid;
+    }
+
+    function isValidAppointment(data) {
+      return data.keys().hasAll(['clientId', 'procedureId', 'date', 'ownerId', 'status']) &&
+             data.clientId is string &&
+             data.procedureId is string &&
+             data.status in ['pendente', 'confirmado', 'realizado', 'faltou', 'atrasado'] &&
+             data.ownerId == request.auth.uid &&
+             data.date is string && data.date.size() <= 50;
+    }
+
+    function isValidProcedure(data) {
+      return data.keys().hasAll(['name', 'price', 'ownerId']) &&
+             data.name is string && data.name.size() <= 100 &&
+             data.price is number &&
+             data.ownerId == request.auth.uid;
+    }
+
+    function isValidFinancial(data) {
+      return data.keys().hasAll(['description', 'amount', 'date', 'type', 'ownerId']) &&
+             data.description is string && data.description.size() <= 200 &&
+             data.amount is number &&
+             data.type in ['receita', 'despesa'] &&
+             data.ownerId == request.auth.uid;
+    }
+
+    // ===============================================================
+    // Match Blocks
+    // ===============================================================
+
+    // User Profiles
+    match /userProfiles/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && isValidUserProfile(incoming());
+      allow update: if (isOwner(userId) || isAdmin()) && 
+                    isValidUserProfile(incoming()) &&
+                    incoming().ownerId == existing().ownerId;
+    }
+
+    // Clients
+    match /clients/{clientId} {
+      allow get: if isDocOwner();
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerified() && isValidClient(incoming());
+      allow update: if isVerified() && isDocOwner() && isValidClient(incoming());
+      allow delete: if isVerified() && isDocOwner();
+    }
+
+    // Appointments
+    match /appointments/{appId} {
+      allow get: if isDocOwner();
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerified() && isValidAppointment(incoming());
+      allow update: if isVerified() && isDocOwner() && isValidAppointment(incoming());
+      allow delete: if isVerified() && isDocOwner();
+    }
+
+    // Procedures
+    match /procedures/{procId} {
+      allow get: if isDocOwner();
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerified() && isValidProcedure(incoming());
+      allow update: if isVerified() && isDocOwner() && isValidProcedure(incoming());
+      allow delete: if isVerified() && isDocOwner();
+    }
+
+    // Financial Entries
+    match /financialEntries/{entryId} {
+      allow get: if isDocOwner();
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerified() && isValidFinancial(incoming());
+      allow update: if isVerified() && isDocOwner() && isValidFinancial(incoming());
+      allow delete: if isVerified() && isDocOwner();
+    }
+
+    // Leads
+    match /leads/{leadId} {
+      allow get: if isDocOwner();
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerified() && incoming().ownerId == request.auth.uid;
+      allow update: if isVerified() && isDocOwner() && incoming().ownerId == request.auth.uid;
+      allow delete: if isVerified() && isDocOwner();
+    }
+
+    // Budgets
+    match /budgets/{budgetId} {
+      allow get: if isDocOwner();
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerified() && incoming().ownerId == request.auth.uid;
+      allow update: if isVerified() && isDocOwner() && incoming().ownerId == request.auth.uid;
+      allow delete: if isVerified() && isDocOwner();
+    }
+
+    // FollowUps
+    match /followUps/{fUpId} {
+      allow get: if isDocOwner();
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerified() && incoming().ownerId == request.auth.uid;
+      allow update: if isVerified() && isDocOwner() && incoming().ownerId == request.auth.uid;
+      allow delete: if isVerified() && isDocOwner();
     }
   }
 }
