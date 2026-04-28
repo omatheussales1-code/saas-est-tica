@@ -1405,12 +1405,14 @@ const FollowUpTab = ({
   onOpenNewFollowUp,
   onUpdateStatus,
   onDelete,
+  onEdit,
   cLabel
 }: { 
   followUps: FollowUp[], 
   onOpenNewFollowUp: () => void,
   onUpdateStatus: (id: string, status: FollowUp['status']) => void,
   onDelete: (id: string) => void,
+  onEdit?: (fu: FollowUp) => void,
   cLabel: string
 }) => {
   return (
@@ -1471,8 +1473,12 @@ const FollowUpTab = ({
                     <td className="p-4 text-sm text-gray-500 max-w-xs truncate">{fu.observation}</td>
                     <td className="p-4 text-right">
                       <div className="flex justify-end gap-2">
-                        <button className="p-2 text-gray-400 hover:text-rose-500 transition-colors" title="Ver detalhes">
-                          <Eye className="w-5 h-5" />
+                        <button 
+                          onClick={() => onEdit && onEdit(fu)}
+                          className="p-2 text-gray-400 hover:text-blue-500 transition-colors" 
+                          title="Editar registros"
+                        >
+                          <Pencil className="w-5 h-5" />
                         </button>
                         <button className="p-2 text-green-500 hover:bg-green-50 rounded-lg transition-colors" title="Abrir WhatsApp">
                           <MessageCircle className="w-5 h-5" />
@@ -1735,12 +1741,14 @@ const ServicesTab = ({
   procedures, 
   onAddProcedure, 
   onUpdateProcedure, 
-  onDeleteProcedure 
+  onDeleteProcedure,
+  onEditProcedure 
 }: { 
   procedures: Procedure[], 
   onAddProcedure: (p: Procedure) => void, 
   onUpdateProcedure: (id: string, updates: Partial<Procedure>) => void, 
-  onDeleteProcedure: (id: string) => void 
+  onDeleteProcedure: (id: string) => void,
+  onEditProcedure: (p: Procedure) => void
 }) => {
   const [isAddingProc, setIsAddingProc] = useState(false);
   const [newProc, setNewProc] = useState({ name: '', price: '', duration: '' });
@@ -1797,7 +1805,10 @@ const ServicesTab = ({
               <span className="flex items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-lg"><Clock className="w-4 h-4 text-rose-400" /> {proc.duration} min</span>
               <span className="text-rose-600 bg-rose-50 px-3 py-1.5 rounded-lg">{formatCurrency(proc.price)}</span>
             </div>
-            <button className="w-full py-3.5 rounded-2xl border-2 border-gray-50 text-gray-400 font-bold hover:border-rose-100 hover:text-rose-600 hover:bg-rose-50/50 transition-all active:scale-95">
+            <button 
+              onClick={() => onEditProcedure(proc)}
+              className="w-full py-3.5 rounded-2xl border-2 border-gray-50 text-gray-400 font-bold hover:border-rose-100 hover:text-rose-600 hover:bg-rose-50/50 transition-all active:scale-95"
+            >
               Editar Procedimento
             </button>
           </motion.div>
@@ -2235,6 +2246,7 @@ export default function App() {
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
   const [editingProcedure, setEditingProcedure] = useState<Procedure | null>(null);
   const [editingFinancialEntry, setEditingFinancialEntry] = useState<FinancialEntry | null>(null);
+  const [editingFollowUp, setEditingFollowUp] = useState<FollowUp | null>(null);
 
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean, title: string, message: string, onConfirm: () => void }>({
     isOpen: false,
@@ -2460,6 +2472,13 @@ export default function App() {
     } catch (e) { handleFirestoreError(e, OperationType.UPDATE, `followUps/${id}`); }
   };
 
+  const handleUpdateFollowUp = async (id: string, updates: Partial<FollowUp>) => {
+    try {
+      await updateDoc(doc(db, 'followUps', id), updates);
+      setEditingFollowUp(null);
+    } catch (e) { handleFirestoreError(e, OperationType.UPDATE, `followUps/${id}`); }
+  };
+
   const handleDeleteFollowUp = (id: string) => {
     showConfirm(
       'Excluir Follow-up',
@@ -2643,6 +2662,7 @@ export default function App() {
           onOpenNewFollowUp={() => setIsNewFollowUpModalOpen(true)}
           onUpdateStatus={handleUpdateFollowUpStatus}
           onDelete={handleDeleteFollowUp}
+          onEdit={setEditingFollowUp}
           cLabel={cLabel}
         />
       );
@@ -2664,6 +2684,7 @@ export default function App() {
           onAddProcedure={handleAddProcedure}
           onUpdateProcedure={handleUpdateProcedure}
           onDeleteProcedure={handleDeleteProcedure}
+          onEditProcedure={setEditingProcedure}
         />
       );
       case 'configuracoes': return (
@@ -3195,28 +3216,42 @@ export default function App() {
                   handleUpdateAppointment(editingAppointment.id, {
                     date: `${date}T${time}:00`,
                     procedureId: formData.get('procedureId') as string,
+                    status: formData.get('status') as AppointmentStatus
                   });
                   setEditingAppointment(null);
                 }}
                 className="space-y-4"
               >
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-400 uppercase">Data</label>
-                  <input name="date" type="date" required defaultValue={editingAppointment?.date?.split('T')[0] || ''} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-400 uppercase">Horário</label>
-                  <input name="time" type="time" required defaultValue={editingAppointment?.date?.split('T')[1]?.substring(0, 5) || ''} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Data</label>
+                    <input name="date" type="date" required defaultValue={editingAppointment?.date?.split('T')[0] || ''} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 font-bold" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Horário</label>
+                    <input name="time" type="time" required defaultValue={editingAppointment?.date?.split('T')[1]?.substring(0, 5) || ''} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 font-bold" />
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-gray-400 uppercase">Serviço</label>
-                  <select name="procedureId" required defaultValue={editingAppointment.procedureId} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300">
+                  <select name="procedureId" required defaultValue={editingAppointment.procedureId} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 font-bold">
                     {procedures.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase">Status</label>
+                  <select name="status" required defaultValue={editingAppointment.status} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 font-bold">
+                    <option value="pendente">Aguardando</option>
+                    <option value="confirmado">Confirmado</option>
+                    <option value="realizado">Realizado</option>
+                    <option value="faltou">Faltou (Follow-up)</option>
+                    <option value="desmarcado">Desmarcado</option>
+                    <option value="atrasado">Atrasado</option>
+                  </select>
+                </div>
                 <div className="flex gap-3 pt-4">
-                  <button type="button" onClick={() => setEditingAppointment(null)} className="flex-1 py-3 font-bold text-gray-500">Cancelar</button>
-                  <button type="submit" className="flex-1 bg-rose-500 text-white py-3 rounded-xl font-bold">Salvar</button>
+                  <button type="button" onClick={() => setEditingAppointment(null)} className="flex-1 py-3 font-bold text-gray-500 hover:bg-gray-50 rounded-xl transition-all">Cancelar</button>
+                  <button type="submit" className="flex-1 bg-rose-500 text-white py-3 rounded-xl font-bold shadow-lg shadow-rose-100 transition-all active:scale-95">Salvar</button>
                 </div>
               </form>
             </motion.div>
@@ -3250,22 +3285,24 @@ export default function App() {
               >
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-gray-400 uppercase">Descrição</label>
-                  <input name="description" required defaultValue={editingFinancialEntry.description} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                  <input name="description" required defaultValue={editingFinancialEntry.description} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 font-bold" />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-400 uppercase">Valor</label>
-                  <input name="amount" type="number" step="0.01" required defaultValue={editingFinancialEntry.amount} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-400 uppercase">Tipo</label>
-                  <select name="type" required defaultValue={editingFinancialEntry.type} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300">
-                    <option value="receita">Entrou</option>
-                    <option value="despesa">Saiu</option>
-                  </select>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Valor</label>
+                    <input name="amount" type="number" step="0.01" required defaultValue={editingFinancialEntry.amount} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 font-bold" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Tipo</label>
+                    <select name="type" required defaultValue={editingFinancialEntry.type} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 font-bold">
+                      <option value="receita">Receita</option>
+                      <option value="despesa">Despesa</option>
+                    </select>
+                  </div>
                 </div>
                 <div className="flex gap-3 pt-4">
-                  <button type="button" onClick={() => setEditingFinancialEntry(null)} className="flex-1 py-3 font-bold text-gray-500">Cancelar</button>
-                  <button type="submit" className="flex-1 bg-rose-500 text-white py-3 rounded-xl font-bold">Salvar</button>
+                  <button type="button" onClick={() => setEditingFinancialEntry(null)} className="flex-1 py-3 font-bold text-gray-500 hover:bg-gray-50 rounded-xl transition-all">Cancelar</button>
+                  <button type="submit" className="flex-1 bg-rose-500 text-white py-3 rounded-xl font-bold shadow-lg shadow-rose-100 transition-all active:scale-95">Salvar</button>
                 </div>
               </form>
             </motion.div>
@@ -3273,10 +3310,116 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <aside className={cn(
-        "fixed lg:static inset-y-0 left-0 z-50 w-72 bg-white border-r border-rose-50 transition-transform duration-300 ease-in-out lg:translate-x-0",
-        !isSidebarOpen && "-translate-x-full"
-      )}>
+      {/* Edit Procedure Modal */}
+      <AnimatePresence>
+        {editingProcedure && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-white p-10 rounded-[40px] w-full max-w-md shadow-2xl relative border border-rose-50"
+            >
+              <h2 className="text-3xl font-black text-gray-900 mb-8">Editar Serviço</h2>
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.currentTarget);
+                  handleUpdateProcedure(editingProcedure.id, {
+                    name: formData.get('name') as string,
+                    price: parseFloat(formData.get('price') as string),
+                    duration: parseInt(formData.get('duration') as string)
+                  });
+                }}
+                className="space-y-6"
+              >
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-gray-400 uppercase ml-4 tracking-widest text-left block">Nome do Serviço</label>
+                  <input name="name" required defaultValue={editingProcedure.name} className="w-full p-5 rounded-2xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-rose-500 transition-all font-bold text-gray-700" />
+                </div>
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-gray-400 uppercase ml-4 tracking-widest text-left block">Preço</label>
+                    <input name="price" type="number" step="0.01" required defaultValue={editingProcedure.price} className="w-full p-5 rounded-2xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-rose-500 transition-all font-bold text-gray-700" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-gray-400 uppercase ml-4 tracking-widest text-left block">Duração (Min)</label>
+                    <input name="duration" type="number" required defaultValue={editingProcedure.duration} className="w-full p-5 rounded-2xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-rose-500 transition-all font-bold text-gray-700" />
+                  </div>
+                </div>
+                <div className="flex gap-4 pt-8">
+                  <button type="button" onClick={() => setEditingProcedure(null)} className="flex-1 py-5 font-bold text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-2xl transition-all">Cancelar</button>
+                  <button type="submit" className="flex-1 bg-rose-500 text-white py-5 rounded-2xl font-bold shadow-xl shadow-rose-200 hover:bg-rose-600 hover:-translate-y-1 transition-all active:translate-y-0">Salvar Alterações</button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit FollowUp Modal */}
+      <AnimatePresence>
+        {editingFollowUp && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-white p-8 rounded-[40px] w-full max-w-md shadow-2xl relative border border-rose-50"
+            >
+              <h2 className="text-2xl font-black text-gray-900 mb-6">Editar Follow-up</h2>
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.currentTarget);
+                  handleUpdateFollowUp(editingFollowUp.id, {
+                    clientName: formData.get('clientName') as string,
+                    procedureName: formData.get('procedureName') as string,
+                    professionalName: formData.get('professionalName') as string,
+                    date: formData.get('date') as string,
+                    status: formData.get('status') as any,
+                    observation: formData.get('observation') as string,
+                  });
+                }}
+                className="space-y-4"
+              >
+                <div>
+                  <label className="block text-xs font-black text-gray-400 uppercase mb-2">Nome da Cliente</label>
+                  <input name="clientName" required defaultValue={editingFollowUp.clientName} className="w-full bg-gray-50 border-none rounded-2xl p-4 font-bold" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-black text-gray-400 uppercase mb-2">Data</label>
+                    <input name="date" type="date" required defaultValue={editingFollowUp.date} className="w-full bg-gray-50 border-none rounded-2xl p-4 font-bold" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-black text-gray-400 uppercase mb-2">Status</label>
+                    <select name="status" defaultValue={editingFollowUp.status} className="w-full bg-gray-50 border-none rounded-2xl p-4 font-bold">
+                      <option value="Pendente">Pendente</option>
+                      <option value="Em andamento">Em andamento</option>
+                      <option value="Concluído">Concluído</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-gray-400 uppercase mb-2">Observação</label>
+                  <textarea name="observation" rows={3} defaultValue={editingFollowUp.observation} className="w-full bg-gray-50 border-none rounded-2xl p-4 font-bold" />
+                </div>
+                <div className="flex gap-4 pt-4">
+                  <button type="button" onClick={() => setEditingFollowUp(null)} className="flex-1 py-4 font-bold text-gray-400">Cancelar</button>
+                  <button type="submit" className="flex-1 bg-rose-500 text-white py-4 rounded-2xl font-bold">Salvar</button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <div className="flex w-full h-full overflow-hidden">
+        <aside className={cn(
+          "fixed lg:static inset-y-0 left-0 z-50 w-72 bg-white border-r border-rose-50 transition-transform duration-300 ease-in-out lg:translate-x-0 flex-shrink-0",
+          !isSidebarOpen && "-translate-x-full"
+        )}>
         <div className="h-full flex flex-col p-6">
           <div className="flex items-center gap-3 mb-10 px-2">
             <div className="w-10 h-10 bg-rose-600 rounded-xl flex items-center justify-center shadow-lg shadow-rose-200">
@@ -3309,7 +3452,21 @@ export default function App() {
             ))}
           </nav>
 
-          <div className="pt-6 border-t border-rose-50">
+          <div className="mt-4 p-4 bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl text-white relative overflow-hidden group cursor-pointer" onClick={() => window.open('https://wa.me/seunumerodecontato', '_blank')}>
+            <div className="absolute top-0 right-0 w-16 h-16 bg-rose-500/20 rounded-full -mr-8 -mt-8 blur-2xl group-hover:bg-rose-500/40 transition-all" />
+            <div className="relative z-10 flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-amber-400 fill-amber-400" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-rose-400">Boost de Vendas</span>
+              </div>
+              <p className="text-xs font-bold leading-tight">Quer lotar sua agenda com tráfego pago?</p>
+              <button className="mt-1 text-[10px] font-black uppercase flex items-center gap-1 text-rose-500 group-hover:gap-2 transition-all">
+                Falar com minha agência <ChevronRight className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+
+          <div className="pt-6 border-t border-rose-50 mt-4">
             <button 
               onClick={signOutUser}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-gray-400 hover:bg-red-50 hover:text-red-500 transition-all group"
@@ -3353,5 +3510,6 @@ export default function App() {
         </div>
       </main>
     </div>
-  );
+  </div>
+);
 }
