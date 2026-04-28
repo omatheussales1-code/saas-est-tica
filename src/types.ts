@@ -61,6 +61,8 @@ export interface UserProfile {
   budgetValidityDays?: number;
   clientLabel: 'Cliente' | 'Paciente' | 'Aluno' | 'Membro';
   ownerId?: string;
+  plan?: 'free' | 'pro' | 'master';
+  createdAt?: string;
 }
 
 export interface FinancialEntry {

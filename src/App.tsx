@@ -2170,7 +2170,9 @@ export default function App() {
             workingDays: [1, 2, 3, 4, 5],
             budgetValidityDays: 7,
             clientLabel: 'Cliente',
-            ownerId: user.uid
+            ownerId: user.uid,
+            plan: 'free',
+            createdAt: new Date().toISOString()
           };
           setDoc(doc(db, 'userProfiles', user.uid), defaultProfile);
         }
@@ -3457,7 +3459,9 @@ export default function App() {
             <div className="relative z-10 flex flex-col gap-2">
               <div className="flex items-center gap-2">
                 <Zap className="w-4 h-4 text-amber-400 fill-amber-400" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-rose-400">Boost de Vendas</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-rose-400">
+                  Plano {userProfile?.plan?.toUpperCase() || 'FREE'}
+                </span>
               </div>
               <p className="text-xs font-bold leading-tight">Quer lotar sua agenda com tráfego pago?</p>
               <button className="mt-1 text-[10px] font-black uppercase flex items-center gap-1 text-rose-500 group-hover:gap-2 transition-all">
