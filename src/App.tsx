@@ -2786,7 +2786,15 @@ export default function App() {
                 const formData = new FormData(e.currentTarget);
                 const date = formData.get('date') as string;
                 const time = formData.get('time') as string;
-                const clientId = formData.get('clientId') as string;
+                let clientId = formData.get('clientId') as string;
+                const clientSearch = formData.get('clientSearch') as string;
+                
+                // Fallback: Tentativa de encontrar pelo nome se o ID estiver vazio
+                if (!clientId && clientSearch) {
+                  const match = clients.find(c => (c.name || '').toLowerCase() === clientSearch.toLowerCase());
+                  if (match) clientId = match.id;
+                }
+                
                 const procedureId = formData.get('procedureId') as string;
                 
                 if (!clientId) {
