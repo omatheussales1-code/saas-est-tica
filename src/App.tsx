@@ -374,7 +374,7 @@ const NotificationCenter = ({ alerts }: { alerts: { id: string, message: string,
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }: { isOpen: boolean, onClose: () => void, onConfirm: () => void, title: string, message: string }) => (
   <AnimatePresence>
     {isOpen && (
-      <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
         <motion.div 
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -4014,7 +4014,7 @@ export default function App() {
 
       <div className="flex w-full h-full overflow-hidden">
         <aside className={cn(
-          "fixed lg:static inset-y-0 left-0 z-50 w-72 bg-white border-r border-rose-50 transition-transform duration-300 ease-in-out lg:translate-x-0 flex-shrink-0",
+          "fixed lg:static inset-y-0 left-0 z-[160] w-72 bg-white border-r border-rose-50 transition-transform duration-300 ease-in-out lg:translate-x-0 flex-shrink-0",
           !isSidebarOpen && "-translate-x-full"
         )}>
         <div className="h-full flex flex-col p-6">
@@ -4078,7 +4078,7 @@ export default function App() {
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden relative">
-        <header className="h-16 bg-white/80 backdrop-blur-md border-b border-rose-50 flex items-center justify-between px-4 lg:px-8 flex-shrink-0 sticky top-0 z-[50]">
+        <header className="h-16 bg-white/80 backdrop-blur-md border-b border-rose-50 flex items-center justify-between px-4 lg:px-8 flex-shrink-0 sticky top-0 z-[150]">
           <button 
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             className="lg:hidden p-2 text-gray-500 hover:bg-rose-50 rounded-lg"
@@ -4104,14 +4104,14 @@ export default function App() {
               {isNotificationsOpen && (
                 <>
                   <div 
-                    className="fixed inset-0 z-[200]" 
+                    className="fixed inset-0 z-[250]" 
                     onClick={() => setIsNotificationsOpen(false)} 
                   />
                   <motion.div
                     initial={{ opacity: 0, y: 10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    className="absolute top-full right-0 mt-2 w-80 bg-white rounded-3xl shadow-2xl border border-rose-50 z-[210] overflow-hidden"
+                    className="absolute top-full right-0 mt-2 w-80 bg-white rounded-3xl shadow-2xl border border-rose-50 z-[260] overflow-hidden"
                   >
                     <div className="p-4 border-b border-rose-50 bg-rose-50/30 flex items-center justify-between">
                       <h3 className="font-black text-sm text-gray-900 uppercase tracking-wider">Histórico do Dia</h3>
