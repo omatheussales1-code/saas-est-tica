@@ -528,24 +528,18 @@ const Dashboard = ({
           <h1 className="text-2xl font-black text-gray-900 tracking-tight">Painel de Controle</h1>
           <p className="text-sm font-medium text-gray-500">Bem-vindo(a) de volta, {userProfile?.name?.split(' ')[0] || user.displayName || 'Profissional'}!</p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="bg-white px-4 py-2 rounded-xl border border-rose-100 shadow-sm flex items-center gap-3">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-            <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">Sistema Online</span>
-          </div>
-        </div>
       </header>
 
       {/* Alertas Rápidos */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {tomorrowAppointments.length > 0 && (
-          <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200">
+          <div className="bg-rose-50 border border-rose-100 p-4 rounded-2xl flex items-center gap-3">
+            <div className="w-10 h-10 bg-rose-500 rounded-xl flex items-center justify-center shadow-lg shadow-rose-200">
               <CalendarIcon className="text-white w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs font-bold text-blue-400 uppercase">Amanhã</p>
-              <p className="text-sm font-bold text-blue-800">Você tem {tomorrowAppointments.length} atendimentos agendados para amanhã</p>
+              <p className="text-xs font-bold text-rose-400 uppercase">Amanhã</p>
+              <p className="text-sm font-bold text-rose-800">Você tem {tomorrowAppointments.length} atendimentos agendados para amanhã</p>
             </div>
           </div>
         )}
@@ -568,7 +562,7 @@ const Dashboard = ({
           title="Atendimentos Hoje" 
           value={todayAppointments.length} 
           icon={<CalendarIcon className="w-5 h-5" />} 
-          color={`bg-${userProfile?.accentColor || 'rose'}-100 text-${userProfile?.accentColor || 'rose'}-600`}
+          color="bg-rose-100 text-rose-600"
           onClick={onNavigateToAgenda}
           clickable
         />
@@ -576,25 +570,25 @@ const Dashboard = ({
           title="Próximo Atendimento" 
           value={nextApp?.date ? (timeRemaining || format(parseISO(nextApp.date), 'HH:mm')) : '--:--'} 
           icon={<Clock className="w-5 h-5" />} 
-          color="bg-blue-100 text-blue-600" 
+          color="bg-rose-100 text-rose-600" 
         />
         <StatCard 
           title="Pendentes (Não foram)" 
           value={missedAppointments} 
           icon={<BellRing className="w-5 h-5" />} 
-          color={`bg-${userProfile?.accentColor || 'rose'}-100 text-${userProfile?.accentColor || 'rose'}-600`}
+          color="bg-rose-100 text-rose-600"
         />
         <StatCard 
           title={`Total ${csLabel}`} 
           value={clients.length} 
-          icon={<Users className="w-5 h-5 text-blue-600" />} 
-          color="bg-blue-50"
+          icon={<Users className="w-5 h-5 text-rose-600" />} 
+          color="bg-rose-50"
         />
         <StatCard 
           title="Leads Ativos" 
           value={leads.filter(l => l.status !== 'convertido' && l.status !== 'perdido').length} 
-          icon={<MessageCircle className="w-5 h-5 text-purple-600" />} 
-          color="bg-purple-50"
+          icon={<MessageCircle className="w-5 h-5 text-rose-600" />} 
+          color="bg-rose-50"
         />
       </div>
 
@@ -640,7 +634,7 @@ const Dashboard = ({
                     </div>
                     <div className={cn(
                       "px-3 py-1 rounded-full text-xs font-medium",
-                      app.status === 'confirmado' ? "bg-blue-100 text-blue-700" : 
+                      app.status === 'confirmado' ? "bg-rose-100 text-rose-700" : 
                       app.status === 'realizado' ? "bg-green-100 text-green-700" : 
                       app.status === 'pendente' ? "bg-amber-100 text-amber-700" : 
                       app.status === 'atrasado' ? "bg-red-500 text-white" : "bg-red-100 text-red-700"
@@ -701,7 +695,7 @@ const Agenda = ({
   };
 
   const statusColors: Record<AppointmentStatus, string> = {
-    confirmado: "text-blue-500",
+    confirmado: "text-rose-500",
     realizado: "text-green-500",
     faltou: "text-red-500",
     pendente: "text-amber-500",
@@ -794,7 +788,7 @@ const Agenda = ({
                       <div key={app.id} className="flex items-center gap-1">
                         <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", 
                           app.status === 'realizado' ? 'bg-green-500' : 
-                          app.status === 'confirmado' ? 'bg-blue-500' : 
+                          app.status === 'confirmado' ? 'bg-rose-500' : 
                           app.status === 'faltou' ? 'bg-red-500' : 'bg-amber-500'
                         )} />
                         <span className="text-[10px] font-medium text-gray-500 truncate">
@@ -946,7 +940,7 @@ const ClientsTab = ({
               <div className="absolute top-4 right-4 flex gap-2">
                 <button 
                   onClick={() => onEditClient(selectedClient)}
-                  className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
+                  className="p-2 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
                 >
                   <Pencil className="w-4 h-4" />
                 </button>
@@ -1050,7 +1044,7 @@ const ClientsTab = ({
             <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               <button 
                 onClick={(e) => { e.stopPropagation(); onEditClient(client); }}
-                className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
+                className="p-1.5 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
               >
                 <Pencil className="w-4 h-4" />
               </button>
@@ -1120,7 +1114,7 @@ const AppointmentsTab = ({
   };
 
   const statusColors: Record<AppointmentStatus, string> = {
-    confirmado: "bg-blue-100 text-blue-700",
+    confirmado: "bg-rose-100 text-rose-700",
     realizado: "bg-green-100 text-green-700",
     faltou: "bg-red-100 text-red-700",
     pendente: "bg-amber-100 text-amber-700",
@@ -1212,7 +1206,7 @@ const AppointmentsTab = ({
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button 
                             onClick={() => onEditAppointment(app)}
-                            className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
+                            className="p-1.5 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
@@ -1440,7 +1434,7 @@ const LeadsTab = ({
   };
 
   const statusColors: Record<Lead['status'], string> = {
-    'novo': 'bg-blue-100 text-blue-700',
+    'novo': 'bg-rose-100 text-rose-700',
     'follow-up-1': 'bg-amber-100 text-amber-700',
     'follow-up-3': 'bg-orange-100 text-orange-700',
     'follow-up-7': 'bg-rose-100 text-rose-700',
@@ -1501,7 +1495,7 @@ const LeadsTab = ({
                       {statusLabels[lead.status]}
                     </span>
                     {lead.estimatedValue && (
-                      <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-50 text-blue-600">
+                      <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-50 text-rose-600">
                         Potencial: {formatCurrency(lead.estimatedValue)}
                       </span>
                     )}
@@ -1660,12 +1654,12 @@ const FollowUpTab = ({
                         ) : (
                           <span className={cn(
                             "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider inline-flex items-center gap-1",
-                            fu.status === 'Em andamento' ? "bg-blue-100 text-blue-700" :
+                            fu.status === 'Em andamento' ? "bg-rose-100 text-rose-700" :
                             "bg-green-100 text-green-700"
                           )}>
                             <div className={cn(
                               "w-1.5 h-1.5 rounded-full",
-                              fu.status === 'Em andamento' ? "bg-blue-500" : "bg-green-500"
+                              fu.status === 'Em andamento' ? "bg-rose-500" : "bg-green-500"
                             )} />
                             {fu.status}
                           </span>
@@ -1676,7 +1670,7 @@ const FollowUpTab = ({
                       <div className="flex justify-end gap-2">
                         <button 
                           onClick={() => onEdit && onEdit(fu)}
-                          className="p-2 text-gray-400 hover:text-blue-500 transition-colors" 
+                          className="p-2 text-gray-400 hover:text-rose-500 transition-colors" 
                           title="Editar registros"
                         >
                           <Pencil className="w-5 h-5" />
@@ -1982,9 +1976,9 @@ const FinancialTab = ({
           <div className="mt-2 text-[10px] text-red-400 font-bold">Distribuição em {filteredEntries.filter(e => e.type === 'despesa').length} itens</div>
         </div>
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-rose-50 relative overflow-hidden group">
-        <div className="absolute -right-4 -top-4 w-24 h-24 bg-blue-50 rounded-full blur-2xl group-hover:bg-blue-100 transition-all" />
+        <div className="absolute -right-4 -top-4 w-24 h-24 bg-rose-50 rounded-full blur-2xl group-hover:bg-rose-100 transition-all" />
           <p className="text-xs font-bold text-gray-400 uppercase mb-1">Saldo Líquido</p>
-          <p className={cn("text-2xl font-black", balance >= 0 ? "text-blue-600" : "text-red-600")}>
+          <p className={cn("text-2xl font-black", balance >= 0 ? "text-green-600" : "text-red-600")}>
             {formatCurrency(balance)}
           </p>
           <div className="mt-2 text-[10px] text-gray-500 font-bold">Resultado operacional</div>
@@ -2079,13 +2073,13 @@ const FinancialTab = ({
                         <div className="text-sm font-bold text-gray-900">{entry.description}</div>
                         <div className="flex items-center gap-2 mt-1">
                           <span className="text-[9px] font-black uppercase text-gray-400 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">{entry.category || 'Geral'}</span>
-                          <span className="text-[9px] font-black uppercase text-blue-500 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">{entry.paymentMethod}</span>
+                          <span className="text-[9px] font-black uppercase text-rose-500 bg-rose-50 px-2 py-0.5 rounded border border-rose-100">{entry.paymentMethod}</span>
                         </div>
                       </td>
                       <td className={cn("px-6 py-4 text-sm font-black text-right", entry.type === 'receita' ? "text-green-600" : "text-red-500")}>
                         <div className="flex items-center justify-end gap-3">
                           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => onEditEntry(entry)} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"><Pencil className="w-3.5 h-3.5" /></button>
+                            <button onClick={() => onEditEntry(entry)} className="p-1.5 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"><Pencil className="w-3.5 h-3.5" /></button>
                             <button onClick={() => onDeleteEntry(entry.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
                           </div>
                           <span>{entry.type === 'receita' ? '+' : '-'} {formatCurrency(entry.amount)}</span>
@@ -2334,6 +2328,28 @@ const SettingsTab = ({
   useEffect(() => {
     if (userProfile) setProfile(userProfile);
   }, [userProfile]);
+
+  // Real-time theme preview with cleanup
+  useEffect(() => {
+    const theme = profile.accentColor || 'rose';
+    const colors = COLOR_PRESETS[theme as keyof typeof COLOR_PRESETS];
+    if (colors) {
+      Object.entries(colors).forEach(([shade, hex]) => {
+        document.documentElement.style.setProperty(`--primary-${shade}`, hex);
+      });
+    }
+
+    // Reset to official theme color if user leaves settings without saving
+    return () => {
+      const savedTheme = userProfile?.accentColor || 'rose';
+      const savedColors = COLOR_PRESETS[savedTheme as keyof typeof COLOR_PRESETS];
+      if (savedColors) {
+        Object.entries(savedColors).forEach(([shade, hex]) => {
+          document.documentElement.style.setProperty(`--primary-${shade}`, hex);
+        });
+      }
+    };
+  }, [profile.accentColor, userProfile?.accentColor]);
 
   const daysOfWeek = [
     { label: 'Dom', value: 0 },
