@@ -30,7 +30,8 @@ import {
   Pencil,
   Zap,
   Rocket,
-  ArrowRight
+  ArrowRight,
+  Palette
 } from 'lucide-react';
 import { 
   format, 
@@ -111,7 +112,177 @@ import {
   Area
 } from 'recharts';
 
-// --- Types & Error Handling ---
+// --- Constants & Types ---
+
+const COLOR_PRESETS = {
+  rose: {
+    50: '#fff1f2', 100: '#ffe4e6', 200: '#fecdd3', 300: '#fda4af', 400: '#fb7185', 
+    500: '#f43f5e', 600: '#e11d48', 700: '#be123c', 800: '#9f1239', 900: '#881337'
+  },
+  blue: {
+    50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa',
+    500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a'
+  },
+  green: {
+    50: '#f0fdf4', 100: '#dcfce7', 200: '#bbf7d0', 300: '#86efac', 400: '#4ade80',
+    500: '#22c55e', 600: '#16a34a', 700: '#15803d', 800: '#166534', 900: '#14532d'
+  },
+  red: {
+    50: '#fef2f2', 100: '#fee2e2', 200: '#fecaca', 300: '#fca5a5', 400: '#f87171',
+    500: '#ef4444', 600: '#dc2626', 700: '#b91c1c', 800: '#991b1b', 900: '#7f1d1d'
+  },
+  purple: {
+    50: '#f5f3ff', 100: '#ede9fe', 200: '#ddd6fe', 300: '#c4b5fd', 400: '#a78bfa',
+    500: '#8b5cf6', 600: '#7c3aed', 700: '#6d28d9', 800: '#5b21b6', 900: '#4c1d95'
+  },
+  indigo: {
+    50: '#eef2ff', 100: '#e0e7ff', 200: '#c7d2fe', 300: '#a5b4fc', 400: '#818cf8',
+    500: '#6366f1', 600: '#4f46e5', 700: '#4338ca', 800: '#3730a3', 900: '#312e81'
+  },
+  amber: {
+    50: '#fffbeb', 100: '#fef3c7', 200: '#fde68a', 300: '#fcd34d', 400: '#fbbf24',
+    500: '#f59e0b', 600: '#d97706', 700: '#b45309', 800: '#92400e', 900: '#78350f'
+  },
+  emerald: {
+    50: '#ecfdf5', 100: '#d1fae5', 200: '#a7f3d0', 300: '#6ee7b7', 400: '#34d399',
+    500: '#10b981', 600: '#059669', 700: '#047857', 800: '#065f46', 900: '#064e3b'
+  }
+};
+
+const getThemeColor = (profile: UserProfile | null, shade: number = 500) => {
+  const theme = profile?.accentColor || 'rose';
+  return (COLOR_PRESETS[theme as keyof typeof COLOR_PRESETS] as any)[shade] || COLOR_PRESETS.rose[500];
+};
+
+const hexToRgb = (hex: string): [number, number, number] => {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return [r, g, b];
+};
+
+const FollowUpTriggerModal = ({ 
+  isOpen, 
+  onClose, 
+  appointment, 
+  client,
+  procedure,
+  onAddFollowUp,
+  userProfile
+}: { 
+  isOpen: boolean, 
+  onClose: () => void, 
+  appointment: Appointment | null,
+  client: Client | null,
+  procedure: Procedure | null,
+  onAddFollowUp: (fu: FollowUp) => void,
+  userProfile: UserProfile | null
+}) => {
+  const [returnDays, setReturnDays] = useState('30');
+  
+  if (!isOpen || !appointment || !client) return null;
+
+  const handleDayAfter = () => {
+    onAddFollowUp({
+      id: Math.random().toString(36).substr(2, 9),
+      clientId: client.id,
+      clientName: client.name,
+      clientPhone: client.phone,
+      procedureName: procedure?.name || 'Procedimento',
+      professionalName: userProfile?.name || 'Profissional',
+      date: addDays(new Date(), 1).toISOString(),
+      status: 'Pendente',
+      observation: 'Check-up pós-procedimento (como está se sentindo?)'
+    });
+    onClose();
+  };
+
+  const handleReturn = () => {
+    const days = parseInt(returnDays);
+    if (isNaN(days)) return;
+
+    onAddFollowUp({
+      id: Math.random().toString(36).substr(2, 9),
+      clientId: client.id,
+      clientName: client.name,
+      clientPhone: client.phone,
+      procedureName: procedure?.name || 'Procedimento',
+      professionalName: userProfile?.name || 'Profissional',
+      date: addDays(new Date(), days).toISOString(),
+      status: 'Pendente',
+      observation: `Follow-up para marcar novo procedimento (${days} dias depois)`
+    });
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="bg-white rounded-[40px] shadow-2xl w-full max-w-md overflow-hidden border border-rose-50"
+      >
+        <div className="p-8 pb-4 text-center">
+          <div className="w-16 h-16 bg-rose-100 rounded-2xl flex items-center justify-center mx-auto mb-6 text-rose-500">
+            <BellRing className="w-8 h-8" />
+          </div>
+          <h2 className="text-2xl font-black text-gray-900 mb-2">Follow-up Inteligente</h2>
+          <p className="text-sm text-gray-500 font-medium">Procedimento finalizado! Como deseja acompanhar {client.name}?</p>
+        </div>
+
+        <div className="p-8 space-y-4">
+          <button 
+            onClick={handleDayAfter}
+            className="w-full flex items-center gap-4 p-5 rounded-3xl bg-rose-50 border border-rose-100 group hover:bg-rose-100 transition-all text-left"
+          >
+            <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-rose-500 shadow-sm">
+              <Sun className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-sm font-black text-rose-900 uppercase tracking-tight">Check-up amanhã</p>
+              <p className="text-[10px] font-bold text-rose-600/70">Perguntar como a cliente está se sentindo</p>
+            </div>
+          </button>
+
+          <div className="p-5 rounded-3xl bg-gray-50 border border-gray-100 space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-gray-500 shadow-sm">
+                <CalendarIcon className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-sm font-black text-gray-900 uppercase tracking-tight">Lembrete de Retorno</p>
+                <p className="text-[10px] font-bold text-gray-400">Oferecer novo procedimento no futuro</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <input 
+                type="number" 
+                value={returnDays} 
+                onChange={e => setReturnDays(e.target.value)}
+                className="w-20 p-3 rounded-xl bg-white border border-gray-100 outline-none font-black text-center text-rose-500"
+              />
+              <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Dias depois</span>
+              <button 
+                onClick={handleReturn}
+                className="ml-auto bg-gray-900 text-white p-3 rounded-xl hover:scale-105 transition-transform"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          <button 
+            onClick={onClose}
+            className="w-full py-4 text-xs font-black text-gray-400 uppercase tracking-widest hover:text-gray-600 transition-colors"
+          >
+            Agora não, obrigado
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
 
 enum OperationType {
   CREATE = 'create',
@@ -127,16 +298,14 @@ interface FirestoreErrorInfo {
   operationType: OperationType;
   path: string | null;
   authInfo: {
-    userId: string | undefined;
+    userId: string | null | undefined;
     email: string | null | undefined;
-    emailVerified: boolean | undefined;
-    isAnonymous: boolean | undefined;
-    tenantId: string | null | undefined;
-    providerInfo: {
-      providerId: string;
-      displayName: string | null;
+    emailVerified?: boolean;
+    isAnonymous?: boolean;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId: string | null;
       email: string | null;
-      photoUrl: string | null;
     }[];
   }
 }
@@ -144,23 +313,36 @@ interface FirestoreErrorInfo {
 function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
+    operationType,
+    path,
     authInfo: {
       userId: auth.currentUser?.uid,
       email: auth.currentUser?.email,
       emailVerified: auth.currentUser?.emailVerified,
       isAnonymous: auth.currentUser?.isAnonymous,
       tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
+      providerInfo: auth.currentUser?.providerData?.map(p => ({
+        providerId: p.providerId,
+        email: p.email
       })) || []
-    },
-    operationType,
-    path
+    }
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  
+  let errorMessage: string;
+  try {
+    errorMessage = JSON.stringify(errInfo);
+  } catch (e) {
+    // Fallback if circular structures are somehow present
+    errorMessage = JSON.stringify({
+      error: errInfo.error,
+      operationType: errInfo.operationType,
+      path: errInfo.path,
+      authInfo: { userId: errInfo.authInfo.userId }
+    });
+  }
+  
+  console.error('Firestore Error: ', errorMessage);
+  throw new Error(errorMessage);
 }
 
 // --- Components ---
@@ -386,7 +568,7 @@ const Dashboard = ({
           title="Atendimentos Hoje" 
           value={todayAppointments.length} 
           icon={<CalendarIcon className="w-5 h-5" />} 
-          color="bg-rose-100 text-rose-600" 
+          color={`bg-${userProfile?.accentColor || 'rose'}-100 text-${userProfile?.accentColor || 'rose'}-600`}
           onClick={onNavigateToAgenda}
           clickable
         />
@@ -400,7 +582,7 @@ const Dashboard = ({
           title="Pendentes (Não foram)" 
           value={missedAppointments} 
           icon={<BellRing className="w-5 h-5" />} 
-          color="bg-amber-100 text-amber-600" 
+          color={`bg-${userProfile?.accentColor || 'rose'}-100 text-${userProfile?.accentColor || 'rose'}-600`}
         />
         <StatCard 
           title={`Total ${csLabel}`} 
@@ -1466,16 +1648,29 @@ const FollowUpTab = ({
                     <td className="p-4 text-sm text-gray-600 font-medium">{fu.procedureName || 'Procedimento'}</td>
                     <td className="p-4 text-sm text-gray-600">{fu.professionalName || '-'}</td>
                     <td className="p-4 text-sm text-gray-600">{fu.date ? format(parseISO(fu.date), 'dd/MM/yyyy') : '-'}</td>
-                    <td className="p-4">
-                      <span className={cn(
-                        "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider",
-                        fu.status === 'Pendente' ? "bg-amber-100 text-amber-700" :
-                        fu.status === 'Em andamento' ? "bg-blue-100 text-blue-700" :
-                        "bg-green-100 text-green-700"
-                      )}>
-                        {fu.status}
-                      </span>
-                    </td>
+                      <td className="p-4">
+                        {fu.status === 'Pendente' ? (
+                          <button
+                            onClick={() => onUpdateStatus(fu.id, 'Concluído')}
+                            className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors flex items-center gap-1 group"
+                          >
+                            <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                            {fu.status}
+                          </button>
+                        ) : (
+                          <span className={cn(
+                            "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider inline-flex items-center gap-1",
+                            fu.status === 'Em andamento' ? "bg-blue-100 text-blue-700" :
+                            "bg-green-100 text-green-700"
+                          )}>
+                            <div className={cn(
+                              "w-1.5 h-1.5 rounded-full",
+                              fu.status === 'Em andamento' ? "bg-blue-500" : "bg-green-500"
+                            )} />
+                            {fu.status}
+                          </span>
+                        )}
+                      </td>
                     <td className="p-4 text-sm text-gray-500 max-w-xs truncate">{fu.observation}</td>
                     <td className="p-4 text-right">
                       <div className="flex justify-end gap-2">
@@ -1486,7 +1681,15 @@ const FollowUpTab = ({
                         >
                           <Pencil className="w-5 h-5" />
                         </button>
-                        <button className="p-2 text-green-500 hover:bg-green-50 rounded-lg transition-colors" title="Abrir WhatsApp">
+                        <button 
+                          onClick={() => {
+                            const phone = fu.clientPhone ? fu.clientPhone.replace(/\D/g, '') : '';
+                            const text = `Olá ${fu.clientName}! Tudo bem? Gostaria de saber como você está se sentindo após o procedimento de ${fu.procedureName}...`;
+                            window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
+                          }}
+                          className="p-2 text-green-500 hover:bg-green-50 rounded-lg transition-colors" 
+                          title="Abrir WhatsApp"
+                        >
                           <MessageCircle className="w-5 h-5" />
                         </button>
                         {fu.status !== 'Concluído' && (
@@ -1517,8 +1720,8 @@ const FollowUpTab = ({
                         <BellRing className="w-8 h-8 text-rose-200" />
                       </div>
                       <div>
-                        <p className="text-sm font-bold text-gray-900">Nenhum follow-up pendente</p>
-                        <p className="text-xs text-gray-400">Clique em "Novo Follow-up" para criar um acompanhamento manual.</p>
+                        <p className="text-sm font-bold text-gray-900">Nenhum acompanhamento para hoje</p>
+                        <p className="text-xs text-gray-400">Você só verá aqui os acompanhamentos agendados para a data de hoje.</p>
                       </div>
                     </div>
                   </td>
@@ -1636,6 +1839,8 @@ const FinancialTab = ({
     return Object.values(days);
   }, [filteredEntries]);
 
+  const primary500 = getThemeColor(userProfile, 500);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!desc || isNaN(parseFloat(amount))) return;
@@ -1659,7 +1864,9 @@ const FinancialTab = ({
     const dateStr = format(new Date(), 'dd/MM/yyyy HH:mm');
     
     doc.setFontSize(20);
-    doc.setTextColor(225, 29, 72); // rose-600
+    const primary600 = getThemeColor(userProfile, 600);
+    const [r, g, b] = hexToRgb(primary600);
+    doc.setTextColor(r, g, b); 
     doc.text(businessName, 14, 20);
     
     doc.setFontSize(12);
@@ -1682,8 +1889,8 @@ const FinancialTab = ({
       body: tableData,
       startY: 55,
       styles: { fontSize: 8, cellPadding: 3 },
-      headStyles: { fillColor: [225, 29, 72], textColor: [255, 255, 255] },
-      alternateRowStyles: { fillColor: [255, 241, 242] }
+      headStyles: { fillColor: [r, g, b], textColor: [255, 255, 255] },
+      alternateRowStyles: { fillColor: hexToRgb(getThemeColor(userProfile, 50)) }
     });
     
     const finalY = (doc as any).lastAutoTable.finalY + 10;
@@ -1695,7 +1902,7 @@ const FinancialTab = ({
     doc.save(`relatorio_financeiro_${format(new Date(), 'yyyyMMdd')}.pdf`);
   };
 
-  const COLORS = ['#F43F5E', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
+  const COLORS = [getThemeColor(userProfile, 500), '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
 
   return (
     <div className="space-y-6">
@@ -1931,8 +2138,8 @@ const FinancialTab = ({
                     <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
                   </linearGradient>
                   <linearGradient id="colorDesp" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#F43F5E" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="#F43F5E" stopOpacity={0}/>
+                    <stop offset="5%" stopColor={primary500} stopOpacity={0.1}/>
+                    <stop offset="95%" stopColor={primary500} stopOpacity={0}/>
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
@@ -1944,7 +2151,7 @@ const FinancialTab = ({
                 />
                 <Legend />
                 <Area type="monotone" dataKey="receita" name="Entradas" stroke="#10B981" strokeWidth={3} fillOpacity={1} fill="url(#colorRec)" />
-                <Area type="monotone" dataKey="despesa" name="Saídas" stroke="#F43F5E" strokeWidth={3} fillOpacity={1} fill="url(#colorDesp)" />
+                <Area type="monotone" dataKey="despesa" name="Saídas" stroke={primary500} strokeWidth={3} fillOpacity={1} fill="url(#colorDesp)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -2327,6 +2534,36 @@ const SettingsTab = ({
 
           <section className="space-y-4">
             <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+              <Palette className="w-5 h-5 text-rose-500" /> Cor do Sistema
+            </h2>
+            <div className="bg-white p-8 rounded-[32px] shadow-sm border border-rose-50 space-y-6">
+              <p className="text-sm text-gray-500 font-medium">Escolha uma cor que combine com sua marca:</p>
+              <div className="grid grid-cols-4 sm:grid-cols-8 gap-3">
+                {Object.keys(COLOR_PRESETS).map((colorKey) => {
+                  const colors = COLOR_PRESETS[colorKey as keyof typeof COLOR_PRESETS];
+                  const isSelected = profile.accentColor === colorKey || (!profile.accentColor && colorKey === 'rose');
+                  
+                  return (
+                    <button
+                      key={colorKey}
+                      onClick={() => setProfile(p => ({ ...p, accentColor: colorKey }))}
+                      className={cn(
+                        "w-10 h-10 rounded-full transition-all flex items-center justify-center relative",
+                        isSelected ? "ring-4 ring-offset-2 ring-gray-200" : "hover:scale-110"
+                      )}
+                      style={{ backgroundColor: colors[500] }}
+                      title={colorKey.charAt(0).toUpperCase() + colorKey.slice(1)}
+                    >
+                      {isSelected && <CheckCircle className="w-5 h-5 text-white" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
               <Activity className="w-5 h-5 text-rose-500" /> Sistema
             </h2>
             <div className="bg-white p-8 rounded-[32px] shadow-sm border border-rose-50 space-y-4">
@@ -2365,6 +2602,44 @@ export default function App() {
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+
+  // Update Theme Color
+  useEffect(() => {
+    const theme = userProfile?.accentColor || 'rose';
+    const colors = COLOR_PRESETS[theme as keyof typeof COLOR_PRESETS];
+    if (colors) {
+      Object.entries(colors).forEach(([shade, hex]) => {
+        document.documentElement.style.setProperty(`--primary-${shade}`, hex);
+      });
+    }
+  }, [userProfile?.accentColor]);
+
+  const addNotification = (message: string, type: 'info' | 'warning' | 'error' = 'info') => {
+    const id = Math.random().toString(36).substr(2, 9);
+    const newNotification = { id, message, type, date: new Date() };
+    
+    setNotificationHistory(prev => [newNotification, ...prev].slice(0, 50));
+    setAlerts(prev => [...prev, { id, message, type }].slice(-3));
+    
+    setTimeout(() => {
+      setAlerts(prev => prev.filter(a => a.id !== id));
+    }, 5000);
+  };
+
+  // Limpeza de notificações antigas (não hoje)
+  useEffect(() => {
+    const checkAndClearOldNotifications = () => {
+      setNotificationHistory(prev => prev.filter(n => {
+        const nDate = n.date instanceof Date ? n.date : (n.date as any).toDate ? (n.date as any).toDate() : new Date(n.date);
+        return isSameDay(nDate, new Date());
+      }));
+    };
+    
+    checkAndClearOldNotifications();
+    const interval = setInterval(checkAndClearOldNotifications, 60000); // Checa a cada minuto
+    return () => clearInterval(interval);
+  }, []);
 
   // Firebase Auth
   React.useEffect(() => {
@@ -2432,9 +2707,10 @@ export default function App() {
             clientLabel: 'Cliente',
             ownerId: user.uid,
             plan: 'free',
+            accentColor: 'rose',
             createdAt: new Date().toISOString()
           };
-          setDoc(doc(db, 'userProfiles', user.uid), defaultProfile);
+          setDoc(doc(db, 'userProfiles', user.uid), defaultProfile).catch(e => handleFirestoreError(e, OperationType.WRITE, 'userProfile-init'));
         }
         // After loading profile and setting up listeners, we can stop loading
         setTimeout(() => setIsInitialLoading(false), 800);
@@ -2575,19 +2851,7 @@ export default function App() {
       }
 
       if (newAlerts.length > 0) {
-        const historyEntries = newAlerts.map(a => ({ ...a, date: new Date() }));
-        setNotificationHistory(prev => [...historyEntries, ...prev].slice(0, 20));
-        
-        setAlerts(prev => {
-          // Filtrar alertas que já existem para evitar duplicatas de chaves
-          const uniqueNewAlerts = newAlerts.filter(na => !prev.some(p => p.id === na.id));
-          return [...prev, ...uniqueNewAlerts].slice(-3);
-        });
-        
-        // Remove alertas visuais após 10 segundos
-        setTimeout(() => {
-          setAlerts(prev => prev.filter(a => !newAlerts.some(na => na.id === a.id)));
-        }, 10000);
+        newAlerts.forEach(na => addNotification(na.message, na.type));
       }
     };
 
@@ -2605,6 +2869,9 @@ export default function App() {
       await updateDoc(doc(db, 'appointments', id), { status });
     } catch (e) { handleFirestoreError(e, OperationType.UPDATE, `appointments/${id}`); }
   };
+
+  const [isFollowUpTriggerModalOpen, setIsFollowUpTriggerModalOpen] = useState(false);
+  const [followUpAppRef, setFollowUpAppRef] = useState<Appointment | null>(null);
 
   const handleMarkAsPaid = async (id: string) => {
     if (!user) return;
@@ -2625,6 +2892,11 @@ export default function App() {
         appointmentId: id,
         ownerId: user.uid
       });
+      
+      // Trigger follow-up modal
+      setFollowUpAppRef(app);
+      setIsFollowUpTriggerModalOpen(true);
+      
     } catch (e) { handleFirestoreError(e, OperationType.WRITE, 'payment'); }
   };
 
@@ -2644,7 +2916,7 @@ export default function App() {
       const { id, ...data } = app;
       await addDoc(collection(db, 'appointments'), { ...data, ownerId: user.uid });
       setIsNewAppModalOpen(false);
-      setAlerts(prev => [...prev, { id: Math.random().toString(), message: 'Agendamento salvo com sucesso!', type: 'info' }].slice(-3));
+      addNotification('Agendamento salvo com sucesso!', 'info');
     } catch (e) { handleFirestoreError(e, OperationType.CREATE, 'appointments'); }
   };
 
@@ -2654,6 +2926,7 @@ export default function App() {
       const { id, ...data } = client;
       await addDoc(collection(db, 'clients'), { ...data, ownerId: user.uid });
       setIsNewClientModalOpen(false);
+      addNotification('Registro criado com sucesso!', 'info');
     } catch (e) { handleFirestoreError(e, OperationType.CREATE, 'clients'); }
   };
 
@@ -2672,6 +2945,7 @@ export default function App() {
         for (const app of toDelete) {
           await deleteDoc(doc(db, 'appointments', app.id));
         }
+        addNotification('Registro removido com sucesso!', 'warning');
       } catch (e) { handleFirestoreError(e, OperationType.DELETE, `clients/${id}`); }
     });
   };
@@ -2716,6 +2990,7 @@ export default function App() {
     try {
       const { id, ...data } = budget;
       await addDoc(collection(db, 'budgets'), { ...data, ownerId: user.uid });
+      addNotification('Orçamento gerado com sucesso!', 'info');
     } catch (e) { handleFirestoreError(e, OperationType.CREATE, 'budgets'); }
   };
 
@@ -2725,12 +3000,16 @@ export default function App() {
       const { id, ...data } = followUp;
       await addDoc(collection(db, 'followUps'), { ...data, ownerId: user.uid });
       setIsNewFollowUpModalOpen(false);
+      addNotification('Acompanhamento agendado!', 'info');
     } catch (e) { handleFirestoreError(e, OperationType.CREATE, 'followUps'); }
   };
 
   const handleUpdateFollowUpStatus = async (id: string, status: FollowUp['status']) => {
     try {
       await updateDoc(doc(db, 'followUps', id), { status });
+      if (status === 'Concluído') {
+        addNotification('Acompanhamento realizado com sucesso!', 'info');
+      }
     } catch (e) { handleFirestoreError(e, OperationType.UPDATE, `followUps/${id}`); }
   };
 
@@ -2791,6 +3070,33 @@ export default function App() {
     } catch (e) { handleFirestoreError(e, OperationType.UPDATE, `appointments/${id}`); }
   };
 
+  const handleAddLead = async (lead: Omit<Lead, 'id'>) => {
+    if (!user) return;
+    try {
+      await addDoc(collection(db, 'leads'), { ...lead, ownerId: user.uid });
+      addNotification('Novo lead capturado!', 'info');
+    } catch (e) { handleFirestoreError(e, OperationType.CREATE, 'leads'); }
+  };
+
+  const handleDeleteAppointment = (id: string) => {
+    showConfirm('Excluir Agendamento', 'Tem certeza que deseja excluir este agendamento?', async () => {
+      try {
+        await deleteDoc(doc(db, 'appointments', id));
+        const entries = financialEntries.filter(e => e.appointmentId === id);
+        for (const entry of entries) await deleteDoc(doc(db, 'financialEntries', entry.id));
+        addNotification('Agendamento removido!', 'warning');
+      } catch (e) { handleFirestoreError(e, OperationType.DELETE, `appointments/${id}`); }
+    });
+  };
+
+  const handleUpdateProfile = async (updates: Partial<UserProfile>) => {
+    if (!user) return;
+    try {
+      await setDoc(doc(db, 'userProfiles', user.uid), updates, { merge: true });
+      addNotification('Configurações salvas!', 'info');
+    } catch (e) { handleFirestoreError(e, OperationType.UPDATE, 'userProfile'); }
+  };
+
   const handleResetMocks = () => {
     if (!user) return;
     showConfirm('Carregar Dados de Exemplo', 'Isso irá carregar dados de teste no banco de dados com seus relacionamentos preservados. Deseja continuar?', async () => {
@@ -2802,27 +3108,9 @@ export default function App() {
         for (const l of MOCK_LEADS) await setDoc(doc(db, 'leads', l.id), { ...l, ownerId: user.uid });
         for (const b of MOCK_BUDGETS) await setDoc(doc(db, 'budgets', b.id), { ...b, ownerId: user.uid });
         
-        setAlerts([{ id: 'mock-loaded', message: 'Dados de exemplo carregados com sucesso no Firebase!', type: 'info' }]);
+        addNotification('Dados de exemplo carregados com sucesso!', 'info');
       } catch (e) { handleFirestoreError(e, OperationType.WRITE, 'reset-mocks'); }
     });
-  };
-
-  const handleDeleteAppointment = (id: string) => {
-    showConfirm('Excluir Agendamento', 'Tem certeza que deseja excluir este agendamento?', async () => {
-      try {
-        await deleteDoc(doc(db, 'appointments', id));
-        const entries = financialEntries.filter(e => e.appointmentId === id);
-        for (const entry of entries) await deleteDoc(doc(db, 'financialEntries', entry.id));
-      } catch (e) { handleFirestoreError(e, OperationType.DELETE, `appointments/${id}`); }
-    });
-  };
-
-  const handleUpdateProfile = async (updates: Partial<UserProfile>) => {
-    if (!user) return;
-    try {
-      await setDoc(doc(db, 'userProfiles', user.uid), updates, { merge: true });
-      setAlerts(prev => [...prev, { id: Math.random().toString(), message: 'Configurações salvas!', type: 'info' }].slice(-3));
-    } catch (e) { handleFirestoreError(e, OperationType.UPDATE, 'userProfile'); }
   };
 
   const cLabel = userProfile?.clientLabel || 'Cliente';
@@ -2920,7 +3208,11 @@ export default function App() {
       );
       case 'follow-up': return (
         <FollowUpTab 
-          followUps={followUps} 
+          followUps={followUps.filter(fu => {
+            if (!fu.date) return false;
+            const fuDate = parseISO(fu.date);
+            return isSameDay(fuDate, new Date());
+          })} 
           onOpenNewFollowUp={() => setIsNewFollowUpModalOpen(true)}
           onUpdateStatus={handleUpdateFollowUpStatus}
           onDelete={handleDeleteFollowUp}
@@ -3437,6 +3729,19 @@ export default function App() {
         onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
       />
 
+      <FollowUpTriggerModal 
+        isOpen={isFollowUpTriggerModalOpen}
+        onClose={() => {
+          setIsFollowUpTriggerModalOpen(false);
+          setFollowUpAppRef(null);
+        }}
+        appointment={followUpAppRef}
+        client={followUpAppRef ? clients.find(c => c.id === followUpAppRef.clientId) || null : null}
+        procedure={followUpAppRef ? procedures.find(p => p.id === followUpAppRef.procedureId) || null : null}
+        onAddFollowUp={handleAddFollowUp}
+        userProfile={userProfile}
+      />
+
       {/* Edit Client Modal */}
       <AnimatePresence>
         {editingClient && (
@@ -3772,8 +4077,8 @@ export default function App() {
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
-        <header className="h-16 bg-white/80 backdrop-blur-md border-b border-rose-50 flex items-center justify-between px-4 lg:px-8 flex-shrink-0">
+      <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden relative">
+        <header className="h-16 bg-white/80 backdrop-blur-md border-b border-rose-50 flex items-center justify-between px-4 lg:px-8 flex-shrink-0 sticky top-0 z-[50]">
           <button 
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             className="lg:hidden p-2 text-gray-500 hover:bg-rose-50 rounded-lg"
@@ -3781,11 +4086,82 @@ export default function App() {
             <Menu className="w-6 h-6" />
           </button>
           
-          <div className="flex items-center gap-4">
-            <button className="p-2 text-gray-400 hover:text-rose-500 transition-colors relative">
+          <div className="flex items-center gap-4 relative ml-auto">
+            <button 
+              onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+              className={cn(
+                "p-2 text-gray-400 hover:text-rose-500 transition-colors relative rounded-lg",
+                isNotificationsOpen && "bg-rose-50 text-rose-500"
+              )}
+            >
               <BellRing className="w-6 h-6" />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white" />
+              {notificationHistory.some(n => isToday(n.date instanceof Date ? n.date : (n.date as any).toDate ? (n.date as any).toDate() : new Date(n.date))) && (
+                <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white" />
+              )}
             </button>
+
+            <AnimatePresence>
+              {isNotificationsOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-[200]" 
+                    onClick={() => setIsNotificationsOpen(false)} 
+                  />
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    className="absolute top-full right-0 mt-2 w-80 bg-white rounded-3xl shadow-2xl border border-rose-50 z-[210] overflow-hidden"
+                  >
+                    <div className="p-4 border-b border-rose-50 bg-rose-50/30 flex items-center justify-between">
+                      <h3 className="font-black text-sm text-gray-900 uppercase tracking-wider">Histórico do Dia</h3>
+                      <span className="text-[10px] font-bold text-rose-500 bg-white px-2 py-1 rounded-full border border-rose-100">
+                        {notificationHistory.length}
+                      </span>
+                    </div>
+                    <div className="max-h-[400px] overflow-y-auto p-2 scrollbar-hide">
+                      {notificationHistory.length === 0 ? (
+                        <div className="p-8 text-center">
+                          <BellRing className="w-8 h-8 text-rose-100 mx-auto mb-2" />
+                          <p className="text-xs font-bold text-gray-400 uppercase">Nenhuma notificação</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          {notificationHistory.map((notif) => (
+                            <div 
+                              key={notif.id}
+                              className="p-3 rounded-2xl hover:bg-rose-50 transition-colors flex gap-3 items-start"
+                            >
+                              <div className={cn(
+                                "w-2 h-2 rounded-full mt-1.5 flex-shrink-0",
+                                notif.type === 'error' ? "bg-red-500" :
+                                notif.type === 'warning' ? "bg-amber-500" : "bg-blue-500"
+                              )} />
+                              <div>
+                                <p className="text-xs font-bold text-gray-800 leading-tight mb-1">{notif.message}</p>
+                                <p className="text-[10px] font-medium text-gray-400">
+                                  {format(notif.date instanceof Date ? notif.date : (notif.date as any).toDate ? (notif.date as any).toDate() : new Date(notif.date), "HH:mm")}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {notificationHistory.length > 0 && (
+                      <div className="p-3 border-t border-rose-50 bg-gray-50/50">
+                        <button 
+                          onClick={() => setNotificationHistory([])}
+                          className="w-full py-2 text-[10px] font-black uppercase text-gray-400 hover:text-rose-500 transition-colors"
+                        >
+                          Limpar Histórico
+                        </button>
+                      </div>
+                    )}
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
           </div>
         </header>
 

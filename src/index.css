@@ -3,6 +3,30 @@
 
 @theme {
   --font-sans: "Outfit", "Inter", ui-sans-serif, system-ui, sans-serif;
+  
+  --color-rose-50: var(--primary-50);
+  --color-rose-100: var(--primary-100);
+  --color-rose-200: var(--primary-200);
+  --color-rose-300: var(--primary-300);
+  --color-rose-400: var(--primary-400);
+  --color-rose-500: var(--primary-500);
+  --color-rose-600: var(--primary-600);
+  --color-rose-700: var(--primary-700);
+  --color-rose-800: var(--primary-800);
+  --color-rose-900: var(--primary-900);
+}
+
+:root {
+  --primary-50: #fff1f2;
+  --primary-100: #ffe4e6;
+  --primary-200: #fecdd3;
+  --primary-300: #fda4af;
+  --primary-400: #fb7185;
+  --primary-500: #f43f5e;
+  --primary-600: #e11d48;
+  --primary-700: #be123c;
+  --primary-800: #9f1239;
+  --primary-900: #881337;
 }
 
 @layer base {

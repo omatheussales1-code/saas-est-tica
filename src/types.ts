@@ -62,6 +62,7 @@ export interface UserProfile {
   clientLabel: 'Cliente' | 'Paciente' | 'Aluno' | 'Membro';
   ownerId?: string;
   plan?: 'free' | 'pro' | 'master';
+  accentColor?: string;
   createdAt?: string;
 }
 
@@ -105,7 +106,9 @@ export interface Budget {
 
 export interface FollowUp {
   id: string;
+  clientId?: string;
   clientName: string;
+  clientPhone?: string;
   procedureName: string;
   professionalName: string;
   date: string;
