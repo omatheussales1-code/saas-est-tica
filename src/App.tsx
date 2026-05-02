@@ -1249,13 +1249,6 @@ const ClientsTab = ({
             CRM Completo
           </button>
           <button 
-            onClick={exportLookalikeXLSX}
-            className="flex-1 md:flex-none border-2 border-blue-100 text-blue-500 hover:bg-blue-50 px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all font-bold text-sm"
-          >
-            <Target className="w-4 h-4" />
-            Exportar Lookalike
-          </button>
-          <button 
             onClick={onOpenNewClient}
             className="flex-1 md:flex-none bg-rose-500 hover:bg-rose-600 text-white px-6 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-rose-200 font-bold"
           >
