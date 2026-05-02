@@ -16,8 +16,13 @@ export interface Procedure {
 export interface Client {
   id: string;
   name: string;
+  lastName?: string;
   phone: string;
   email?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  birthday?: string;
   observations?: string;
   createdAt: string;
   photoBefore?: string;
@@ -81,12 +86,14 @@ export interface FinancialEntry {
 export interface Lead {
   id: string;
   name: string;
-  platform: 'instagram' | 'whatsapp';
-  source?: 'direct' | 'ad' | 'referral' | 'other';
-  estimatedValue?: number;
-  lastMessageDate: string;
-  status: 'novo' | 'follow-up-1' | 'follow-up-3' | 'follow-up-7' | 'convertido' | 'perdido';
+  email?: string;
+  phone?: string;
+  platform: string;
+  status: 'novo' | 'follow-up-1' | 'convertido' | 'perdido';
   lastMessage: string;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
   ownerId?: string;
 }
 

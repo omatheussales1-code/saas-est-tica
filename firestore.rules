@@ -78,6 +78,16 @@ service cloud.firestore {
              data.ownerId == request.auth.uid;
     }
 
+    function isValidLead(data) {
+      return data.keys().hasAll(['name', 'ownerId', 'status']) &&
+             data.name is string && data.name.size() <= 100 &&
+             data.status in ['novo', 'follow-up-1', 'convertido', 'perdido'] &&
+             data.ownerId == request.auth.uid &&
+             (data.get('email', '') is string) &&
+             (data.get('phone', '') is string) &&
+             (data.get('platform', '') is string);
+    }
+
     // ===============================================================
     // Match Blocks
     // ===============================================================
@@ -138,8 +148,8 @@ service cloud.firestore {
     match /leads/{leadId} {
       allow get: if isDocOwner();
       allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
-      allow create: if isVerified() && incoming().ownerId == request.auth.uid;
-      allow update: if isVerified() && isDocOwner() && incoming().ownerId == request.auth.uid;
+      allow create: if isVerified() && isValidLead(incoming());
+      allow update: if isVerified() && isDocOwner() && isValidLead(incoming()) && incoming().ownerId == existing().ownerId;
       allow delete: if isVerified() && isDocOwner();
     }
 

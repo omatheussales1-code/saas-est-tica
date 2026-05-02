@@ -31,8 +31,15 @@ import {
   Zap,
   Rocket,
   ArrowRight,
-  Palette
+  RotateCcw,
+  Palette,
+  Target,
+  Heart,
+  Sparkles,
+  Instagram,
+  X
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { 
   format, 
   addMonths, 
@@ -178,106 +185,179 @@ const FollowUpTriggerModal = ({
   onAddFollowUp: (fu: FollowUp) => void,
   userProfile: UserProfile | null
 }) => {
+  const [selected, setSelected] = useState<string[]>([]);
   const [returnDays, setReturnDays] = useState('30');
   
   if (!isOpen || !appointment || !client) return null;
 
-  const handleDayAfter = () => {
-    onAddFollowUp({
-      id: Math.random().toString(36).substr(2, 9),
-      clientId: client.id,
-      clientName: client.name,
-      clientPhone: client.phone,
-      procedureName: procedure?.name || 'Procedimento',
-      professionalName: userProfile?.name || 'Profissional',
-      date: addDays(new Date(), 1).toISOString(),
-      status: 'Pendente',
-      observation: 'Check-up pós-procedimento (como está se sentindo?)'
-    });
-    onClose();
+  const toggleOption = (id: string) => {
+    setSelected(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
   };
 
-  const handleReturn = () => {
-    const days = parseInt(returnDays);
-    if (isNaN(days)) return;
+  const handleConfirm = () => {
+    const followUps: { days: number, obs: string }[] = [];
 
-    onAddFollowUp({
-      id: Math.random().toString(36).substr(2, 9),
-      clientId: client.id,
-      clientName: client.name,
-      clientPhone: client.phone,
-      procedureName: procedure?.name || 'Procedimento',
-      professionalName: userProfile?.name || 'Profissional',
-      date: addDays(new Date(), days).toISOString(),
-      status: 'Pendente',
-      observation: `Follow-up para marcar novo procedimento (${days} dias depois)`
+    if (selected.includes('tomorrow')) {
+      followUps.push({ days: 1, obs: 'Check-up pós-procedimento (como está se sentindo?)' });
+    }
+    if (selected.includes('7days')) {
+      followUps.push({ days: 7, obs: 'Follow-up de 7 dias (resultados iniciais e cuidados)' });
+    }
+    if (selected.includes('15days')) {
+      followUps.push({ days: 15, obs: 'Follow-up de 15 dias (manutenção ou novo serviço)' });
+    }
+    if (selected.includes('custom')) {
+      const days = parseInt(returnDays);
+      if (!isNaN(days)) {
+        followUps.push({ days, obs: `Retorno personalizado em ${days} dias` });
+      }
+    }
+
+    followUps.forEach(fu => {
+      onAddFollowUp({
+        id: Math.random().toString(36).substr(2, 9),
+        clientId: client.id,
+        clientName: client.name,
+        clientPhone: client.phone,
+        procedureName: procedure?.name || 'Procedimento',
+        professionalName: userProfile?.name || 'Profissional',
+        date: addDays(new Date(), fu.days).toISOString(),
+        status: 'Pendente',
+        observation: fu.obs
+      });
     });
+
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md z-[200] flex items-center justify-center p-4">
       <motion.div 
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-white rounded-[40px] shadow-2xl w-full max-w-md overflow-hidden border border-rose-50"
+        className="bg-white rounded-[40px] shadow-2xl w-full max-w-lg overflow-hidden border border-rose-50"
       >
-        <div className="p-8 pb-4 text-center">
-          <div className="w-16 h-16 bg-rose-100 rounded-2xl flex items-center justify-center mx-auto mb-6 text-rose-500">
-            <BellRing className="w-8 h-8" />
-          </div>
-          <h2 className="text-2xl font-black text-gray-900 mb-2">Follow-up Inteligente</h2>
-          <p className="text-sm text-gray-500 font-medium">Procedimento finalizado! Como deseja acompanhar {client.name}?</p>
+        {/* Header de Sucesso */}
+        <div className="bg-rose-500 p-8 text-center relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl" />
+          <motion.div 
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 260, damping: 20 }}
+            className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 text-rose-500 shadow-xl"
+          >
+            <CheckCircle2 className="w-8 h-8" />
+          </motion.div>
+          <h2 className="text-2xl font-black text-white mb-1">Pagamento Confirmado!</h2>
+          <p className="text-rose-100 text-sm font-bold uppercase tracking-widest">Procedimento Finalizado com Sucesso</p>
         </div>
 
-        <div className="p-8 space-y-4">
-          <button 
-            onClick={handleDayAfter}
-            className="w-full flex items-center gap-4 p-5 rounded-3xl bg-rose-50 border border-rose-100 group hover:bg-rose-100 transition-all text-left"
-          >
-            <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-rose-500 shadow-sm">
-              <Sun className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-sm font-black text-rose-900 uppercase tracking-tight">Check-up amanhã</p>
-              <p className="text-[10px] font-bold text-rose-600/70">Perguntar como a cliente está se sentindo</p>
-            </div>
-          </button>
+        <div className="p-8 space-y-6">
+          <div className="text-center mb-2">
+            <h3 className="text-lg font-black text-gray-900 leading-tight">Fidelize {client.name.split(' ')[0]}</h3>
+            <p className="text-sm text-gray-500 font-medium text-balance leading-tight">Selecione as opções de acompanhamento desejadas:</p>
+          </div>
 
-          <div className="p-5 rounded-3xl bg-gray-50 border border-gray-100 space-y-4">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-gray-500 shadow-sm">
-                <CalendarIcon className="w-5 h-5" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Check-up Amanhã */}
+            <button 
+              onClick={() => toggleOption('tomorrow')}
+              className={cn(
+                "group p-5 rounded-3xl border transition-all text-left relative",
+                selected.includes('tomorrow') 
+                  ? "bg-rose-500 border-rose-600 text-white shadow-lg shadow-rose-200" 
+                  : "bg-rose-50 border-rose-100 hover:bg-rose-100"
+              )}
+            >
+              <p className={cn("text-sm font-black", selected.includes('tomorrow') ? "text-white" : "text-rose-900")}>Check-up amanhã</p>
+              <p className={cn("text-[10px] font-bold uppercase", selected.includes('tomorrow') ? "text-rose-100" : "text-rose-600/70")}>Saber como ela está</p>
+              {selected.includes('tomorrow') && <div className="absolute top-4 right-4"><CheckCircle2 className="w-5 h-5 text-white" /></div>}
+            </button>
+
+            {/* 7 Dias */}
+            <button 
+              onClick={() => toggleOption('7days')}
+              className={cn(
+                "group p-5 rounded-3xl border transition-all text-left relative",
+                selected.includes('7days') 
+                  ? "bg-blue-500 border-blue-600 text-white shadow-lg shadow-blue-200" 
+                  : "bg-blue-50 border-blue-100 hover:bg-blue-100"
+              )}
+            >
+              <p className={cn("text-sm font-black", selected.includes('7days') ? "text-white" : "text-blue-900")}>7 Dias Depois</p>
+              <p className={cn("text-[10px] font-bold uppercase", selected.includes('7days') ? "text-blue-100" : "text-blue-600/70")}>Verificar resultados</p>
+              {selected.includes('7days') && <div className="absolute top-4 right-4"><CheckCircle2 className="w-5 h-5 text-white" /></div>}
+            </button>
+
+            {/* 15 Dias */}
+            <button 
+              onClick={() => toggleOption('15days')}
+              className={cn(
+                "group p-5 rounded-3xl border transition-all text-left relative",
+                selected.includes('15days') 
+                  ? "bg-purple-500 border-purple-600 text-white shadow-lg shadow-purple-200" 
+                  : "bg-purple-50 border-purple-100 hover:bg-purple-100"
+              )}
+            >
+              <p className={cn("text-sm font-black", selected.includes('15days') ? "text-white" : "text-purple-900")}>15 Dias Depois</p>
+              <p className={cn("text-[10px] font-bold uppercase", selected.includes('15days') ? "text-purple-100" : "text-purple-600/70")}>Lembrete de Retorno</p>
+              {selected.includes('15days') && <div className="absolute top-4 right-4"><CheckCircle2 className="w-5 h-5 text-white" /></div>}
+            </button>
+
+            {/* Personalizado */}
+            <div 
+              onClick={() => toggleOption('custom')}
+              className={cn(
+                "p-5 rounded-3xl border transition-all flex flex-col justify-between cursor-pointer relative",
+                selected.includes('custom') 
+                  ? "bg-gray-900 border-gray-900 shadow-lg shadow-gray-200" 
+                  : "bg-gray-50 border-gray-100 hover:bg-gray-100"
+              )}
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <p className={cn("text-[10px] font-black uppercase tracking-wider", selected.includes('custom') ? "text-gray-400" : "text-gray-400")}>Data Personalizada</p>
               </div>
-              <div>
-                <p className="text-sm font-black text-gray-900 uppercase tracking-tight">Lembrete de Retorno</p>
-                <p className="text-[10px] font-bold text-gray-400">Oferecer novo procedimento no futuro</p>
+              <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                <input 
+                  type="number" 
+                  min="1"
+                  value={returnDays} 
+                  onChange={e => setReturnDays(e.target.value)}
+                  className={cn(
+                    "w-full p-2 rounded-xl border font-black text-center outline-none transition-all",
+                    selected.includes('custom') 
+                      ? "bg-white/10 border-white/20 text-white focus:ring-1 focus:ring-white/50" 
+                      : "bg-white border-gray-100 text-rose-500 focus:ring-2 focus:ring-rose-500"
+                  )}
+                />
               </div>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <input 
-                type="number" 
-                value={returnDays} 
-                onChange={e => setReturnDays(e.target.value)}
-                className="w-20 p-3 rounded-xl bg-white border border-gray-100 outline-none font-black text-center text-rose-500"
-              />
-              <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Dias depois</span>
-              <button 
-                onClick={handleReturn}
-                className="ml-auto bg-gray-900 text-white p-3 rounded-xl hover:scale-105 transition-transform"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
+              {selected.includes('custom') && <div className="absolute top-4 right-4"><CheckCircle2 className="w-5 h-5 text-green-400" /></div>}
             </div>
           </div>
 
-          <button 
-            onClick={onClose}
-            className="w-full py-4 text-xs font-black text-gray-400 uppercase tracking-widest hover:text-gray-600 transition-colors"
-          >
-            Agora não, obrigado
-          </button>
+          <div className="pt-4 flex flex-col gap-3">
+            <button 
+              onClick={handleConfirm}
+              disabled={selected.length === 0}
+              className={cn(
+                "w-full py-5 rounded-3xl font-black text-sm uppercase tracking-widest transition-all shadow-xl",
+                selected.length > 0 
+                  ? "bg-gray-900 text-white hover:-translate-y-1 shadow-gray-200 active:translate-y-0" 
+                  : "bg-gray-100 text-gray-400 cursor-not-allowed"
+              )}
+            >
+              Confirmar {selected.length > 0 && `(${selected.length})`} Agendamentos
+            </button>
+            
+            <button 
+              onClick={onClose}
+              className="w-full py-2 text-xs font-black text-gray-300 uppercase tracking-widest hover:text-gray-500 transition-colors"
+            >
+              Agora não, obrigado
+            </button>
+          </div>
         </div>
       </motion.div>
     </div>
@@ -456,6 +536,24 @@ const StatCard = ({ title, value, icon, color, onClick, clickable }: { title: st
   </div>
 );
 
+const statusColors: Record<AppointmentStatus, string> = {
+  confirmado: "text-rose-500",
+  realizado: "text-green-500",
+  faltou: "text-red-500",
+  pendente: "text-amber-500",
+  desmarcado: "text-gray-400",
+  atrasado: "text-red-600 font-bold animate-pulse"
+};
+
+const statusLabels: Record<AppointmentStatus, string> = {
+  confirmado: "Confirmado",
+  realizado: "Realizado",
+  faltou: "Pendente (Follow-up)",
+  pendente: "Aguardando",
+  desmarcado: "Desmarcado",
+  atrasado: "Atrasado"
+};
+
 const Dashboard = ({ 
   appointments, 
   clients, 
@@ -593,59 +691,113 @@ const Dashboard = ({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-rose-50 lg:col-span-3">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <Clock className="w-5 h-5 text-rose-500" />
-            Próximos Atendimentos
-          </h2>
-          <div className="space-y-4">
+        <div className="bg-white p-8 rounded-[40px] shadow-sm border border-rose-50 lg:col-span-3">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h2 className="text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
+                <Clock className="w-6 h-6 text-rose-500" />
+                Próximos da Agenda
+              </h2>
+              <p className="text-sm text-gray-500 font-medium">Fluxo de atendimentos para hoje</p>
+            </div>
+            <button 
+              onClick={onNavigateToAgenda}
+              className="text-xs font-black text-rose-500 uppercase tracking-widest hover:bg-rose-50 px-4 py-2 rounded-xl transition-all"
+            >
+              Ver Agenda Completa
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {todayAppointments.length > 0 ? (
-              todayAppointments.map(app => {
+              todayAppointments.map((app, index) => {
                 const client = clients.find(c => c.id === app.clientId);
                 const proc = procedures.find(p => p.id === app.procedureId);
+                const isLate = app.status === 'atrasado';
+                const isDone = app.status === 'realizado';
+
                 return (
-                  <div key={app.id} className={cn(
-                    "flex items-center justify-between p-4 rounded-xl transition-colors",
-                    app.status === 'atrasado' ? "bg-red-50 border border-red-100 animate-pulse" : "bg-gray-50 hover:bg-rose-50"
-                  )}>
-                    <div className="flex items-center gap-4">
-                      <div className={cn(
-                        "w-12 h-12 rounded-full flex items-center justify-center font-bold",
-                        app.status === 'atrasado' ? "bg-red-500 text-white" : "bg-rose-200 text-rose-700"
-                      )}>
-                        {client?.name?.charAt(0) || '?'}
+                  <motion.div 
+                    key={app.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className={cn(
+                      "group relative p-6 rounded-[32px] border transition-all duration-300",
+                      isLate 
+                        ? "bg-red-50 border-red-100 shadow-xl shadow-red-100/50" 
+                        : isDone
+                        ? "bg-emerald-50 border-emerald-100 opacity-75"
+                        : "bg-white border-rose-50 hover:border-rose-200 hover:shadow-xl hover:shadow-rose-100/30 hover:-translate-y-1"
+                    )}
+                  >
+                    <div className="flex justify-between items-start mb-6">
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          "w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg",
+                          isLate ? "bg-red-500 text-white" : "bg-rose-100 text-rose-600"
+                        )}>
+                          {client?.name?.charAt(0) || '?'}
+                        </div>
+                        <div>
+                          <p className="font-black text-gray-900 text-base leading-tight">{client?.name}</p>
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">{app.date ? format(parseISO(app.date), 'HH:mm') : '--:--'}</span>
+                            <span className="text-[10px] font-bold text-gray-300">•</span>
+                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider truncate max-w-[100px]">{proc?.name}</span>
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-gray-900">{client?.name}</p>
-                        <p className="text-sm text-gray-500">
-                          {proc?.name} • {app.date ? format(parseISO(app.date), 'HH:mm') : '--:--'}
-                          {app.status === 'confirmado' && (
-                            <span className="ml-2 text-rose-500 font-bold">
-                              ({(() => {
+                      
+                      <div className={cn(
+                        "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                        app.status === 'confirmado' ? "bg-rose-100 text-rose-600" : 
+                        app.status === 'realizado' ? "bg-emerald-100 text-emerald-600" : 
+                        app.status === 'pendente' ? "bg-amber-100 text-amber-600" : 
+                        app.status === 'atrasado' ? "bg-red-500 text-white shadow-lg shadow-red-200" : "bg-gray-100 text-gray-500"
+                      )}>
+                        {statusLabels[app.status as AppointmentStatus] || app.status}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between mt-auto">
+                      <div className="flex items-center gap-1">
+                        {app.status === 'confirmado' && (
+                          <div className="flex items-center gap-1.5 bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-100">
+                            <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                            <span className="text-[10px] font-black text-rose-600 uppercase">
+                              {(() => {
                                 const diff = differenceInMinutes(parseISO(app.date), now);
                                 if (diff <= 0) return 'Agora';
-                                if (diff < 60) return `em ${diff} min`;
-                                return `em ${Math.floor(diff/60)}h ${diff%60}m`;
-                              })()})
+                                if (diff < 60) return `${diff}m`;
+                                return `${Math.floor(diff/60)}h ${diff%60}m`;
+                              })()}
                             </span>
-                          )}
-                        </p>
+                          </div>
+                        )}
+                        {isLate && (
+                          <div className="flex items-center gap-1.5 bg-red-500 px-3 py-1.5 rounded-xl">
+                            <AlertCircle className="w-3 h-3 text-white" />
+                            <span className="text-[10px] font-black text-white uppercase">Atrasado</span>
+                          </div>
+                        )}
                       </div>
+                      
+                      <button 
+                        onClick={() => onNavigateToAgenda()}
+                        className="p-2 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+                      >
+                        <ArrowRight className="w-5 h-5" />
+                      </button>
                     </div>
-                    <div className={cn(
-                      "px-3 py-1 rounded-full text-xs font-medium",
-                      app.status === 'confirmado' ? "bg-rose-100 text-rose-700" : 
-                      app.status === 'realizado' ? "bg-green-100 text-green-700" : 
-                      app.status === 'pendente' ? "bg-amber-100 text-amber-700" : 
-                      app.status === 'atrasado' ? "bg-red-500 text-white" : "bg-red-100 text-red-700"
-                    )}>
-                      {(app.status || '').charAt(0).toUpperCase() + (app.status || '').slice(1)}
-                    </div>
-                  </div>
+                  </motion.div>
                 );
               })
             ) : (
-              <p className="text-gray-500 text-center py-8">Nenhum atendimento para hoje.</p>
+              <div className="col-span-full py-12 flex flex-col items-center justify-center bg-gray-50 rounded-[32px] border border-dashed border-gray-200">
+                <CalendarIcon className="w-10 h-10 text-gray-300 mb-2" />
+                <p className="text-gray-500 font-bold">Nenhum atendimento para hoje.</p>
+              </div>
             )}
           </div>
         </div>
@@ -692,24 +844,6 @@ const Agenda = ({
 
   const getAppointmentsForDay = (date: Date) => {
     return appointments.filter(a => a.date && isSameDay(parseISO(a.date), date));
-  };
-
-  const statusColors: Record<AppointmentStatus, string> = {
-    confirmado: "text-rose-500",
-    realizado: "text-green-500",
-    faltou: "text-red-500",
-    pendente: "text-amber-500",
-    desmarcado: "text-gray-400",
-    atrasado: "text-red-600 font-bold animate-pulse"
-  };
-
-  const statusLabels: Record<AppointmentStatus, string> = {
-    confirmado: "Confirmado",
-    realizado: "Realizado",
-    faltou: "Pendente (Follow-up)",
-    pendente: "Aguardando",
-    desmarcado: "Desmarcado",
-    atrasado: "Atrasado"
   };
 
   return (
@@ -809,81 +943,124 @@ const Agenda = ({
             <p className="text-sm text-rose-600 font-bold">{format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}</p>
           </div>
           
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto p-6 space-y-4">
             {dayAppointments.length > 0 ? (
-              dayAppointments.map(app => {
+              dayAppointments.map((app, index) => {
                 const client = clients.find(c => c.id === app.clientId);
                 const proc = procedures.find(p => p.id === app.procedureId);
+                const isLate = app.status === 'atrasado';
+                const isRealized = app.status === 'realizado';
+
                 return (
-                  <div key={app.id} className="p-4 rounded-2xl bg-gray-50 border border-transparent hover:border-rose-100 transition-all group relative">
-                    <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <motion.div 
+                    key={app.id}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className={cn(
+                      "p-5 rounded-[28px] border transition-all duration-300 group relative",
+                      isLate 
+                        ? "bg-red-50 border-red-100 shadow-lg shadow-red-100/30" 
+                        : isRealized
+                        ? "bg-emerald-50/50 border-emerald-100/50 grayscale-[0.3]"
+                        : "bg-white border-rose-50 hover:border-rose-200 hover:shadow-xl hover:shadow-rose-100/20"
+                    )}
+                  >
+                    {/* Action Bar Floating */}
+                    <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-all transform translate-y-1 group-hover:translate-y-0">
                       <button 
                         onClick={() => onEditAppointment(app)}
-                        className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
+                        className="p-2 text-gray-400 hover:text-blue-500 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-blue-100 transition-all"
                       >
-                        <Pencil className="w-3.5 h-3.5" />
+                        <Pencil className="w-4 h-4" />
                       </button>
                       <button 
                         onClick={() => onDeleteAppointment(app.id)}
-                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-red-100 transition-all"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center text-rose-600 font-bold">
-                          {client?.name?.charAt(0) || '?'}
-                        </div>
-                        <div>
-                          <p className="font-bold text-gray-900 text-sm">{client?.name || 'Cliente Excluída'}</p>
-                          <p className="text-xs text-gray-500">{app.date ? format(parseISO(app.date), 'HH:mm') : '--:--'} • {proc?.name || 'Procedimento'}</p>
+
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className={cn(
+                        "w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg shadow-sm",
+                        isLate ? "bg-red-500 text-white" : "bg-rose-100 text-rose-600"
+                      )}>
+                        {client?.name?.charAt(0) || '?'}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-black text-gray-900 text-base flex items-center gap-2 truncate">
+                          {client?.name || 'Cliente Excluída'}
+                          {isRealized && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                        </p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <div className="flex items-center gap-1 text-rose-500">
+                            <Clock className="w-3 h-3" />
+                            <span className="text-[10px] font-black uppercase tracking-wider">{app.date ? format(parseISO(app.date), 'HH:mm') : '--:--'}</span>
+                          </div>
+                          <span className="text-gray-300">•</span>
+                          <span className="text-[10px] font-bold text-gray-400 truncate uppercase tracking-widest">{proc?.name || 'Serviço'}</span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="space-y-3">
+                    <div className="space-y-3 pt-4 border-t border-gray-50">
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase">Status</span>
+                        <div className="flex items-center gap-2">
+                          <Activity className="w-3 h-3 text-gray-300" />
+                          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Controle de Status</span>
+                        </div>
                         <select 
                           value={app.status}
                           onChange={(e) => onUpdateStatus(app.id, e.target.value as AppointmentStatus)}
                           className={cn(
-                            "text-[10px] font-bold uppercase tracking-wider bg-transparent outline-none cursor-pointer",
+                            "text-[10px] font-black uppercase tracking-widest bg-white/50 px-3 py-1.5 rounded-lg border border-transparent hover:border-gray-100 outline-none cursor-pointer transition-all",
                             statusColors[app.status]
                           )}
                         >
-                          {(['confirmado', 'realizado', 'faltou', 'pendente', 'desmarcado'] as AppointmentStatus[]).map(s => (
+                          {(['confirmado', 'realizado', 'faltou', 'pendente', 'desmarcado', 'atrasado'] as AppointmentStatus[]).map(s => (
                             <option key={s} value={s} className="bg-white text-gray-900">{statusLabels[s]}</option>
                           ))}
                         </select>
                       </div>
                       
-                      {app.status !== 'realizado' ? (
-                        <button
-                          onClick={() => onMarkAsPaid(app.id)}
-                          className="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-green-100 transition-all flex items-center justify-center gap-2"
-                        >
-                          <DollarSign className="w-3 h-3" />
-                          Marcar como Pago
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => onUndoMarkAsPaid(app.id)}
-                          className="w-full bg-amber-50 text-amber-600 hover:bg-amber-100 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
-                        >
-                          <AlertCircle className="w-3 h-3" />
-                          Estornar Pagamento
-                        </button>
-                      )}
+                      <div className="pt-1">
+                        {app.status !== 'realizado' ? (
+                          <button
+                            onClick={() => onMarkAsPaid(app.id)}
+                            className="w-full bg-gray-900 hover:bg-gray-800 text-white py-3.5 rounded-[20px] text-[10px] font-black uppercase tracking-[0.15em] shadow-xl shadow-gray-200 transition-all flex items-center justify-center gap-2 hover:-translate-y-1 active:translate-y-0"
+                          >
+                            <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
+                            Finalizar e Cobrar
+                          </button>
+                        ) : (
+                          <div className="flex gap-2">
+                            <div className="flex-1 bg-emerald-50 text-emerald-600 py-3 rounded-[20px] text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 border border-emerald-100/50">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              Pago
+                            </div>
+                            <button
+                              onClick={() => onUndoMarkAsPaid(app.id)}
+                              className="px-4 bg-gray-50 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-[20px] transition-all border border-gray-100"
+                              title="Estornar"
+                            >
+                              <RotateCcw className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })
             ) : (
-              <div className="h-full flex flex-col items-center justify-center text-center py-12 px-6">
-                <CalendarIcon className="w-8 h-8 text-rose-200 mb-4" />
-                <p className="text-gray-500 font-medium">Nenhum agendamento para este dia.</p>
+              <div className="h-full flex flex-col items-center justify-center text-center py-20 px-8">
+                <div className="w-20 h-20 bg-rose-50 rounded-[32px] flex items-center justify-center mb-6">
+                  <CalendarIcon className="w-8 h-8 text-rose-200" />
+                </div>
+                <h4 className="text-gray-900 font-black text-sm uppercase tracking-widest mb-2">Dia Tranquilo</h4>
+                <p className="text-gray-400 text-xs font-medium leading-relaxed">Nenhum agendamento encontrado para esta data.</p>
               </div>
             )}
           </div>
@@ -917,8 +1094,59 @@ const ClientsTab = ({
   
   const filteredClients = clients.filter(c => 
     (c.name || '').toLowerCase().includes((searchTerm || '').toLowerCase()) || 
-    (c.phone || '').includes(searchTerm)
+    (c.phone || '').includes(searchTerm) ||
+    (c.email || '').toLowerCase().includes((searchTerm || '').toLowerCase())
   );
+
+  const sortedClients = [...filteredClients].sort((a, b) => {
+    const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return dateB - dateA;
+  });
+
+  const exportClientsCSV = () => {
+    if (clients.length === 0) return;
+    
+    const data = clients.map(c => ({
+      'NOME COMPLETO': `${c.name || ''} ${c.lastName || ''}`.trim(),
+      'WHATSAPP': c.phone || '',
+      'E-MAIL': c.email || '',
+      'CIDADE': c.city || '',
+      'ESTADO': c.state || '',
+      'ANIVERSÁRIO': c.birthday ? format(new Date(c.birthday), 'dd/MM/yyyy') : '',
+      'DATA CADASTRO': c.createdAt ? format(new Date(c.createdAt), 'dd/MM/yyyy') : '',
+      'OBSERVAÇÕES': c.observations || ''
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wscols = [{ wch: 40 }, { wch: 20 }, { wch: 35 }, { wch: 20 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 40 }];
+    ws['!cols'] = wscols;
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "CRM Clientes");
+    XLSX.writeFile(wb, `crm_completo_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+  };
+
+  const exportLookalikeXLSX = () => {
+    if (clients.length === 0) return;
+    
+    // Formato otimizado para Meta (Facebook) e Google Ads
+    const data = clients.map(c => ({
+      'email': (c.email || '').toLowerCase().trim(),
+      'phone': (c.phone || '').replace(/\D/g, ''), // Somente números
+      'fn': (c.name || '').trim(), // First Name
+      'ln': (c.lastName || '').trim(), // Last Name
+      'ct': (c.city || '').trim(), // City
+      'st': (c.state || '').trim().toLowerCase(), // State (usualmente minúsculo ou abreviado)
+      'country': (c.country || 'BR').toUpperCase(),
+      'dob': c.birthday ? c.birthday.replace(/-/g, '') : '', // Date of Birth YYYYMMDD
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Lookalike");
+    XLSX.writeFile(wb, `lookalike_ads_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+  };
 
   if (selectedClient) {
     const clientAppointments = appointments.filter(a => a.clientId === selectedClient.id)
@@ -958,32 +1186,26 @@ const ClientsTab = ({
                 {selectedClient.name?.charAt(0) || '?'}
               </div>
               <h2 className="text-xl font-black text-gray-900">{selectedClient.name || cLabel}</h2>
-              <p className="text-gray-500 mb-6">{selectedClient.phone}</p>
+              <p className="text-gray-500 font-medium">{selectedClient.phone}</p>
+              {selectedClient.email && <p className="text-xs text-gray-400 font-bold mt-1">{selectedClient.email}</p>}
             </div>
 
             <div className="bg-white p-6 rounded-3xl shadow-sm border border-rose-50">
               <div className="flex items-center gap-2 mb-4 text-rose-600">
                 <ShieldCheck className="w-5 h-5" />
-                <h3 className="font-bold">Atendimento Personalizado</h3>
+                <h3 className="font-bold">Dados de CRM</h3>
               </div>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center py-2 border-b border-gray-50">
-                  <span className="text-xs font-bold text-gray-400 uppercase">Ar Condicionado</span>
-                  <span className="text-sm font-medium text-gray-700 capitalize">{selectedClient.preferences?.airConditioning || 'Não definido'}</span>
+              <div className="p-4 bg-slate-50 rounded-2xl space-y-3">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+                  <FileText className="w-3.5 h-3.5 text-blue-500" />
+                  <span className="truncate">{selectedClient.email || 'Email não cadastrado'}</span>
                 </div>
-                <div className="flex justify-between items-center py-2 border-b border-gray-50">
-                  <span className="text-xs font-bold text-gray-400 uppercase">Música</span>
-                  <span className="text-sm font-medium text-gray-700">{selectedClient.preferences?.music || 'Não definido'}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-gray-50">
-                  <span className="text-xs font-bold text-gray-400 uppercase">Bebida</span>
-                  <span className="text-sm font-medium text-gray-700">{selectedClient.preferences?.beverage || 'Não definido'}</span>
-                </div>
-                <div className="flex justify-between items-center py-2">
-                  <span className="text-xs font-bold text-gray-400 uppercase">Conversa</span>
-                  <span className="text-sm font-medium text-gray-700 capitalize">{selectedClient.preferences?.conversation || 'Não definido'}</span>
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+                  <MessageCircle className="w-3.5 h-3.5 text-green-500" />
+                  <span>{selectedClient.phone || 'WhatsApp não cadastrado'}</span>
                 </div>
               </div>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-4 px-2">Base de dados completa para gestão de fidelização, promoções e anúncios.</p>
             </div>
           </div>
 
@@ -1013,34 +1235,54 @@ const ClientsTab = ({
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-800">Clientes</h1>
-        <button 
-          onClick={onOpenNewClient}
-          className="bg-rose-500 hover:bg-rose-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-rose-200"
-        >
-          <Plus className="w-5 h-5" />
-          Nova Cliente
-        </button>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800 tracking-tight">Lista de Clientes (CRM)</h1>
+          <p className="text-sm text-gray-500 font-medium">Sua base de dados completa para fidelização e vendas</p>
+        </div>
+        <div className="flex flex-wrap gap-2 w-full md:w-auto">
+          <button 
+            onClick={exportClientsCSV}
+            className="flex-1 md:flex-none border-2 border-rose-100 text-rose-500 hover:bg-rose-50 px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all font-bold text-sm"
+          >
+            <Download className="w-4 h-4" />
+            CRM Completo
+          </button>
+          <button 
+            onClick={exportLookalikeXLSX}
+            className="flex-1 md:flex-none border-2 border-blue-100 text-blue-500 hover:bg-blue-50 px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all font-bold text-sm"
+          >
+            <Target className="w-4 h-4" />
+            Exportar Lookalike
+          </button>
+          <button 
+            onClick={onOpenNewClient}
+            className="flex-1 md:flex-none bg-rose-500 hover:bg-rose-600 text-white px-6 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-rose-200 font-bold"
+          >
+            <Plus className="w-5 h-5" />
+            Nova Cliente
+          </button>
+        </div>
       </div>
 
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-rose-50 flex items-center gap-3">
         <Search className="w-5 h-5 text-gray-400" />
         <input 
           type="text" 
-          placeholder="Buscar por nome ou telefone..." 
-          className="flex-1 outline-none text-gray-700 bg-transparent"
+          placeholder="Buscar por nome, telefone ou e-mail..." 
+          className="flex-1 outline-none text-gray-700 bg-transparent font-medium"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredClients.map(client => (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-8">
+        {sortedClients.map(client => (
           <div 
             key={client.id} 
-            className="bg-white p-5 rounded-2xl shadow-sm border border-rose-50 hover:border-rose-200 transition-all group cursor-pointer relative"
+            className="bg-white p-8 rounded-[32px] shadow-sm border border-rose-50 hover:border-rose-200 transition-all group cursor-pointer relative overflow-hidden"
           >
+            <div className="absolute top-0 left-0 w-1 h-full bg-rose-500/20 group-hover:bg-rose-500 transition-colors" />
             <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               <button 
                 onClick={(e) => { e.stopPropagation(); onEditClient(client); }}
@@ -1055,20 +1297,43 @@ const ClientsTab = ({
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>
-            <div onClick={() => setSelectedClient(client)}>
+            <div onClick={() => setSelectedClient(client)} className="pl-2">
               <div className="flex items-center gap-4 mb-4">
-                <div className="w-14 h-14 rounded-2xl bg-rose-100 flex items-center justify-center text-rose-600 text-xl font-bold">
+                <div className="w-14 h-14 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-600 text-xl font-bold">
                   {client.name?.charAt(0) || '?'}
                 </div>
                 <div>
-                  <h3 className="font-bold text-gray-900 group-hover:text-rose-600 transition-colors">{client.name || cLabel}</h3>
-                  <p className="text-sm text-gray-500">{client.phone || '-'}</p>
+                  <h3 className="font-bold text-gray-900 group-hover:text-rose-600 transition-colors line-clamp-1 leading-tight">{client.name || cLabel}</h3>
+                  <p className="text-xs text-gray-400 font-black mt-0.5">{client.phone || '-'}</p>
+                </div>
+              </div>
+              <div className="space-y-2.5 pt-2 border-t border-gray-50">
+                {client.email && (
+                  <div className="flex items-center gap-2 text-[10px] font-black text-slate-500 uppercase tracking-tight">
+                    <div className="w-5 h-5 rounded-lg bg-blue-50 flex items-center justify-center">
+                      <FileText className="w-3 h-3 text-blue-500" />
+                    </div>
+                    <span className="truncate">{client.email}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-tight">
+                  <div className="w-5 h-5 rounded-lg bg-gray-50 flex items-center justify-center">
+                    <CalendarIcon className="w-3 h-3 text-gray-400" />
+                  </div>
+                  <span>Cadastrada em {client.createdAt ? format(new Date(client.createdAt), 'dd/MM/yyyy') : 'N/A'}</span>
                 </div>
               </div>
             </div>
           </div>
         ))}
       </div>
+      
+      {sortedClients.length === 0 && (
+        <div className="py-20 text-center bg-white rounded-[40px] border border-rose-50">
+          <Users className="w-12 h-12 text-rose-100 mx-auto mb-4" />
+          <p className="text-gray-400 font-bold">Nenhuma cliente encontrada.</p>
+        </div>
+      )}
     </div>
   );
 };
@@ -1421,163 +1686,176 @@ const LeadsTab = ({
   onDelete
 }: { 
   leads: Lead[], 
-  onUpdateStatus: (id: string, status: Lead['status']) => void,
-  onDelete: (id: string) => void
+  onUpdateStatus: (id: string, status: Lead['status']) => void, 
+  onDelete: (id: string) => void 
 }) => {
-  const statusLabels: Record<Lead['status'], string> = {
-    'novo': 'Novo',
-    'follow-up-1': '1º Contato',
-    'follow-up-3': '3º Contato',
-    'follow-up-7': '7º Contato',
-    'convertido': 'Convertido',
-    'perdido': 'Perdido'
-  };
-
-  const statusColors: Record<Lead['status'], string> = {
-    'novo': 'bg-rose-100 text-rose-700',
-    'follow-up-1': 'bg-amber-100 text-amber-700',
-    'follow-up-3': 'bg-orange-100 text-orange-700',
-    'follow-up-7': 'bg-rose-100 text-rose-700',
-    'convertido': 'bg-green-100 text-green-700',
-    'perdido': 'bg-gray-100 text-gray-700'
-  };
-
   return (
-    <div className="space-y-6">
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-gray-900 tracking-tight">Prospecção de Clientes</h1>
-          <p className="text-sm font-medium text-gray-500">Transforme interessados em faturamento real.</p>
+    <div className="space-y-12 pb-24 -mt-8">
+      {/* Hero Section: Strategically Positioning */}
+      <section className="relative -mx-8 px-8 py-24 bg-[#050b1a] text-white overflow-hidden rounded-b-[60px] shadow-2xl">
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-500/10 rounded-full -mr-32 -mt-32 blur-[120px]" />
+        <div className="absolute bottom-0 left-0 w-80 h-80 bg-cyan-400/5 rounded-full -ml-24 -mb-24 blur-[100px]" />
+        
+        <div className="relative z-10 max-w-3xl mx-auto text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8"
+          >
+            <span className="text-[10px] font-black uppercase tracking-[0.4em] text-blue-200 bg-blue-400/10 px-6 py-3 rounded-full border border-blue-400/20">
+              ESTRATÉGIA DE POSICIONAMENTO
+            </span>
+          </motion.div>
+          
+          <h1 className="text-4xl md:text-7xl font-black tracking-tighter leading-[0.95] mb-8 text-white uppercase">
+            Seu Instagram pode estar <br /> 
+            <span className="text-blue-200 italic font-serif">afastando clientes.</span>
+          </h1>
+          
+          <p className="text-lg md:text-xl text-blue-100 font-medium leading-relaxed max-w-2xl mx-auto mb-12 opacity-95">
+            As pessoas até chegam no seu perfil... mas não sentem segurança para fechar com você. Vamos transformar sua presença digital em uma máquina de vendas.
+          </p>
+          
+          <div className="flex flex-col sm:flex-row gap-5 justify-center items-center">
+            <button 
+              onClick={() => window.open('https://dynamic-mermaid-e77dae.netlify.app', '_blank')}
+              className="w-full sm:w-auto bg-white text-[#050b1a] px-10 py-5 rounded-2xl font-black text-sm uppercase tracking-widest transition-all hover:bg-blue-50 active:scale-95 flex items-center justify-center gap-3 shadow-2xl"
+            >
+              Quero Melhorar Meu Instagram
+              <ArrowRight className="w-5 h-5" />
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-2 bg-rose-50 px-4 py-2 rounded-2xl border border-rose-100 animate-pulse">
-          <Zap className="w-4 h-4 text-rose-500 fill-rose-500" />
-          <span className="text-xs font-black text-rose-600 uppercase">Aceleração Ativa</span>
+      </section>
+
+      {/* Diagnosis Blocks */}
+      <section className="max-w-5xl mx-auto px-4">
+        <h2 className="text-3xl font-black text-[#050b1a] text-center mb-12 tracking-tight">Isso acontece no seu perfil hoje?</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {[
+            "Você posta, mas não vem cliente",
+            "As pessoas visualizam, mas não chamam no direct",
+            "Perfil amador que não transmite confiança",
+            "Não consegue mostrar a qualidade do seu serviço",
+            "Sente que o Instagram é um fardo",
+            "Sabe que é excelente, mas o perfil não diz o mesmo"
+          ].map((item, idx) => (
+            <div key={idx} className="bg-slate-50 p-7 rounded-3xl border border-slate-100 flex items-center gap-4 group hover:bg-white hover:shadow-xl hover:shadow-slate-200 transition-all">
+              <div className="w-2.5 h-2.5 rounded-full bg-blue-600" />
+              <p className="font-bold text-[#050b1a] text-lg leading-tight">{item}</p>
+            </div>
+          ))}
         </div>
-      </header>
+      </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Main Leads List */}
-        <div className="lg:col-span-8 space-y-6">
-          {leads.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {leads.map(lead => (
-                <div key={lead.id} className="bg-white p-6 rounded-[32px] shadow-sm border border-rose-50 flex flex-col gap-4 group transition-all hover:shadow-xl hover:shadow-rose-100/30">
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-3">
-                      <div className={cn(
-                        "p-2 rounded-xl",
-                        lead.platform === 'instagram' ? "bg-gradient-to-tr from-amber-400 via-rose-500 to-purple-600 text-white" : "bg-green-500 text-white"
-                      )}>
-                        {lead.platform === 'instagram' ? <MessageCircle className="w-5 h-5" /> : <MessageCircle className="w-5 h-5" />}
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-gray-900">{lead.name}</h3>
-                        <p className="text-[10px] text-gray-400 uppercase font-black">{lead.platform}</p>
-                      </div>
+      {/* Transformation Pillars */}
+      <section className="max-w-6xl mx-auto px-4">
+        <div className="text-center mb-16">
+          <h2 className="text-4xl font-black text-[#050b1a] tracking-tight uppercase">O QUE EU FAÇO <span className="text-slate-400">COM VOCÊ:</span></h2>
+          <div className="h-1 w-20 bg-blue-600 mx-auto mt-4" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          {[
+            { label: "BRAND IDENTITY", desc: "Uma identidade visual que comunica luxo e competência nos primeiros segundos.", icon: Instagram },
+            { label: "VOZ ESTRATÉGICA", desc: "Textos e comunicação que conectam com o seu cliente ideal.", icon: MessageCircle },
+            { label: "LINHA EDITORIAL", desc: "Um funil de conteúdo pensado para educar e vender simultaneamente.", icon: Target },
+            { label: "CONVERSÃO REAL", desc: "A ponte definitiva entre ser vista e ser contratada por um preço justo.", icon: TrendingUp }
+          ].map((item, idx) => (
+            <div key={idx} className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm hover:shadow-2xl transition-all group">
+              <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center mb-6 text-[#050b1a] group-hover:bg-[#050b1a] group-hover:text-white transition-all">
+                <item.icon className="w-7 h-7" />
+              </div>
+              <h4 className="text-xs font-black text-[#050b1a] mb-3 tracking-widest uppercase">{item.label}</h4>
+              <p className="text-sm font-medium text-slate-500 leading-relaxed">{item.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Opportunity Management */}
+      <section className="max-w-6xl mx-auto px-4 pt-12 border-t border-slate-100">
+        <div className="flex items-center justify-between mb-8">
+          <h2 className="text-2xl font-black text-[#050b1a] tracking-tight">
+            Agenda em Potencial ({leads.length})
+          </h2>
+        </div>
+
+        {leads.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {leads.map(lead => (
+              <div key={lead.id} className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-2xl transition-all group relative overflow-hidden">
+                <div className="flex justify-between items-start mb-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-[#050b1a] flex items-center justify-center font-black text-white text-lg">
+                      {lead.name?.charAt(0) || '?'}
                     </div>
-                    <button 
-                      onClick={() => onDelete(lead.id)}
-                      className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  <div className="bg-gray-50 p-4 rounded-2xl relative">
-                    <p className="text-xs text-gray-600 line-clamp-3 italic">"{lead.lastMessage}"</p>
-                    <div className="absolute -top-2 -left-2 bg-white p-1 rounded-lg border border-gray-100">
-                      <Clock className="w-3 h-3 text-rose-500" />
+                    <div>
+                      <p className="font-black text-[#050b1a] text-base leading-tight">{lead.name}</p>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">{lead.platform}</p>
                     </div>
                   </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <span className={cn("px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider", statusColors[lead.status])}>
-                      {statusLabels[lead.status]}
-                    </span>
-                    {lead.estimatedValue && (
-                      <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-50 text-rose-600">
-                        Potencial: {formatCurrency(lead.estimatedValue)}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="mt-auto pt-4 flex gap-2">
-                    <select 
-                      className="flex-1 bg-gray-50 border-none rounded-xl p-3 text-xs font-bold text-gray-500 outline-none focus:ring-2 focus:ring-rose-500"
-                      value={lead.status}
-                      onChange={(e) => onUpdateStatus(lead.id, e.target.value as any)}
-                    >
-                      {Object.entries(statusLabels).map(([val, label]) => (
-                        <option key={val} value={val}>{label}</option>
-                      ))}
-                    </select>
-                    <button className="p-3 bg-rose-500 text-white rounded-xl shadow-lg shadow-rose-100 hover:bg-rose-600 transition-all active:scale-95">
-                      <ChevronRight className="w-5 h-5" />
-                    </button>
-                  </div>
+                  <button onClick={() => onDelete(lead.id)} className="p-2 text-slate-200 hover:text-red-500 transition-colors">
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="bg-white rounded-[40px] border-2 border-dashed border-rose-100 p-12 text-center">
-              <div className="w-20 h-20 bg-rose-50 rounded-3xl flex items-center justify-center mx-auto mb-6 transform rotate-3">
-                <Rocket className="w-10 h-10 text-rose-400" />
+                <div className="bg-slate-50 p-5 rounded-2xl mb-6">
+                  <p className="text-sm text-slate-600 italic font-medium line-clamp-3 leading-relaxed">"{lead.lastMessage}"</p>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Mover no Funil</p>
+                  <select 
+                    className="w-full bg-slate-50 border-none rounded-xl p-4 text-xs font-black text-[#050b1a] outline-none cursor-pointer hover:bg-slate-100 transition-colors"
+                    value={lead.status}
+                    onChange={(e) => onUpdateStatus(lead.id, e.target.value as any)}
+                  >
+                    <option value="novo">Novo Interessado</option>
+                    <option value="follow-up-1">Conversando</option>
+                    <option value="convertido">Se tornou Cliente</option>
+                    <option value="perdido">Não fechou</option>
+                  </select>
+                </div>
               </div>
-              <h3 className="text-xl font-black text-gray-900 mb-2">Sua agenda está pronta, mas faltam clientes?</h3>
-              <p className="text-sm text-gray-500 max-w-sm mx-auto mb-8 font-medium">
-                O sistema é sua máquina de vendas, mas você precisa de combustível (leads). Comece a capturar dados de possíveis clientes agora.
+            ))}
+          </div>
+        ) : (
+          <div className="bg-[#050b1a] text-white rounded-[50px] p-24 text-center relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-[100px]" />
+            <div className="relative z-10 max-w-md mx-auto">
+              <div className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center mx-auto mb-8 border border-white/10 group-hover:rotate-6 transition-transform">
+                <Rocket className="w-10 h-10 text-blue-300" />
+              </div>
+              <h3 className="text-2xl font-black mb-4 tracking-tight">Pronta para o Rebranding?</h3>
+              <p className="text-blue-100/60 font-medium mb-10 leading-relaxed">
+                Ainda não há novas oportunidades. Deixe-nos construir o posicionamento que vai atrair os clientes que você merece.
               </p>
               <button 
                 onClick={() => window.open('https://dynamic-mermaid-e77dae.netlify.app', '_blank')}
-                className="bg-gray-900 text-white px-8 py-4 rounded-2xl font-bold hover:scale-105 transition-all shadow-xl shadow-gray-200 flex items-center gap-3 mx-auto"
+                className="bg-white text-[#050b1a] px-12 py-5 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 transition-all shadow-lg active:scale-95"
               >
-                <Zap className="w-5 h-5 text-amber-400 fill-amber-400" />
-                Quero LOTAR minha agenda
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Traffic Manager Sidebar Section */}
-        <div className="lg:col-span-4 space-y-6">
-          <div className="bg-gradient-to-br from-gray-900 to-gray-800 p-8 rounded-[40px] text-white shadow-2xl relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/10 rounded-full -mr-16 -mt-16 blur-3xl" />
-            <div className="relative z-10">
-              <div className="bg-rose-500 w-12 h-12 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-rose-500/20">
-                <Users className="w-6 h-6 text-white" />
-              </div>
-              <h2 className="text-2xl font-black mb-4 leading-tight">Impulsione seu Negócio com Tráfego Pago 🚀</h2>
-              <p className="text-gray-400 text-sm mb-6 leading-relaxed">
-                Nós configuramos suas campanhas no **Facebook, Instagram e Google** para que as pessoas certas encontrem o seu serviço.
-              </p>
-              
-              <ul className="space-y-3 mb-8">
-                {['Anúncios segmentados', 'Relatórios semanais', 'Novos leads todos os dias', 'Estratégia personalizada'].map((item, idx) => (
-                  <li key={idx} className="flex items-center gap-3 text-xs font-bold text-gray-300">
-                    <div className="w-1.5 h-1.5 bg-rose-500 rounded-full" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-
-              <button 
-                onClick={() => window.open('https://dynamic-mermaid-e77dae.netlify.app', '_blank')}
-                className="w-full bg-white text-gray-900 py-4 rounded-2xl font-black text-sm hover:bg-rose-50 transition-all flex items-center justify-center gap-2 group-hover:gap-4 transition-all"
-              >
-                Falar com Especialista
-                <ArrowRight className="w-4 h-4" />
+                Conhecer o Método
               </button>
             </div>
           </div>
+        )}
+      </section>
 
-          <div className="bg-rose-50 p-6 rounded-[32px] border border-rose-100">
-            <h4 className="text-xs font-black text-rose-500 uppercase tracking-widest mb-2">Dica de Crescimento</h4>
-            <p className="text-xs font-medium text-rose-800 leading-relaxed">
-              Responder um lead nos primeiros 5 minutos aumenta em até 9x a chance de conversão. Use este dashboard para não perder tempo.
-            </p>
-          </div>
+      {/* Final Premium CTA */}
+      <section className="max-w-4xl mx-auto text-center py-24 px-6 relative">
+        <h2 className="text-4xl md:text-5xl font-black text-[#050b1a] mb-8 italic font-serif leading-tight">Pronta para elevar o nível <br />do seu negócio?</h2>
+        <p className="text-slate-500 text-lg font-medium mb-12 max-w-xl mx-auto">
+          O seu talento merece um Instagram que faça as pessoas desejarem o seu serviço imediatamente.
+        </p>
+        
+        <div className="flex flex-col sm:flex-row gap-5 justify-center">
+          <button 
+            onClick={() => window.open('https://dynamic-mermaid-e77dae.netlify.app', '_blank')}
+            className="bg-[#050b1a] text-white px-14 py-7 rounded-[28px] font-black text-sm uppercase tracking-widest hover:scale-105 transition-all shadow-2xl active:scale-95 inline-flex items-center gap-4 group"
+          >
+            Quero Melhorar Meu Instagram
+            <ArrowRight className="w-6 h-6 group-hover:translate-x-2 transition-transform" />
+          </button>
         </div>
-      </div>
+      </section>
     </div>
   );
 };
@@ -1624,7 +1902,7 @@ const FollowUpTab = ({
                 <th className="p-4 text-[10px] font-black text-rose-400 uppercase tracking-wider">Data Follow-up</th>
                 <th className="p-4 text-[10px] font-black text-rose-400 uppercase tracking-wider">Status</th>
                 <th className="p-4 text-[10px] font-black text-rose-400 uppercase tracking-wider">Observação</th>
-                <th className="p-4 text-[10px] font-black text-rose-400 uppercase tracking-wider text-right">Ações</th>
+                <th className="p-4 text-[10px] font-black text-rose-400 uppercase tracking-wider">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -1636,7 +1914,21 @@ const FollowUpTab = ({
                         <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center font-bold text-rose-600 text-xs">
                           {fu.clientName?.charAt(0) || '?'}
                         </div>
-                        <span className="font-bold text-gray-900">{fu.clientName || cLabel}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-gray-900">{fu.clientName || 'Cliente'}</span>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const phone = fu.clientPhone ? fu.clientPhone.replace(/\D/g, '') : '';
+                              const text = `Olá ${fu.clientName}! Tudo bem? Gostaria de saber como você está se sentindo após o procedimento de ${fu.procedureName}...`;
+                              window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
+                            }}
+                            className="p-1.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all shadow-sm group"
+                            title="Conversar no WhatsApp"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     </td>
                     <td className="p-4 text-sm text-gray-600 font-medium">{fu.procedureName || 'Procedimento'}</td>
@@ -1666,25 +1958,14 @@ const FollowUpTab = ({
                         )}
                       </td>
                     <td className="p-4 text-sm text-gray-500 max-w-xs truncate">{fu.observation}</td>
-                    <td className="p-4 text-right">
-                      <div className="flex justify-end gap-2">
+                    <td className="p-4">
+                      <div className="flex gap-2">
                         <button 
                           onClick={() => onEdit && onEdit(fu)}
                           className="p-2 text-gray-400 hover:text-rose-500 transition-colors" 
                           title="Editar registros"
                         >
                           <Pencil className="w-5 h-5" />
-                        </button>
-                        <button 
-                          onClick={() => {
-                            const phone = fu.clientPhone ? fu.clientPhone.replace(/\D/g, '') : '';
-                            const text = `Olá ${fu.clientName}! Tudo bem? Gostaria de saber como você está se sentindo após o procedimento de ${fu.procedureName}...`;
-                            window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
-                          }}
-                          className="p-2 text-green-500 hover:bg-green-50 rounded-lg transition-colors" 
-                          title="Abrir WhatsApp"
-                        >
-                          <MessageCircle className="w-5 h-5" />
                         </button>
                         {fu.status !== 'Concluído' && (
                           <button 
@@ -1708,7 +1989,7 @@ const FollowUpTab = ({
                 ))
               ) : (
                 <tr>
-                  <td colSpan={7} className="p-12 text-center">
+                  <td colSpan={6} className="p-12 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center">
                         <BellRing className="w-8 h-8 text-rose-200" />
@@ -3001,6 +3282,20 @@ export default function App() {
     });
   };
 
+  const handleAddLead = async (lead: Lead) => {
+    if (!user) return;
+    try {
+      const { id, ...data } = lead;
+      await addDoc(collection(db, 'leads'), { 
+        ...data, 
+        ownerId: user.uid,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+      addNotification('Novo lead registrado no CRM!', 'info');
+    } catch (e) { handleFirestoreError(e, OperationType.CREATE, 'leads'); }
+  };
+
   const handleAddBudget = async (budget: Budget) => {
     if (!user) return;
     try {
@@ -3086,14 +3381,6 @@ export default function App() {
     } catch (e) { handleFirestoreError(e, OperationType.UPDATE, `appointments/${id}`); }
   };
 
-  const handleAddLead = async (lead: Omit<Lead, 'id'>) => {
-    if (!user) return;
-    try {
-      await addDoc(collection(db, 'leads'), { ...lead, ownerId: user.uid });
-      addNotification('Novo lead capturado!', 'info');
-    } catch (e) { handleFirestoreError(e, OperationType.CREATE, 'leads'); }
-  };
-
   const handleDeleteAppointment = (id: string) => {
     showConfirm('Excluir Agendamento', 'Tem certeza que deseja excluir este agendamento?', async () => {
       try {
@@ -3138,7 +3425,7 @@ export default function App() {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'agenda', label: 'Agenda', icon: CalendarIcon },
     { id: 'clientes', label: csLabel, icon: Users },
-    { id: 'prospeccao', label: 'Prospecção', icon: MessageCircle },
+    { id: 'prospeccao', label: 'Crescimento', icon: TrendingUp },
     { id: 'atendimentos', label: 'Atendimentos', icon: ClipboardList },
     { id: 'servicos', label: 'Serviços', icon: Activity },
     { id: 'orcamentos', label: 'Orçamentos', icon: FileText },
@@ -3549,13 +3836,25 @@ export default function App() {
       )}
 
       {isNewFollowUpModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
           <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl"
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="bg-white rounded-[40px] w-full max-w-lg shadow-2xl overflow-hidden border border-rose-50"
           >
-            <h2 className="text-2xl font-black text-gray-900 mb-6">Novo Follow-up</h2>
+            <div className="p-8 pb-4 flex justify-between items-start">
+              <div>
+                <h2 className="text-2xl font-black text-gray-900 tracking-tight">Novo Follow-up</h2>
+                <p className="text-sm font-medium text-gray-500">Agende um lembrete de contato.</p>
+              </div>
+              <button 
+                onClick={() => setIsNewFollowUpModalOpen(false)}
+                className="p-2 hover:bg-rose-50 rounded-2xl transition-colors text-gray-400 hover:text-rose-500"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
             <form 
               onSubmit={(e) => {
                 e.preventDefault();
@@ -3570,51 +3869,65 @@ export default function App() {
                 
                 if (!clientName || !procedureName || !date) return;
 
+                // Encontrar o telefone da cliente se ela estiver cadastrada
+                const registeredClient = clients.find(c => c.name === clientName);
+                const clientPhone = registeredClient?.phone || '';
+
                 handleAddFollowUp({
                   id: Math.random().toString(36).substr(2, 9),
                   clientName,
+                  clientPhone,
                   procedureName,
                   professionalName,
                   date,
                   status,
                   observation
                 });
+                setIsNewFollowUpModalOpen(false);
               }}
-              className="space-y-4"
+              className="p-8 space-y-5"
             >
-              <div>
-                <label className="block text-xs font-black text-gray-400 uppercase mb-2">Nome da Cliente</label>
-                <input type="text" name="clientName" required className="w-full bg-gray-50 border-none rounded-2xl p-4 font-bold text-gray-700 focus:ring-2 focus:ring-rose-500" placeholder="Ex: Maria Silva" />
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-gray-400 uppercase ml-4">Cliente</label>
+                <input 
+                  type="text" 
+                  name="clientName" 
+                  list="follow-up-clients"
+                  required 
+                  className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 font-bold text-gray-700 focus:bg-white focus:ring-2 focus:ring-rose-500 transition-all outline-none" 
+                  placeholder="Nome da cliente..." 
+                />
+                <datalist id="follow-up-clients">
+                  {clients.map(c => <option key={c.id} value={c.name} />)}
+                </datalist>
               </div>
-              <div>
-                <label className="block text-xs font-black text-gray-400 uppercase mb-2">Procedimento Realizado</label>
-                <input type="text" name="procedureName" required className="w-full bg-gray-50 border-none rounded-2xl p-4 font-bold text-gray-700 focus:ring-2 focus:ring-rose-500" placeholder="Ex: Limpeza de Pele" />
-              </div>
-              <div>
-                <label className="block text-xs font-black text-gray-400 uppercase mb-2">Profissional Responsável</label>
-                <input type="text" name="professionalName" className="w-full bg-gray-50 border-none rounded-2xl p-4 font-bold text-gray-700 focus:ring-2 focus:ring-rose-500" placeholder="Ex: Dra. Brenda" />
-              </div>
+
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-black text-gray-400 uppercase mb-2">Data Follow-up</label>
-                  <input type="date" name="date" required defaultValue={format(new Date(), 'yyyy-MM-dd')} className="w-full bg-gray-50 border-none rounded-2xl p-4 font-bold text-gray-700 focus:ring-2 focus:ring-rose-500" />
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-4">Serviço/Motivo</label>
+                  <input type="text" name="procedureName" required className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 font-bold text-gray-700 focus:bg-white focus:ring-2 focus:ring-rose-500 transition-all outline-none" placeholder="Ex: Retorno" />
                 </div>
-                <div>
-                  <label className="block text-xs font-black text-gray-400 uppercase mb-2">Status</label>
-                  <select name="status" className="w-full bg-gray-50 border-none rounded-2xl p-4 font-bold text-gray-700 focus:ring-2 focus:ring-rose-500">
-                    <option value="Pendente">Pendente</option>
-                    <option value="Em andamento">Em andamento</option>
-                    <option value="Concluído">Concluído</option>
-                  </select>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-4">Data</label>
+                  <input type="date" name="date" required defaultValue={format(new Date(), 'yyyy-MM-dd')} className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 font-bold text-gray-700 focus:bg-white focus:ring-2 focus:ring-rose-500 transition-all outline-none" />
                 </div>
               </div>
-              <div>
-                <label className="block text-xs font-black text-gray-400 uppercase mb-2">Observação</label>
-                <textarea name="observation" rows={3} className="w-full bg-gray-50 border-none rounded-2xl p-4 font-bold text-gray-700 focus:ring-2 focus:ring-rose-500" placeholder="Detalhes do acompanhamento..."></textarea>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-gray-400 uppercase ml-4">Notas / O que falar?</label>
+                <textarea name="observation" rows={3} className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 font-bold text-gray-700 focus:bg-white focus:ring-2 focus:ring-rose-500 transition-all outline-none resize-none" placeholder="Ex: Perguntar se gostou do resultado..."></textarea>
               </div>
-              <div className="flex gap-3 pt-4">
-                <button type="button" onClick={() => setIsNewFollowUpModalOpen(false)} className="flex-1 py-4 rounded-2xl font-bold text-gray-500 hover:bg-gray-50 transition-all">Cancelar</button>
-                <button type="submit" className="flex-1 bg-rose-500 text-white py-4 rounded-2xl font-bold shadow-lg shadow-rose-200">Salvar</button>
+
+              <input type="hidden" name="professionalName" value={userProfile?.name || ''} />
+              <input type="hidden" name="status" value="Pendente" />
+
+              <div className="flex gap-4 pt-4">
+                <button 
+                  type="submit" 
+                  className="w-full bg-gray-900 text-white py-5 rounded-[24px] font-black text-xs uppercase tracking-widest shadow-xl shadow-gray-200 hover:-translate-y-1 transition-all active:translate-y-0"
+                >
+                  Salvar Lembrete
+                </button>
               </div>
             </form>
           </motion.div>
@@ -3646,8 +3959,13 @@ export default function App() {
                 const newClient: Client = {
                   id: Math.random().toString(36).substr(2, 9),
                   name: formData.get('name') as string,
+                  lastName: formData.get('lastName') as string,
                   phone: formData.get('phone') as string,
                   email: formData.get('email') as string,
+                  city: formData.get('city') as string,
+                  state: formData.get('state') as string,
+                  country: (formData.get('country') as string) || 'BR',
+                  birthday: formData.get('birthday') as string,
                   observations: formData.get('observations') as string,
                   createdAt: new Date().toISOString(),
                   preferences: {
@@ -3666,21 +3984,43 @@ export default function App() {
               className="space-y-4"
             >
               <div className={cn("space-y-4 animate-in fade-in slide-in-from-right-4 duration-300", clientStep !== 1 && "hidden")}>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-400 uppercase">Nome Completo</label>
-                  <input name="name" required type="text" placeholder="Ex: Maria Silva" className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Primeiro Nome</label>
+                    <input name="name" required type="text" placeholder="Ex: Maria" className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Sobrenome</label>
+                    <input name="lastName" type="text" placeholder="Ex: Silva" className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-400 uppercase">WhatsApp</label>
+                    <input name="phone" required type="tel" placeholder="(00) 00000-0000" className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Aniversário</label>
+                    <input name="birthday" type="date" className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                  </div>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-400 uppercase">Telefone / WhatsApp</label>
-                  <input name="phone" required type="tel" placeholder="(00) 00000-0000" className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-400 uppercase">E-mail (Opcional)</label>
+                  <label className="text-xs font-bold text-gray-400 uppercase">E-mail (Lookalike)</label>
                   <input name="email" type="email" placeholder="maria@email.com" className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Cidade</label>
+                    <input name="city" type="text" placeholder="Sua cidade" className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Estado (UF)</label>
+                    <input name="state" type="text" placeholder="Ex: SP" maxLength={2} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 uppercase" />
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-gray-400 uppercase">Observações</label>
-                  <textarea name="observations" rows={2} placeholder="Alergias, preferências, etc..." className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 resize-none" />
+                  <textarea name="observations" rows={1} placeholder="Alergias, preferências, etc..." className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 resize-none" />
                 </div>
               </div>
 
@@ -3775,29 +4115,55 @@ export default function App() {
                   const formData = new FormData(e.currentTarget);
                   handleUpdateClient(editingClient.id, {
                     name: formData.get('name') as string,
+                    lastName: formData.get('lastName') as string,
                     phone: formData.get('phone') as string,
                     email: formData.get('email') as string,
+                    city: formData.get('city') as string,
+                    state: formData.get('state') as string,
+                    birthday: formData.get('birthday') as string,
                     observations: formData.get('observations') as string,
                   });
                   setEditingClient(null);
                 }}
                 className="space-y-4"
               >
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-400 uppercase">Nome Completo</label>
-                  <input name="name" required defaultValue={editingClient.name} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Nome</label>
+                    <input name="name" required defaultValue={editingClient.name} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Sobrenome</label>
+                    <input name="lastName" defaultValue={editingClient.lastName} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-400 uppercase">Telefone</label>
-                  <input name="phone" required defaultValue={editingClient.phone} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-400 uppercase">WhatsApp</label>
+                    <input name="phone" required defaultValue={editingClient.phone} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Aniversário</label>
+                    <input name="birthday" type="date" defaultValue={editingClient.birthday} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-gray-400 uppercase">E-mail</label>
                   <input name="email" defaultValue={editingClient.email} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Cidade</label>
+                    <input name="city" defaultValue={editingClient.city} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Estado (UF)</label>
+                    <input name="state" defaultValue={editingClient.state} maxLength={2} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 uppercase" />
+                  </div>
+                </div>
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-gray-400 uppercase">Observações</label>
-                  <textarea name="observations" defaultValue={editingClient.observations} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 resize-none" />
+                  <textarea name="observations" defaultValue={editingClient.observations} rows={1} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 resize-none" />
                 </div>
                 <div className="flex gap-3 pt-4">
                   <button type="button" onClick={() => setEditingClient(null)} className="flex-1 py-3 font-bold text-gray-500">Cancelar</button>
@@ -4065,18 +4431,23 @@ export default function App() {
             ))}
           </nav>
 
-          <div className="mt-4 p-4 bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl text-white relative overflow-hidden group cursor-pointer" onClick={() => window.open('https://dynamic-mermaid-e77dae.netlify.app', '_blank')}>
-            <div className="absolute top-0 right-0 w-16 h-16 bg-rose-500/20 rounded-full -mr-8 -mt-8 blur-2xl group-hover:bg-rose-500/40 transition-all" />
-            <div className="relative z-10 flex flex-col gap-2">
+          <div className="mt-4 p-5 bg-[#0f1115] rounded-[32px] text-white relative overflow-hidden group cursor-pointer border border-white/5 transition-all hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)]" onClick={() => window.open('https://dynamic-mermaid-e77dae.netlify.app', '_blank')}>
+            <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/20 rounded-full -mr-12 -mt-12 blur-3xl group-hover:bg-rose-500/40 transition-all" />
+            <div className="relative z-10 flex flex-col gap-3">
               <div className="flex items-center gap-2">
-                <Zap className="w-4 h-4 text-amber-400 fill-amber-400" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-rose-400">
-                  Plano {userProfile?.plan?.toUpperCase() || 'FREE'}
+                <div className="p-1.5 bg-rose-600 rounded-lg shadow-lg shadow-rose-600/20 group-hover:rotate-12 transition-transform">
+                  <Rocket className="w-3.5 h-3.5 text-white" />
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-400">
+                  Impulso Extra
                 </span>
               </div>
-              <p className="text-xs font-bold leading-tight">Quer lotar sua agenda com tráfego pago?</p>
-              <button className="mt-1 text-[10px] font-black uppercase flex items-center gap-1 text-rose-500 group-hover:gap-2 transition-all">
-                Falar com minha agência <ChevronRight className="w-3 h-3" />
+              <div>
+                <p className="text-xs font-black leading-tight text-gray-100">Encontre Novos Clientes</p>
+                <p className="text-[10px] text-gray-500 font-bold mt-1">Anúncios que Funcionam</p>
+              </div>
+              <button className="mt-2 text-[10px] font-black uppercase flex items-center gap-1.5 text-rose-500 group-hover:gap-3 transition-all border-t border-white/5 pt-3 w-full">
+                Quero saber mais <ChevronRight className="w-3 h-3" />
               </button>
             </div>
           </div>

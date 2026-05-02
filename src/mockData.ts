@@ -19,6 +19,7 @@ export const MOCK_CLIENTS: Client[] = [
     id: 'c1', 
     name: 'Ana Silva', 
     phone: '(11) 98888-7777', 
+    email: 'ana.silva@email.com',
     createdAt: daysAgo(30),
     preferences: { airConditioning: 'fresco', conversation: 'quieta', music: 'Lofi', beverage: 'Água com gás' }
   },
@@ -26,13 +27,14 @@ export const MOCK_CLIENTS: Client[] = [
     id: 'c2', 
     name: 'Beatriz Santos', 
     phone: '(11) 97777-6666', 
+    email: 'bia.santos@gmail.com',
     createdAt: daysAgo(25),
     preferences: { airConditioning: 'gelado', conversation: 'gosta', music: 'MPB', beverage: 'Chá gelado' }
   },
-  { id: 'c3', name: 'Carla Oliveira', phone: '(11) 96666-5555', createdAt: daysAgo(20) },
-  { id: 'c4', name: 'Daniela Lima', phone: '(11) 95555-4444', createdAt: daysAgo(15) },
+  { id: 'c3', name: 'Carla Oliveira', phone: '(11) 96666-5555', email: 'carla@oliveira.com.br', createdAt: daysAgo(20) },
+  { id: 'c4', name: 'Daniela Lima', phone: '(11) 95555-4444', email: 'dani.lima92@uol.com.br', createdAt: daysAgo(15) },
   { id: 'c5', name: 'Eduarda Pereira', phone: '(11) 94444-3333', createdAt: daysAgo(10) },
-  { id: 'c6', name: 'Fernanda Rocha', phone: '(11) 93333-2222', createdAt: daysAgo(5) },
+  { id: 'c6', name: 'Fernanda Rocha', phone: '(11) 93333-2222', email: 'fernandinha@outlook.com', createdAt: daysAgo(5) },
   { id: 'c7', name: 'Gabriela Alves', phone: '(11) 92222-1111', createdAt: daysAgo(2) },
 ];
 
@@ -57,10 +59,10 @@ export const MOCK_FINANCIAL: FinancialEntry[] = [
 ];
 
 export const MOCK_LEADS: Lead[] = [
-  { id: 'l1', name: 'Mariana Costa', platform: 'instagram', lastMessageDate: daysAgo(1), status: 'novo', lastMessage: 'Olá, qual o valor da drenagem?' },
-  { id: 'l2', name: 'Fernanda Souza', platform: 'whatsapp', lastMessageDate: daysAgo(3), status: 'follow-up-3', lastMessage: 'Vou ver com meu marido e te aviso.' },
-  { id: 'l3', name: 'Juliana Paes', platform: 'instagram', lastMessageDate: daysAgo(7), status: 'follow-up-7', lastMessage: 'Obrigada pelas informações.' },
-  { id: 'l4', name: 'Patrícia Amorim', platform: 'whatsapp', lastMessageDate: daysAgo(14), status: 'perdido', lastMessage: 'Não consigo ir esse mês.' },
+  { id: 'l1', name: 'Mariana Costa', platform: 'Instagram', email: 'mari@email.com', phone: '(11) 91234-5678', lastMessage: 'Olá, qual o valor da drenagem?', status: 'novo', createdAt: daysAgo(1), updatedAt: daysAgo(1) },
+  { id: 'l2', name: 'Fernanda Souza', platform: 'WhatsApp', email: 'fer@email.com', phone: '(11) 92345-6789', lastMessage: 'Vou ver com meu marido e te aviso.', status: 'follow-up-1', createdAt: daysAgo(3), updatedAt: daysAgo(3) },
+  { id: 'l3', name: 'Juliana Paes', platform: 'Direct', lastMessage: 'Obrigada pelas informações.', status: 'novo', createdAt: daysAgo(7), updatedAt: daysAgo(7) },
+  { id: 'l4', name: 'Patrícia Amorim', platform: 'WhatsApp', phone: '(11) 94444-5555', lastMessage: 'Não consigo ir esse mês.', status: 'perdido', createdAt: daysAgo(14), updatedAt: daysAgo(14) },
 ];
 
 export const MOCK_BUDGETS: Budget[] = [

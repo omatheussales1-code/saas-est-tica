@@ -56,17 +56,21 @@
     },
     "Lead": {
       "title": "Lead",
-      "description": "Potential customer from social media",
+      "description": "Potential customer with CRM data for conversion and lookalike audiences",
       "type": "object",
       "properties": {
         "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
         "platform": { "type": "string" },
-        "lastMessageDate": { "type": "string", "format": "date-time" },
-        "status": { "type": "string" },
+        "status": { "type": "string", "enum": ["novo", "follow-up-1", "convertido", "perdido"] },
         "lastMessage": { "type": "string" },
-        "ownerId": { "type": "string" }
+        "notes": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["name", "ownerId"]
+      "required": ["name", "ownerId", "status"]
     },
     "Budget": {
       "title": "Budget",
