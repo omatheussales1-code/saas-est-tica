@@ -2964,7 +2964,12 @@ export default function App() {
   // --- DEMO MODE LOGIC ---
   const isDemo = useMemo(() => {
     const params = new URLSearchParams(window.location.search);
-    return params.get('demo') === 'true' || window.location.pathname === '/demo';
+    const hash = window.location.hash.toLowerCase();
+    const path = window.location.pathname.toLowerCase();
+    
+    return params.get('demo') === 'true' || 
+           path.includes('/demo') || 
+           hash.includes('demo');
   }, []);
 
   // Initialize data for Demo Mode
@@ -3880,7 +3885,10 @@ export default function App() {
             </button>
             <button 
               type="button"
-              onClick={() => window.location.href = window.location.origin + '/demo'}
+              onClick={() => {
+                // Set parameter and reload to ensure clean state
+                window.location.search = '?demo=true';
+              }}
               className="w-full bg-blue-50 text-blue-600 p-4 rounded-2xl font-bold border border-blue-100 hover:bg-blue-100 transition-all mt-2"
             >
               Acessar Versão Demo (Teste)
