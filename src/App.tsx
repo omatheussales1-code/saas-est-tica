@@ -37,6 +37,8 @@ import {
   Heart,
   Sparkles,
   Instagram,
+  Globe,
+  ExternalLink,
   X
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -1700,7 +1702,7 @@ const LeadsTab = ({
             </span>
           </motion.div>
           
-          <h1 className="text-4xl md:text-7xl font-black tracking-tighter leading-[0.95] mb-8 text-white uppercase">
+          <h1 className="text-4xl md:text-7xl font-black tracking-wider leading-[1.1] mb-8 text-white uppercase">
             Seu Instagram pode estar <br /> 
             <span className="text-blue-200 italic font-serif">afastando clientes.</span>
           </h1>
@@ -1726,12 +1728,12 @@ const LeadsTab = ({
         <h2 className="text-3xl font-black text-[#050b1a] text-center mb-12 tracking-tight">Isso acontece no seu perfil hoje?</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {[
-            "Você posta, mas não vem cliente",
-            "As pessoas visualizam, mas não chamam no direct",
-            "Perfil amador que não transmite confiança",
-            "Não consegue mostrar a qualidade do seu serviço",
-            "Sente que o Instagram é um fardo",
-            "Sabe que é excelente, mas o perfil não diz o mesmo"
+            "Atrai muitos curiosos pedindo orçamento, mas poucos agendamentos reais",
+            "Sente que precisa baixar o preço para não perder a cliente para a concorrência",
+            "Passa horas criando conteúdo e sente que ninguém valoriza seu esforço",
+            "O seu serviço é de alta qualidade, mas o seu perfil parece amador e confuso",
+            "Sofre com pessoas que perguntam o preço e 'somem' logo em seguida",
+            "Sabe que é uma autoridade no que faz, mas sua imagem digital não transmite isso"
           ].map((item, idx) => (
             <div key={idx} className="bg-slate-50 p-7 rounded-3xl border border-slate-100 flex items-center gap-4 group hover:bg-white hover:shadow-xl hover:shadow-slate-200 transition-all">
               <div className="w-2.5 h-2.5 rounded-full bg-blue-600" />
@@ -1749,10 +1751,10 @@ const LeadsTab = ({
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {[
-            { label: "BRAND IDENTITY", desc: "Uma identidade visual que comunica luxo e competência nos primeiros segundos.", icon: Instagram },
-            { label: "VOZ ESTRATÉGICA", desc: "Textos e comunicação que conectam com o seu cliente ideal.", icon: MessageCircle },
-            { label: "LINHA EDITORIAL", desc: "Um funil de conteúdo pensado para educar e vender simultaneamente.", icon: Target },
-            { label: "CONVERSÃO REAL", desc: "A ponte definitiva entre ser vista e ser contratada por um preço justo.", icon: TrendingUp }
+            { label: "SUA IDENTIDADE", desc: "Deixar o seu perfil com a sua cara e com um visual profissional que passa confiança.", icon: Instagram },
+            { label: "SUA MENSAGEM", desc: "Aprender a falar de um jeito que seus clientes entendam e valorizem o seu esforço.", icon: MessageCircle },
+            { label: "SEUS CONTEÚDOS", desc: "Ideias simples para postar todo dia sem sofrimento e atrair as pessoas certas.", icon: Target },
+            { label: "SUAS VENDAS", desc: "Dicas para transformar curiosos em clientes fiéis através de uma conversa leve.", icon: TrendingUp }
           ].map((item, idx) => (
             <div key={idx} className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm hover:shadow-2xl transition-all group">
               <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center mb-6 text-[#050b1a] group-hover:bg-[#050b1a] group-hover:text-white transition-all">
@@ -1765,71 +1767,27 @@ const LeadsTab = ({
         </div>
       </section>
 
-      {/* Opportunity Management */}
+      {/* Opportunity Management - Replaced with Website CTA */}
       <section className="max-w-6xl mx-auto px-4 pt-12 border-t border-slate-100">
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="text-2xl font-black text-[#050b1a] tracking-tight">
-            Agenda em Potencial ({leads.length})
-          </h2>
-        </div>
-
-        {leads.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {leads.map(lead => (
-              <div key={lead.id} className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-2xl transition-all group relative overflow-hidden">
-                <div className="flex justify-between items-start mb-6">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-[#050b1a] flex items-center justify-center font-black text-white text-lg">
-                      {lead.name?.charAt(0) || '?'}
-                    </div>
-                    <div>
-                      <p className="font-black text-[#050b1a] text-base leading-tight">{lead.name}</p>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">{lead.platform}</p>
-                    </div>
-                  </div>
-                  <button onClick={() => onDelete(lead.id)} className="p-2 text-slate-200 hover:text-red-500 transition-colors">
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-                <div className="bg-slate-50 p-5 rounded-2xl mb-6">
-                  <p className="text-sm text-slate-600 italic font-medium line-clamp-3 leading-relaxed">"{lead.lastMessage}"</p>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Mover no Funil</p>
-                  <select 
-                    className="w-full bg-slate-50 border-none rounded-xl p-4 text-xs font-black text-[#050b1a] outline-none cursor-pointer hover:bg-slate-100 transition-colors"
-                    value={lead.status}
-                    onChange={(e) => onUpdateStatus(lead.id, e.target.value as any)}
-                  >
-                    <option value="novo">Novo Interessado</option>
-                    <option value="follow-up-1">Conversando</option>
-                    <option value="convertido">Se tornou Cliente</option>
-                    <option value="perdido">Não fechou</option>
-                  </select>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="bg-[#050b1a] text-white rounded-[50px] p-24 text-center relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-[100px]" />
-            <div className="relative z-10 max-w-md mx-auto">
-              <div className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center mx-auto mb-8 border border-white/10 group-hover:rotate-6 transition-transform">
-                <Rocket className="w-10 h-10 text-blue-300" />
-              </div>
-              <h3 className="text-2xl font-black mb-4 tracking-tight">Pronta para o Rebranding?</h3>
-              <p className="text-blue-100/60 font-medium mb-10 leading-relaxed">
-                Ainda não há novas oportunidades. Deixe-nos construir o posicionamento que vai atrair os clientes que você merece.
-              </p>
-              <button 
-                onClick={() => window.open('https://dynamic-mermaid-e77dae.netlify.app', '_blank')}
-                className="bg-white text-[#050b1a] px-12 py-5 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 transition-all shadow-lg active:scale-95"
-              >
-                Conhecer o Método
-              </button>
+        <div className="bg-[#050b1a] text-white rounded-[50px] p-24 text-center relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-[100px]" />
+          <div className="relative z-10 max-w-2xl mx-auto">
+            <div className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center mx-auto mb-8 border border-white/10">
+              <Globe className="w-10 h-10 text-blue-300" />
             </div>
+            <h3 className="text-3xl md:text-4xl font-black mb-6 tracking-tight">VAMOS CONSTRUIR SEU IMPÉRIO DIGITAL?</h3>
+            <p className="text-blue-100/70 text-lg font-medium mb-12 leading-relaxed">
+              O seu talento merece um posicionamento que faça as pessoas desejarem o seu serviço imediatamente, sem questionar o preço.
+            </p>
+            <button 
+              onClick={() => window.open('https://dynamic-mermaid-e77dae.netlify.app', '_blank')}
+              className="bg-white text-[#050b1a] px-16 py-6 rounded-2xl font-black text-sm uppercase tracking-widest hover:scale-105 transition-all shadow-2xl active:scale-95 flex items-center gap-4 mx-auto"
+            >
+              VISITAR MEU SITE OFICIAL
+              <ExternalLink className="w-5 h-5" />
+            </button>
           </div>
-        )}
+        </div>
       </section>
 
       {/* Final Premium CTA */}
@@ -2591,11 +2549,13 @@ const ServicesTab = ({
 const SettingsTab = ({ 
   userProfile,
   onUpdateProfile,
-  onResetMocks
+  onResetMocks,
+  isDemo
 }: { 
   userProfile: UserProfile | null,
   onUpdateProfile: (updates: Partial<UserProfile>) => void,
-  onResetMocks: () => void
+  onResetMocks: () => void,
+  isDemo?: boolean
 }) => {
   const [profile, setProfile] = useState<Partial<UserProfile>>(userProfile || {});
 
@@ -2862,9 +2822,16 @@ const SettingsTab = ({
               </p>
               <button 
                 onClick={onResetMocks}
-                className="w-full bg-gray-900 text-white py-4 rounded-2xl font-bold hover:bg-black transition-all flex items-center justify-center gap-2"
+                disabled={isDemo}
+                className={cn(
+                  "w-full py-4 rounded-2xl font-bold transition-all flex items-center justify-center gap-2",
+                  isDemo 
+                    ? "bg-gray-100 text-gray-400 cursor-not-allowed" 
+                    : "bg-gray-900 text-white hover:bg-black"
+                )}
               >
-                <Activity className="w-4 h-4 text-rose-500" /> Restaurar Dados de Exemplo
+                <Activity className="w-4 h-4 text-rose-500" /> 
+                {isDemo ? 'Indisponível no Modo Demo' : 'Restaurar Dados de Exemplo'}
               </button>
             </div>
           </section>
@@ -2893,6 +2860,45 @@ export default function App() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+
+  // --- DEMO MODE LOGIC ---
+  const isDemo = useMemo(() => {
+    return new URLSearchParams(window.location.search).get('demo') === 'true';
+  }, []);
+
+  // Initialize data for Demo Mode
+  useEffect(() => {
+    if (isDemo) {
+      setClients(MOCK_CLIENTS);
+      setAppointments(MOCK_APPOINTMENTS);
+      setProcedures(MOCK_PROCEDURES);
+      setFinancialEntries(MOCK_FINANCIAL);
+      setLeads(MOCK_LEADS);
+      setBudgets(MOCK_BUDGETS);
+      setUserProfile({
+        id: 'demo-user',
+        name: 'Usuária Demo (Lookalike)',
+        businessName: 'Clínica de Estética Especializada',
+        specialty: 'Estética Avançada',
+        phone: '(11) 99999-9999',
+        address: 'Rua da Estética, 123',
+        instagram: '@marketing_estetico',
+        workingHours: { start: '08:00', end: '19:00' },
+        workingDays: [1, 2, 3, 4, 5, 6],
+        budgetValidityDays: 15,
+        clientLabel: 'Paciente',
+        ownerId: 'demo-user',
+        plan: 'pro',
+        accentColor: 'rose',
+        createdAt: new Date().toISOString()
+      });
+      setIsAuthReady(true);
+      setIsAuthorized(true);
+      setIsInitialLoading(false);
+      setUser({ uid: 'demo-user', displayName: 'Demo User', email: 'demo@demo.com' } as any);
+    }
+  }, [isDemo]);
+  // --- END DEMO MODE LOGIC ---
 
   // Update Theme Color
   useEffect(() => {
@@ -2958,6 +2964,7 @@ export default function App() {
 
   // Firebase Firestore Sync
   React.useEffect(() => {
+    if (isDemo) return; // Skip Firebase in demo mode
     if (!user || isAuthorized === false) {
       setClients([]);
       setAppointments([]);
@@ -3201,6 +3208,12 @@ export default function App() {
   };
 
   const handleAddAppointment = async (app: Appointment) => {
+    if (isDemo) {
+      setAppointments(prev => [...prev, { ...app, id: Math.random().toString(36).substr(2, 9) }]);
+      setIsNewAppModalOpen(false);
+      addNotification('Agendamento salvo com sucesso! (Modo Demo)', 'info');
+      return;
+    }
     if (!user) return;
     try {
       const { id, ...data } = app;
@@ -3211,6 +3224,12 @@ export default function App() {
   };
 
   const handleAddClient = async (client: Client) => {
+    if (isDemo) {
+      setClients(prev => [...prev, { ...client, id: Math.random().toString(36).substr(2, 9) }]);
+      setIsNewClientModalOpen(false);
+      addNotification('Registro criado com sucesso! (Modo Demo)', 'info');
+      return;
+    }
     if (!user) return;
     try {
       const { id, ...data } = client;
@@ -3221,6 +3240,11 @@ export default function App() {
   };
 
   const handleUpdateClient = async (id: string, updates: Partial<Client>) => {
+    if (isDemo) {
+      setClients(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+      addNotification('Cliente atualizado com sucesso (Modo Demo)', 'info');
+      return;
+    }
     try {
       await updateDoc(doc(db, 'clients', id), updates);
       setEditingClient(null);
@@ -3229,6 +3253,12 @@ export default function App() {
 
   const handleDeleteClient = (id: string) => {
     showConfirm('Excluir Cliente', 'Tem certeza que deseja excluir esta cliente? Todos os agendamentos dela também serão removidos.', async () => {
+      if (isDemo) {
+        setClients(prev => prev.filter(c => c.id !== id));
+        setAppointments(prev => prev.filter(a => a.clientId !== id));
+        addNotification('Registro removido com sucesso! (Modo Demo)', 'warning');
+        return;
+      }
       try {
         await deleteDoc(doc(db, 'clients', id));
         const toDelete = appointments.filter(a => a.clientId === id);
@@ -3241,6 +3271,10 @@ export default function App() {
   };
 
   const handleAddFinancialEntry = async (entry: FinancialEntry) => {
+    if (isDemo) {
+      setFinancialEntries(prev => [...prev, { ...entry, id: Math.random().toString(36).substr(2, 9) }]);
+      return;
+    }
     if (!user) return;
     try {
       const { id, ...data } = entry;
@@ -3249,6 +3283,11 @@ export default function App() {
   };
 
   const handleUpdateFinancialEntry = async (id: string, updates: Partial<FinancialEntry>) => {
+    if (isDemo) {
+      setFinancialEntries(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
+      setEditingFinancialEntry(null);
+      return;
+    }
     try {
       await updateDoc(doc(db, 'financialEntries', id), updates);
       setEditingFinancialEntry(null);
@@ -3256,12 +3295,20 @@ export default function App() {
   };
 
   const handleDeleteFinancialEntry = async (id: string) => {
+    if (isDemo) {
+      setFinancialEntries(prev => prev.filter(e => e.id !== id));
+      return;
+    }
     try {
       await deleteDoc(doc(db, 'financialEntries', id));
     } catch (e) { handleFirestoreError(e, OperationType.DELETE, `financialEntries/${id}`); }
   };
 
   const handleUpdateLeadStatus = async (id: string, status: Lead['status']) => {
+    if (isDemo) {
+      setLeads(prev => prev.map(l => l.id === id ? { ...l, status, updatedAt: new Date().toISOString() } : l));
+      return;
+    }
     try {
       await updateDoc(doc(db, 'leads', id), { status });
     } catch (e) { handleFirestoreError(e, OperationType.UPDATE, `leads/${id}`); }
@@ -3269,6 +3316,10 @@ export default function App() {
 
   const handleDeleteLead = (id: string) => {
     showConfirm('Excluir Lead', 'Deseja remover este contato da prospecção?', async () => {
+      if (isDemo) {
+        setLeads(prev => prev.filter(l => l.id !== id));
+        return;
+      }
       try {
         await deleteDoc(doc(db, 'leads', id));
       } catch (e) { handleFirestoreError(e, OperationType.DELETE, `leads/${id}`); }
@@ -3276,6 +3327,16 @@ export default function App() {
   };
 
   const handleAddLead = async (lead: Lead) => {
+    if (isDemo) {
+      setLeads(prev => [...prev, { 
+        ...lead, 
+        id: Math.random().toString(36).substr(2, 9),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }]);
+      addNotification('Novo lead registrado no CRM! (Modo Demo)', 'info');
+      return;
+    }
     if (!user) return;
     try {
       const { id, ...data } = lead;
@@ -3290,6 +3351,11 @@ export default function App() {
   };
 
   const handleAddBudget = async (budget: Budget) => {
+    if (isDemo) {
+      setBudgets(prev => [...prev, { ...budget, id: Math.random().toString(36).substr(2, 9) }]);
+      addNotification('Orçamento gerado com sucesso! (Modo Demo)', 'info');
+      return;
+    }
     if (!user) return;
     try {
       const { id, ...data } = budget;
@@ -3299,6 +3365,12 @@ export default function App() {
   };
 
   const handleAddFollowUp = async (followUp: FollowUp) => {
+    if (isDemo) {
+      setFollowUps(prev => [...prev, { ...followUp, id: Math.random().toString(36).substr(2, 9) }]);
+      setIsNewFollowUpModalOpen(false);
+      addNotification('Acompanhamento agendado! (Modo Demo)', 'info');
+      return;
+    }
     if (!user) return;
     try {
       const { id, ...data } = followUp;
@@ -3309,6 +3381,13 @@ export default function App() {
   };
 
   const handleUpdateFollowUpStatus = async (id: string, status: FollowUp['status']) => {
+    if (isDemo) {
+      setFollowUps(prev => prev.map(f => f.id === id ? { ...f, status } : f));
+      if (status === 'Concluído') {
+        addNotification('Acompanhamento realizado com sucesso! (Modo Demo)', 'info');
+      }
+      return;
+    }
     try {
       await updateDoc(doc(db, 'followUps', id), { status });
       if (status === 'Concluído') {
@@ -3318,6 +3397,11 @@ export default function App() {
   };
 
   const handleUpdateFollowUp = async (id: string, updates: Partial<FollowUp>) => {
+    if (isDemo) {
+      setFollowUps(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
+      setEditingFollowUp(null);
+      return;
+    }
     try {
       await updateDoc(doc(db, 'followUps', id), updates);
       setEditingFollowUp(null);
@@ -3329,6 +3413,10 @@ export default function App() {
       'Excluir Follow-up',
       'Tem certeza que deseja excluir este acompanhamento?',
       async () => {
+        if (isDemo) {
+          setFollowUps(prev => prev.filter(f => f.id !== id));
+          return;
+        }
         try {
           await deleteDoc(doc(db, 'followUps', id));
         } catch (e) { handleFirestoreError(e, OperationType.DELETE, `followUps/${id}`); }
@@ -3338,6 +3426,10 @@ export default function App() {
 
   const handleDeleteBudget = (id: string) => {
     showConfirm('Excluir Orçamento', 'Tem certeza que deseja excluir este orçamento?', async () => {
+      if (isDemo) {
+        setBudgets(prev => prev.filter(b => b.id !== id));
+        return;
+      }
       try {
         await deleteDoc(doc(db, 'budgets', id));
       } catch (e) { handleFirestoreError(e, OperationType.DELETE, `budgets/${id}`); }
@@ -3345,6 +3437,10 @@ export default function App() {
   };
 
   const handleAddProcedure = async (proc: Procedure) => {
+    if (isDemo) {
+      setProcedures(prev => [...prev, { ...proc, id: Math.random().toString(36).substr(2, 9) }]);
+      return;
+    }
     if (!user) return;
     try {
       const { id, ...data } = proc;
@@ -3353,6 +3449,11 @@ export default function App() {
   };
 
   const handleUpdateProcedure = async (id: string, updates: Partial<Procedure>) => {
+    if (isDemo) {
+      setProcedures(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+      setEditingProcedure(null);
+      return;
+    }
     try {
       await updateDoc(doc(db, 'procedures', id), updates);
       setEditingProcedure(null);
@@ -3361,6 +3462,10 @@ export default function App() {
 
   const handleDeleteProcedure = (id: string) => {
     showConfirm('Excluir Procedimento', 'Tem certeza que deseja excluir este procedimento?', async () => {
+      if (isDemo) {
+        setProcedures(prev => prev.filter(p => p.id !== id));
+        return;
+      }
       try {
         await deleteDoc(doc(db, 'procedures', id));
       } catch (e) { handleFirestoreError(e, OperationType.DELETE, `procedures/${id}`); }
@@ -3368,6 +3473,11 @@ export default function App() {
   };
 
   const handleUpdateAppointment = async (id: string, updates: Partial<Appointment>) => {
+    if (isDemo) {
+      setAppointments(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a));
+      setEditingAppointment(null);
+      return;
+    }
     try {
       await updateDoc(doc(db, 'appointments', id), updates);
       setEditingAppointment(null);
@@ -3376,6 +3486,12 @@ export default function App() {
 
   const handleDeleteAppointment = (id: string) => {
     showConfirm('Excluir Agendamento', 'Tem certeza que deseja excluir este agendamento?', async () => {
+      if (isDemo) {
+        setAppointments(prev => prev.filter(a => a.id !== id));
+        setFinancialEntries(prev => prev.filter(e => e.appointmentId !== id));
+        addNotification('Agendamento removido! (Modo Demo)', 'warning');
+        return;
+      }
       try {
         await deleteDoc(doc(db, 'appointments', id));
         const entries = financialEntries.filter(e => e.appointmentId === id);
@@ -3386,6 +3502,11 @@ export default function App() {
   };
 
   const handleUpdateProfile = async (updates: Partial<UserProfile>) => {
+    if (isDemo) {
+      setUserProfile(prev => prev ? { ...prev, ...updates } : null);
+      addNotification('Configurações salvas! (Modo Demo)', 'info');
+      return;
+    }
     if (!user) return;
     try {
       await setDoc(doc(db, 'userProfiles', user.uid), updates, { merge: true });
@@ -3542,6 +3663,7 @@ export default function App() {
           userProfile={userProfile}
           onUpdateProfile={handleUpdateProfile}
           onResetMocks={handleResetMocks}
+          isDemo={isDemo}
         />
       );
       default: return (
@@ -3671,6 +3793,20 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex font-sans transition-colors duration-300 bg-[#FFF9F9] text-gray-900">
+      {isDemo && (
+        <div className="fixed top-0 left-0 right-0 z-[200] bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-1.5 px-4 text-center text-[10px] font-black uppercase tracking-widest shadow-lg flex items-center justify-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="bg-white/20 px-2 py-0.5 rounded animate-pulse">Ambiente de Demonstração</span>
+            <span className="hidden md:inline">• Os dados serão resetados ao atualizar a página (F5)</span>
+          </div>
+          <button 
+            onClick={() => window.open('https://wa.me/5521969457083', '_blank')}
+            className="bg-white text-blue-600 px-4 py-1 rounded-full hover:bg-blue-50 transition-all font-black text-[9px] shadow-sm active:scale-95"
+          >
+            ADQUIRIR VERSÃO COMPLETA
+          </button>
+        </div>
+      )}
       <NotificationCenter alerts={alerts} />
       {/* Modals (Placeholders for reconstruction) */}
       {isNewAppModalOpen && (
