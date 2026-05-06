@@ -2863,7 +2863,8 @@ export default function App() {
 
   // --- DEMO MODE LOGIC ---
   const isDemo = useMemo(() => {
-    return new URLSearchParams(window.location.search).get('demo') === 'true';
+    const params = new URLSearchParams(window.location.search);
+    return params.get('demo') === 'true' || window.location.pathname === '/demo';
   }, []);
 
   // Initialize data for Demo Mode
