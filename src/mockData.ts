@@ -61,7 +61,7 @@ export const MOCK_FINANCIAL: FinancialEntry[] = [
 export const MOCK_LEADS: Lead[] = [
   { id: 'l1', name: 'Mariana Costa', platform: 'Instagram', email: 'mari@email.com', phone: '(11) 91234-5678', lastMessage: 'Olá, qual o valor da drenagem?', status: 'novo', createdAt: daysAgo(1), updatedAt: daysAgo(1) },
   { id: 'l2', name: 'Fernanda Souza', platform: 'WhatsApp', email: 'fer@email.com', phone: '(11) 92345-6789', lastMessage: 'Vou ver com meu marido e te aviso.', status: 'follow-up-1', createdAt: daysAgo(3), updatedAt: daysAgo(3) },
-  { id: 'l3', name: 'Juliana Paes', platform: 'Direct', lastMessage: 'Obrigada pelas informações.', status: 'novo', createdAt: daysAgo(7), updatedAt: daysAgo(7) },
+  { id: 'l3', name: 'Juliana Paes', platform: 'Direct', phone: '(11) 98877-6655', lastMessage: 'Obrigada pelas informações.', status: 'novo', createdAt: daysAgo(7), updatedAt: daysAgo(7) },
   { id: 'l4', name: 'Patrícia Amorim', platform: 'WhatsApp', phone: '(11) 94444-5555', lastMessage: 'Não consigo ir esse mês.', status: 'perdido', createdAt: daysAgo(14), updatedAt: daysAgo(14) },
 ];
 

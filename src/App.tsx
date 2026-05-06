@@ -1678,11 +1678,13 @@ const BudgetsTab = ({
 const LeadsTab = ({ 
   leads, 
   onUpdateStatus,
-  onDelete
+  onDelete,
+  onAddLead
 }: { 
   leads: Lead[], 
   onUpdateStatus: (id: string, status: Lead['status']) => void, 
-  onDelete: (id: string) => void 
+  onDelete: (id: string) => void,
+  onAddLead: (lead: Lead) => void
 }) => {
   return (
     <div className="space-y-12 pb-24 -mt-8">
@@ -1805,6 +1807,104 @@ const LeadsTab = ({
             Quero Melhorar Meu Instagram
             <ArrowRight className="w-6 h-6 group-hover:translate-x-2 transition-transform" />
           </button>
+        </div>
+      </section>
+
+      {/* CRM Section - Real Lead Management */}
+      <section className="max-w-6xl mx-auto px-4 py-24 border-t border-slate-100">
+        <div className="flex justify-between items-end mb-10">
+          <div>
+            <h2 className="text-3xl font-black text-[#050b1a] tracking-tight uppercase">GESTÃO DE <span className="text-slate-400">PROSPECÇÃO</span></h2>
+            <p className="text-slate-500 font-medium mt-2">Gerencie e converta seus contatos interessados em clientes reais.</p>
+          </div>
+          <button 
+            onClick={() => {
+              const name = prompt('Nome do Lead:');
+              const phone = prompt('WhatsApp do Lead:');
+              if (name && phone) {
+                onAddLead({ id: '', name, phone, status: 'novo', origin: 'CRM Manual' });
+              }
+            }}
+            className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Novo Contato
+          </button>
+        </div>
+
+        <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50/50">
+                  <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Nome / Origem</th>
+                  <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">WhatsApp</th>
+                  <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status Atual</th>
+                  <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {leads.length > 0 ? leads.map(lead => (
+                  <tr key={lead.id} className="hover:bg-slate-50/30 transition-colors group">
+                    <td className="p-6">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center font-bold text-slate-600">
+                          {lead.name.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-900">{lead.name}</p>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{lead.origin || 'Instagram'}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-6">
+                      <button 
+                        onClick={() => window.open(`https://wa.me/${lead.phone.replace(/\D/g, '')}`, '_blank')}
+                        className="flex items-center gap-2 text-green-600 font-bold hover:underline"
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                        {lead.phone}
+                      </button>
+                    </td>
+                    <td className="p-6">
+                      <select 
+                        value={lead.status}
+                        onChange={(e) => onUpdateStatus(lead.id, e.target.value as any)}
+                        className={cn(
+                          "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border-transparent outline-none cursor-pointer appearance-none",
+                          lead.status === 'novo' ? "bg-blue-100 text-blue-700" :
+                          lead.status === 'contato' ? "bg-amber-100 text-amber-700" :
+                          lead.status === 'proposta' ? "bg-purple-100 text-purple-700" :
+                          lead.status === 'convertido' ? "bg-emerald-100 text-emerald-700" :
+                          "bg-slate-100 text-slate-600"
+                        )}
+                      >
+                        <option value="novo">Novo Lead</option>
+                        <option value="contato">Em Contato</option>
+                        <option value="proposta">Proposta Enviada</option>
+                        <option value="convertido">Convertido</option>
+                        <option value="perdido">Perdido</option>
+                      </select>
+                    </td>
+                    <td className="p-6 text-right">
+                      <button 
+                        onClick={() => onDelete(lead.id)}
+                        className="p-3 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </td>
+                  </tr>
+                )) : (
+                  <tr>
+                    <td colSpan={4} className="p-20 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">
+                      Nenhum lead encontrado para gerenciar.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
     </div>
@@ -2926,7 +3026,7 @@ export default function App() {
     
     setTimeout(() => {
       setAlerts(prev => prev.filter(a => a.id !== id));
-    }, 5000);
+    }, 3000);
   };
 
   // Limpeza de notificações antigas (não hoje)
@@ -3173,6 +3273,10 @@ export default function App() {
   };
 
   const handleUpdateStatus = async (id: string, status: AppointmentStatus) => {
+    if (isDemo) {
+      setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
+      return;
+    }
     try {
       await updateDoc(doc(db, 'appointments', id), { status });
     } catch (e) { handleFirestoreError(e, OperationType.UPDATE, `appointments/${id}`); }
@@ -3182,12 +3286,31 @@ export default function App() {
   const [followUpAppRef, setFollowUpAppRef] = useState<Appointment | null>(null);
 
   const handleMarkAsPaid = async (id: string) => {
-    if (!user) return;
+    if (!user && !isDemo) return;
     const app = appointments.find(a => a.id === id);
     if (!app) return;
 
     const client = clients.find(c => c.id === app.clientId);
     const proc = procedures.find(p => p.id === app.procedureId);
+
+    if (isDemo) {
+      setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: 'realizado' } : a));
+      const entry: FinancialEntry = {
+        id: Math.random().toString(36).substr(2, 9),
+        description: `Atendimento: ${client?.name} (${proc?.name})`,
+        amount: app.price,
+        date: new Date().toISOString(),
+        type: 'receita',
+        category: 'Serviços',
+        appointmentId: id,
+        ownerId: 'demo-user'
+      };
+      setFinancialEntries(prev => [...prev, entry]);
+      
+      setFollowUpAppRef(app);
+      setIsFollowUpTriggerModalOpen(true);
+      return;
+    }
 
     try {
       await updateDoc(doc(db, 'appointments', id), { status: 'realizado' });
@@ -3209,6 +3332,11 @@ export default function App() {
   };
 
   const handleUndoMarkAsPaid = async (id: string) => {
+    if (isDemo) {
+      setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: 'confirmado' } : a));
+      setFinancialEntries(prev => prev.filter(e => e.appointmentId !== id));
+      return;
+    }
     try {
       await updateDoc(doc(db, 'appointments', id), { status: 'confirmado' });
       const entry = financialEntries.find(e => e.appointmentId === id);
@@ -3608,6 +3736,7 @@ export default function App() {
           leads={leads} 
           onUpdateStatus={handleUpdateLeadStatus} 
           onDelete={handleDeleteLead} 
+          onAddLead={handleAddLead}
         />
       );
       case 'atendimentos': return (
@@ -3749,6 +3878,13 @@ export default function App() {
             >
               Entrar no Sistema
             </button>
+            <button 
+              type="button"
+              onClick={() => window.location.href = window.location.origin + '/demo'}
+              className="w-full bg-blue-50 text-blue-600 p-4 rounded-2xl font-bold border border-blue-100 hover:bg-blue-100 transition-all mt-2"
+            >
+              Acessar Versão Demo (Teste)
+            </button>
           </form>
 
           <div className="relative flex items-center justify-center mb-6">
@@ -3846,11 +3982,11 @@ export default function App() {
                 const procedureId = formData.get('procedureId') as string;
                 
                 if (!clientId) {
-                  setAlerts(prev => [...prev, { id: 'error-client', message: 'Por favor, selecione uma cliente da lista.', type: 'error' }].slice(-3));
+                  addNotification('Por favor, selecione uma cliente da lista.', 'error');
                   return;
                 }
                 if (!procedureId || !date || !time) {
-                  setAlerts(prev => [...prev, { id: 'error-fields', message: 'Por favor, preencha todos os campos do agendamento.', type: 'error' }].slice(-3));
+                  addNotification('Por favor, preencha todos os campos do agendamento.', 'error');
                   return;
                 }
 
@@ -4119,7 +4255,7 @@ export default function App() {
                 e.currentTarget.reset();
                 setIsNewClientModalOpen(false);
                 setClientStep(1);
-                setAlerts(prev => [...prev, { id: 'client-added', message: 'Cliente cadastrada com sucesso!', type: 'info' }].slice(-3));
+                addNotification('Cliente cadastrada com sucesso!', 'info');
               }}
               className="space-y-4"
             >
@@ -4571,7 +4707,7 @@ export default function App() {
             ))}
           </nav>
 
-          <div className="mt-4 p-5 bg-[#0f1115] rounded-[32px] text-white relative overflow-hidden group cursor-pointer border border-white/5 transition-all hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)]" onClick={() => window.open('https://dynamic-mermaid-e77dae.netlify.app', '_blank')}>
+          <div className="mt-4 p-5 bg-[#0f1115] rounded-[32px] text-white relative overflow-hidden group cursor-pointer border border-white/5 transition-all hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)]" onClick={() => setActiveTab('prospeccao')}>
             <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/20 rounded-full -mr-12 -mt-12 blur-3xl group-hover:bg-rose-500/40 transition-all" />
             <div className="relative z-10 flex flex-col gap-3">
               <div className="flex items-center gap-2">

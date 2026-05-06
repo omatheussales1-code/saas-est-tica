@@ -87,10 +87,11 @@ export interface Lead {
   id: string;
   name: string;
   email?: string;
-  phone?: string;
-  platform: string;
-  status: 'novo' | 'follow-up-1' | 'convertido' | 'perdido';
-  lastMessage: string;
+  phone: string;
+  platform?: string;
+  origin?: string;
+  status: 'novo' | 'contato' | 'proposta' | 'convertido' | 'perdido' | 'follow-up-1';
+  lastMessage?: string;
   notes?: string;
   createdAt?: string;
   updatedAt?: string;
