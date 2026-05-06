@@ -1715,7 +1715,7 @@ const LeadsTab = ({
           
           <div className="flex flex-col sm:flex-row gap-5 justify-center items-center">
             <button 
-              onClick={() => window.open('https://dynamic-mermaid-e77dae.netlify.app', '_blank')}
+              onClick={() => window.open('https://ais-pre-l3vu6fdwtad4izjis3b4zn-602627158817.us-east1.run.app/#depoimentos', '_blank')}
               className="w-full sm:w-auto bg-white text-[#050b1a] px-10 py-5 rounded-2xl font-black text-sm uppercase tracking-widest transition-all hover:bg-blue-50 active:scale-95 flex items-center justify-center gap-3 shadow-2xl"
             >
               Quero Melhorar Meu Instagram
@@ -1782,7 +1782,7 @@ const LeadsTab = ({
               O seu talento merece um posicionamento que faça as pessoas desejarem o seu serviço imediatamente, sem questionar o preço.
             </p>
             <button 
-              onClick={() => window.open('https://dynamic-mermaid-e77dae.netlify.app', '_blank')}
+              onClick={() => window.open('https://ais-pre-l3vu6fdwtad4izjis3b4zn-602627158817.us-east1.run.app/#depoimentos', '_blank')}
               className="bg-white text-[#050b1a] px-16 py-6 rounded-2xl font-black text-sm uppercase tracking-widest hover:scale-105 transition-all shadow-2xl active:scale-95 flex items-center gap-4 mx-auto"
             >
               VISITAR MEU SITE OFICIAL
@@ -1801,7 +1801,7 @@ const LeadsTab = ({
         
         <div className="flex flex-col sm:flex-row gap-5 justify-center">
           <button 
-            onClick={() => window.open('https://dynamic-mermaid-e77dae.netlify.app', '_blank')}
+            onClick={() => window.open('https://ais-pre-l3vu6fdwtad4izjis3b4zn-602627158817.us-east1.run.app/#depoimentos', '_blank')}
             className="bg-[#050b1a] text-white px-14 py-7 rounded-[28px] font-black text-sm uppercase tracking-widest hover:scale-105 transition-all shadow-2xl active:scale-95 inline-flex items-center gap-4 group"
           >
             Quero Melhorar Meu Instagram
@@ -3941,16 +3941,21 @@ export default function App() {
   return (
     <div className="min-h-screen flex font-sans transition-colors duration-300 bg-[#FFF9F9] text-gray-900">
       {isDemo && (
-        <div className="fixed top-0 left-0 right-0 z-[200] bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-1.5 px-4 text-center text-[10px] font-black uppercase tracking-widest shadow-lg flex items-center justify-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="bg-white/20 px-2 py-0.5 rounded animate-pulse">Ambiente de Demonstração</span>
-            <span className="hidden md:inline">• Os dados serão resetados ao atualizar a página (F5)</span>
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[200] flex items-center gap-6 bg-white/80 backdrop-blur-xl px-8 py-4 rounded-[32px] border border-blue-50 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5 animate-in fade-in slide-in-from-bottom-8 duration-700">
+          <div className="flex flex-col gap-0.5">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+              <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Modo Demonstração</span>
+            </div>
+            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">Os dados serão resetados ao sair</p>
           </div>
+          <div className="w-px h-10 bg-slate-100" />
           <button 
-            onClick={() => window.open('https://wa.me/5521969457083', '_blank')}
-            className="bg-white text-blue-600 px-4 py-1 rounded-full hover:bg-blue-50 transition-all font-black text-[9px] shadow-sm active:scale-95"
+            onClick={() => window.open('https://ais-pre-l3vu6fdwtad4izjis3b4zn-602627158817.us-east1.run.app/#depoimentos', '_blank')}
+            className="group relative overflow-hidden bg-[#050b1a] text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all hover:scale-105 active:scale-95 shadow-xl shadow-blue-200/50"
           >
-            ADQUIRIR VERSÃO COMPLETA
+            <span className="relative z-10 transition-colors group-hover:text-blue-200">Adquirir Versão Completa</span>
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-transparent translate-x-[-100%] group-hover:translate-x-0 transition-transform duration-500" />
           </button>
         </div>
       )}
