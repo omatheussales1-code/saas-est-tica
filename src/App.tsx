@@ -2869,6 +2869,7 @@ export default function App() {
   // Initialize data for Demo Mode
   useEffect(() => {
     if (isDemo) {
+      // Set all mock data
       setClients(MOCK_CLIENTS);
       setAppointments(MOCK_APPOINTMENTS);
       setProcedures(MOCK_PROCEDURES);
@@ -2892,10 +2893,14 @@ export default function App() {
         accentColor: 'rose',
         createdAt: new Date().toISOString()
       });
-      setIsAuthReady(true);
-      setIsAuthorized(true);
-      setIsInitialLoading(false);
+
+      // Force authorized and ready states
       setUser({ uid: 'demo-user', displayName: 'Demo User', email: 'demo@demo.com' } as any);
+      setIsAuthorized(true);
+      setIsAuthReady(true);
+      setIsInitialLoading(false);
+      
+      console.log('Demo Mode Initialized');
     }
   }, [isDemo]);
   // --- END DEMO MODE LOGIC ---
@@ -2939,6 +2944,11 @@ export default function App() {
 
   // Firebase Auth
   React.useEffect(() => {
+    if (isDemo) {
+      // Bypassing auth logic for Demo Mode
+      return;
+    }
+
     const unsubscribeAuth = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
