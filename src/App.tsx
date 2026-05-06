@@ -565,7 +565,10 @@ const Dashboard = ({
   csLabel,
   user,
   userProfile,
-  leads
+  leads,
+  setIsSidebarOpen,
+  setIsNotificationsOpen,
+  isNotificationsOpen
 }: { 
   appointments: Appointment[], 
   clients: Client[], 
@@ -575,7 +578,10 @@ const Dashboard = ({
   csLabel: string,
   user: User | null,
   userProfile: UserProfile | null,
-  leads: Lead[]
+  leads: Lead[],
+  setIsSidebarOpen: (open: boolean) => void,
+  setIsNotificationsOpen: (open: boolean) => void,
+  isNotificationsOpen: boolean
 }) => {
   const [now, setNow] = useState(new Date());
 
@@ -623,10 +629,33 @@ const Dashboard = ({
   
   return (
     <div className="space-y-6 relative">
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-gray-900 tracking-tight">Painel de Controle</h1>
-          <p className="text-sm font-medium text-gray-500">Bem-vindo(a) de volta, {userProfile?.name?.split(' ')[0] || user.displayName || 'Profissional'}!</p>
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => setIsSidebarOpen(true)}
+            className="lg:hidden p-2 text-gray-500 hover:bg-rose-50 rounded-lg"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+          <div>
+            <h1 className="text-2xl font-black text-gray-900 tracking-tight">Painel de Controle</h1>
+            <p className="text-sm font-medium text-gray-500">Bem-vindo(a) de volta, {userProfile?.name?.split(' ')[0] || user?.displayName || 'Profissional'}!</p>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+            className={cn(
+              "p-3 text-gray-400 hover:text-rose-500 transition-colors relative rounded-2xl bg-white border border-rose-50 shadow-sm",
+              isNotificationsOpen && "bg-rose-50 text-rose-500"
+            )}
+          >
+            <BellRing className="w-5 h-5" />
+            {notificationHistory.length > 0 && (
+              <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white" />
+            )}
+          </button>
         </div>
       </header>
 
@@ -2943,38 +2972,64 @@ const SettingsTab = ({
 
 // --- Main App ---
 
+// Helper to check demo mode outside component for initial state
+const checkIsDemo = () => {
+  if (typeof window === 'undefined') return false;
+  const params = new URLSearchParams(window.location.search);
+  const hash = window.location.hash.toLowerCase();
+  const path = window.location.pathname.toLowerCase();
+  const fullUrl = window.location.href.toLowerCase();
+  
+  return params.get('demo') === 'true' || 
+         path.includes('/demo') || 
+         hash.includes('demo') ||
+         fullUrl.includes('demo=true');
+};
+
+const IS_DEMO_INITIAL = checkIsDemo();
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [user, setUser] = useState<User | null>(null);
-  const [isAuthReady, setIsAuthReady] = useState(false);
-  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+  const [user, setUser] = useState<User | null>(IS_DEMO_INITIAL ? ({ uid: 'demo-user' } as any) : null);
+  const [isAuthReady, setIsAuthReady] = useState(IS_DEMO_INITIAL);
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(IS_DEMO_INITIAL ? true : null);
   
-  const [clients, setClients] = useState<Client[]>([]);
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [procedures, setProcedures] = useState<Procedure[]>([]);
-  const [financialEntries, setFinancialEntries] = useState<FinancialEntry[]>([]);
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [clients, setClients] = useState<Client[]>(IS_DEMO_INITIAL ? MOCK_CLIENTS : []);
+  const [appointments, setAppointments] = useState<Appointment[]>(IS_DEMO_INITIAL ? MOCK_APPOINTMENTS : []);
+  const [procedures, setProcedures] = useState<Procedure[]>(IS_DEMO_INITIAL ? MOCK_PROCEDURES : []);
+  const [financialEntries, setFinancialEntries] = useState<FinancialEntry[]>(IS_DEMO_INITIAL ? MOCK_FINANCIAL : []);
+  const [leads, setLeads] = useState<Lead[]>(IS_DEMO_INITIAL ? MOCK_LEADS : []);
+  const [budgets, setBudgets] = useState<Budget[]>(IS_DEMO_INITIAL ? MOCK_BUDGETS : []);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(IS_DEMO_INITIAL ? {
+    id: 'demo-user',
+    name: 'Usuária Demo (Lookalike)',
+    businessName: 'Clínica de Estética Especializada',
+    specialty: 'Estética Avançada',
+    phone: '(11) 99999-9999',
+    address: 'Rua da Estética, 123',
+    instagram: '@marketing_estetico',
+    workingHours: { start: '08:00', end: '19:00' },
+    workingDays: [1, 2, 3, 4, 5, 6],
+    budgetValidityDays: 15,
+    clientLabel: 'Paciente',
+    ownerId: 'demo-user',
+    email: 'demo@demo.com',
+    plan: 'pro',
+    accentColor: 'rose',
+    createdAt: new Date().toISOString()
+  } : null);
+  const [isInitialLoading, setIsInitialLoading] = useState(!IS_DEMO_INITIAL);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
   // --- DEMO MODE LOGIC ---
-  const isDemo = useMemo(() => {
-    const params = new URLSearchParams(window.location.search);
-    const hash = window.location.hash.toLowerCase();
-    const path = window.location.pathname.toLowerCase();
-    
-    return params.get('demo') === 'true' || 
-           path.includes('/demo') || 
-           hash.includes('demo');
-  }, []);
+  const isDemo = useMemo(() => IS_DEMO_INITIAL, []);
 
   // Initialize data for Demo Mode
   useEffect(() => {
     if (isDemo) {
+      console.log('Activating Demo Mode...');
       // Set all mock data
       setClients(MOCK_CLIENTS);
       setAppointments(MOCK_APPOINTMENTS);
@@ -2982,6 +3037,15 @@ export default function App() {
       setFinancialEntries(MOCK_FINANCIAL);
       setLeads(MOCK_LEADS);
       setBudgets(MOCK_BUDGETS);
+      
+      // Force user state for demo
+      setUser({ 
+        uid: 'demo-user', 
+        displayName: 'Usuária Demo (Lookalike)', 
+        email: 'demo@demo.com',
+        emailVerified: true 
+      } as any);
+      
       setUserProfile({
         id: 'demo-user',
         name: 'Usuária Demo (Lookalike)',
@@ -2995,17 +3059,11 @@ export default function App() {
         budgetValidityDays: 15,
         clientLabel: 'Paciente',
         ownerId: 'demo-user',
-        plan: 'pro',
-        accentColor: 'rose',
-        createdAt: new Date().toISOString()
+        email: 'demo@demo.com'
       });
-
-      // Force authorized and ready states
-      setUser({ uid: 'demo-user', displayName: 'Demo User', email: 'demo@demo.com' } as any);
-      setIsAuthorized(true);
-      setIsAuthReady(true);
-      setIsInitialLoading(false);
       
+      setIsInitialLoading(false);
+      setIsAuthReady(true);
       console.log('Demo Mode Initialized');
     }
   }, [isDemo]);
@@ -3705,6 +3763,9 @@ export default function App() {
           user={user}
           userProfile={userProfile}
           leads={leads}
+          setIsSidebarOpen={setIsSidebarOpen}
+          setIsNotificationsOpen={setIsNotificationsOpen}
+          isNotificationsOpen={isNotificationsOpen}
         />
       );
       case 'agenda': return (
@@ -3822,12 +3883,15 @@ export default function App() {
           user={user}
           userProfile={userProfile}
           leads={leads}
+          setIsSidebarOpen={setIsSidebarOpen}
+          setIsNotificationsOpen={setIsNotificationsOpen}
+          isNotificationsOpen={isNotificationsOpen}
         />
       );
     }
   };
 
-  if (!isAuthReady) {
+  if (!isAuthReady && !isDemo) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#FFF9F9]">
         <motion.div 
@@ -4754,27 +4818,19 @@ export default function App() {
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden relative">
-        <header className="h-16 bg-white/80 backdrop-blur-md border-b border-rose-50 flex items-center justify-between px-4 lg:px-8 flex-shrink-0 sticky top-0 z-[150]">
-          <button 
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="lg:hidden p-2 text-gray-500 hover:bg-rose-50 rounded-lg"
-          >
-            <Menu className="w-6 h-6" />
-          </button>
-          
-          <div className="flex items-center gap-4 relative ml-auto">
+        {activeTab !== 'dashboard' && (
+          <header className="h-16 flex items-center justify-between px-4 lg:px-8 flex-shrink-0 sticky top-0 z-[150] pointer-events-none">
             <button 
-              onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
-              className={cn(
-                "p-2 text-gray-400 hover:text-rose-500 transition-colors relative rounded-lg",
-                isNotificationsOpen && "bg-rose-50 text-rose-500"
-              )}
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="lg:hidden p-2 text-gray-500 hover:bg-rose-50 rounded-lg pointer-events-auto bg-white/80 backdrop-blur-md shadow-sm border border-rose-50"
             >
-              <BellRing className="w-6 h-6" />
-              {notificationHistory.some(n => isToday(n.date instanceof Date ? n.date : (n.date as any).toDate ? (n.date as any).toDate() : new Date(n.date))) && (
-                <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white" />
-              )}
+              <Menu className="w-6 h-6" />
             </button>
+            <div className="ml-auto pointer-events-auto">
+               {/* Bell moved to specific tab headers or floating if needed */}
+            </div>
+          </header>
+        )}
 
             <AnimatePresence>
               {isNotificationsOpen && (
@@ -4838,8 +4894,6 @@ export default function App() {
                 </>
               )}
             </AnimatePresence>
-          </div>
-        </header>
 
         <div className="flex-1 overflow-y-auto p-4 lg:p-8">
           <AnimatePresence mode="wait">
