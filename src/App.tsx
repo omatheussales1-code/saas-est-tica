@@ -123,6 +123,9 @@ import {
 
 // --- Constants & Types ---
 
+const LANDING_PAGE_URL = 'https://iridescent-gecko-731eb9.netlify.app';
+const UPGRADE_URL = `${LANDING_PAGE_URL}#depoimentos`;
+
 const COLOR_PRESETS = {
   rose: {
     50: '#fff1f2', 100: '#ffe4e6', 200: '#fecdd3', 300: '#fda4af', 400: '#fb7185', 
@@ -1744,7 +1747,7 @@ const LeadsTab = ({
           
           <div className="flex flex-col sm:flex-row gap-5 justify-center items-center">
             <button 
-              onClick={() => window.open('https://iridescent-gecko-731eb9.netlify.app/index.html#depoimentos', '_blank')}
+              onClick={() => window.open(UPGRADE_URL, '_blank')}
               className="w-full sm:w-auto bg-white text-[#050b1a] px-10 py-5 rounded-2xl font-black text-sm uppercase tracking-widest transition-all hover:bg-blue-50 active:scale-95 flex items-center justify-center gap-3 shadow-2xl"
             >
               Quero Melhorar Meu Instagram
@@ -1811,7 +1814,7 @@ const LeadsTab = ({
               O seu talento merece um posicionamento que faça as pessoas desejarem o seu serviço imediatamente, sem questionar o preço.
             </p>
             <button 
-              onClick={() => window.open('https://iridescent-gecko-731eb9.netlify.app/index.html#depoimentos', '_blank')}
+              onClick={() => window.open(UPGRADE_URL, '_blank')}
               className="bg-white text-[#050b1a] px-16 py-6 rounded-2xl font-black text-sm uppercase tracking-widest hover:scale-105 transition-all shadow-2xl active:scale-95 flex items-center gap-4 mx-auto"
             >
               VISITAR MEU SITE OFICIAL
@@ -1830,7 +1833,7 @@ const LeadsTab = ({
         
         <div className="flex flex-col sm:flex-row gap-5 justify-center">
           <button 
-            onClick={() => window.open('https://iridescent-gecko-731eb9.netlify.app/index.html#depoimentos', '_blank')}
+            onClick={() => window.open(UPGRADE_URL, '_blank')}
             className="bg-[#050b1a] text-white px-14 py-7 rounded-[28px] font-black text-sm uppercase tracking-widest hover:scale-105 transition-all shadow-2xl active:scale-95 inline-flex items-center gap-4 group"
           >
             Quero Melhorar Meu Instagram
@@ -2986,6 +2989,7 @@ const checkIsDemo = () => {
     const fullUrl = window.location.href.toLowerCase();
     
     const isCurrentlyDemo = params.get('demo') === 'true' || 
+           params.has('demo') ||
            path.includes('/demo') || 
            hash.includes('demo') ||
            fullUrl.includes('demo=true');
@@ -4017,7 +4021,7 @@ export default function App() {
           <h1 className="text-2xl font-black text-gray-900 mb-4">Acesso não liberado</h1>
           <p className="text-gray-500 mb-8">Para acessar o sistema, você precisa adquirir sua licença via Kiwify. Se você já comprou, aguarde alguns instantes até que seu e-mail seja liberado.</p>
           <button 
-            onClick={() => window.open('https://iridescent-gecko-731eb9.netlify.app/index.html#depoimentos', '_blank')}
+            onClick={() => window.open(UPGRADE_URL, '_blank')}
             className="w-full bg-rose-500 text-white p-4 rounded-2xl font-bold mb-4"
           >
             Comprar Licença agora
@@ -4046,7 +4050,7 @@ export default function App() {
           </div>
           <div className="w-px h-10 bg-slate-100" />
           <button 
-            onClick={() => window.open('https://iridescent-gecko-731eb9.netlify.app/index.html#depoimentos', '_blank')}
+            onClick={() => window.open(UPGRADE_URL, '_blank')}
             className="group relative overflow-hidden bg-[#050b1a] text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all hover:scale-105 active:scale-95 shadow-xl shadow-blue-200/50"
           >
             <span className="relative z-10 transition-colors group-hover:text-blue-200">Adquirir Versão Completa</span>
