@@ -123,8 +123,8 @@ import {
 
 // --- Constants & Types ---
 
-const LANDING_PAGE_URL = 'https://iridescent-gecko-731eb9.netlify.app';
-const UPGRADE_URL = `${LANDING_PAGE_URL}#depoimentos`;
+const LANDING_PAGE_URL = 'https://funny-jalebi-005836.netlify.app';
+const UPGRADE_URL = `${LANDING_PAGE_URL}/#depoimentos`;
 
 const COLOR_PRESETS = {
   rose: {
