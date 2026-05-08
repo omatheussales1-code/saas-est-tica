@@ -64,6 +64,7 @@ import {
   isTomorrow,
   differenceInMinutes,
   isAfter,
+  isBefore,
   isValid,
   addDays
 } from 'date-fns';
@@ -2168,137 +2169,206 @@ const FollowUpTab = ({
   onEdit?: (fu: FollowUp) => void,
   cLabel: string
 }) => {
-  return (
-    <div className="space-y-6">
-      <header className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-black text-gray-900 tracking-tight">Follow-up</h1>
-          <p className="text-sm font-medium text-gray-500 text-balance">Gerencie o acompanhamento pós-procedimento de suas clientes.</p>
-        </div>
-        <button 
-          onClick={onOpenNewFollowUp}
-          className="bg-rose-500 text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-rose-200 hover:bg-rose-600 transition-all flex items-center gap-2"
-        >
-          <Plus className="w-5 h-5" />
-          Novo Follow-up
-        </button>
-      </header>
+  const [showHistory, setShowHistory] = useState(false);
 
-      <div className="bg-white rounded-3xl shadow-sm border border-rose-50 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-rose-50/50">
-                <th className="p-4 text-[10px] font-black text-rose-400 uppercase tracking-wider">Cliente</th>
-                <th className="p-4 text-[10px] font-black text-rose-400 uppercase tracking-wider">Procedimento</th>
-                <th className="p-4 text-[10px] font-black text-rose-400 uppercase tracking-wider">Profissional</th>
-                <th className="p-4 text-[10px] font-black text-rose-400 uppercase tracking-wider">Data Follow-up</th>
-                <th className="p-4 text-[10px] font-black text-rose-400 uppercase tracking-wider">Status</th>
-                <th className="p-4 text-[10px] font-black text-rose-400 uppercase tracking-wider">Observação</th>
-                <th className="p-4 text-[10px] font-black text-rose-400 uppercase tracking-wider">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {followUps.length > 0 ? (
-                followUps.map(fu => (
-                  <tr key={fu.id} className="hover:bg-rose-50/30 transition-colors">
-                    <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center font-bold text-rose-600 text-xs">
-                          {fu.clientName?.charAt(0) || '?'}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-gray-900">{fu.clientName || 'Cliente'}</span>
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const phone = fu.clientPhone ? fu.clientPhone.replace(/\D/g, '') : '';
-                              const text = `Olá ${fu.clientName}! Tudo bem? Gostaria de saber como você está se sentindo após o procedimento de ${fu.procedureName}...`;
-                              window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
-                            }}
-                            className="p-1.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all shadow-sm group"
-                            title="Conversar no WhatsApp"
-                          >
-                            <MessageCircle className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+  const { today, overdue, upcoming, completed } = useMemo(() => {
+    const now = new Date();
+    const sorted = [...followUps].sort((a, b) => {
+      const dateA = a.date ? parseISO(a.date).getTime() : 0;
+      const dateB = b.date ? parseISO(b.date).getTime() : 0;
+      return dateA - dateB;
+    });
+
+    return {
+      today: sorted.filter(fu => fu.status !== 'Concluído' && fu.date && isSameDay(parseISO(fu.date), now)),
+      overdue: sorted.filter(fu => fu.status !== 'Concluído' && fu.date && isBefore(startOfDay(parseISO(fu.date)), startOfDay(now)) && !isSameDay(parseISO(fu.date), now)),
+      upcoming: sorted.filter(fu => fu.status !== 'Concluído' && fu.date && isAfter(startOfDay(parseISO(fu.date)), startOfDay(now)) && !isSameDay(parseISO(fu.date), now)),
+      completed: sorted.filter(fu => fu.status === 'Concluído')
+    };
+  }, [followUps]);
+
+  const renderTable = (list: FollowUp[], emptyMessage: string) => (
+    <div className="bg-white rounded-3xl shadow-sm border border-rose-50 overflow-hidden mb-8">
+      <div className="overflow-x-auto">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="bg-rose-50/50">
+              <th className="p-4 text-[10px] font-black text-rose-400 uppercase tracking-wider">Cliente</th>
+              <th className="p-4 text-[10px] font-black text-rose-400 uppercase tracking-wider">Procedimento</th>
+              <th className="p-4 text-[10px] font-black text-rose-400 uppercase tracking-wider">Data</th>
+              <th className="p-4 text-[10px] font-black text-rose-400 uppercase tracking-wider">Status</th>
+              <th className="p-4 text-[10px] font-black text-rose-400 uppercase tracking-wider">Ações</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {list.length > 0 ? (
+              list.map(fu => (
+                <tr key={fu.id} className="hover:bg-rose-50/30 transition-colors">
+                  <td className="p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center font-bold text-rose-600 text-xs">
+                        {fu.clientName?.charAt(0) || '?'}
                       </div>
-                    </td>
-                    <td className="p-4 text-sm text-gray-600 font-medium">{fu.procedureName || 'Procedimento'}</td>
-                    <td className="p-4 text-sm text-gray-600">{fu.professionalName || '-'}</td>
-                    <td className="p-4 text-sm text-gray-600">{fu.date ? format(parseISO(fu.date), 'dd/MM/yyyy') : '-'}</td>
-                      <td className="p-4">
-                        {fu.status === 'Pendente' ? (
-                          <button
-                            onClick={() => onUpdateStatus(fu.id, 'Concluído')}
-                            className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors flex items-center gap-1 group"
-                          >
-                            <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                            {fu.status}
-                          </button>
-                        ) : (
-                          <span className={cn(
-                            "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider inline-flex items-center gap-1",
-                            fu.status === 'Em andamento' ? "bg-rose-100 text-rose-700" :
-                            "bg-green-100 text-green-700"
-                          )}>
-                            <div className={cn(
-                              "w-1.5 h-1.5 rounded-full",
-                              fu.status === 'Em andamento' ? "bg-rose-500" : "bg-green-500"
-                            )} />
-                            {fu.status}
-                          </span>
-                        )}
-                      </td>
-                    <td className="p-4 text-sm text-gray-500 max-w-xs truncate">{fu.observation}</td>
-                    <td className="p-4">
-                      <div className="flex gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-gray-900">{fu.clientName || 'Cliente'}</span>
                         <button 
-                          onClick={() => onEdit && onEdit(fu)}
-                          className="p-2 text-gray-400 hover:text-rose-500 transition-colors" 
-                          title="Editar registros"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const phone = fu.clientPhone ? fu.clientPhone.replace(/\D/g, '') : '';
+                            const text = `Olá ${fu.clientName}! Tudo bem? Gostaria de saber como você está se sentindo após o procedimento de ${fu.procedureName}...`;
+                            window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
+                          }}
+                          className="p-1.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all shadow-sm group"
+                          title="Conversar no WhatsApp"
                         >
-                          <Pencil className="w-5 h-5" />
+                          <MessageCircle className="w-3.5 h-3.5" />
                         </button>
-                        {fu.status !== 'Concluído' && (
-                          <button 
-                            onClick={() => onUpdateStatus(fu.id, 'Concluído')}
-                            className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors" 
-                            title="Marcar como concluído"
-                          >
-                            <CheckCircle className="w-5 h-5" />
-                          </button>
-                        )}
-                        <button 
-                          onClick={() => onDelete(fu.id)}
-                          className="p-2 text-gray-300 hover:text-red-500 transition-colors" 
-                          title="Excluir"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={6} className="p-12 text-center">
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center">
-                        <BellRing className="w-8 h-8 text-rose-200" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-gray-900">Nenhum acompanhamento para hoje</p>
-                        <p className="text-xs text-gray-400">Você só verá aqui os acompanhamentos agendados para a data de hoje.</p>
                       </div>
                     </div>
                   </td>
+                  <td className="p-4">
+                    <p className="text-sm text-gray-900 font-bold leading-tight">{fu.procedureName}</p>
+                    <p className="text-[10px] text-gray-400 font-medium truncate max-w-[200px]">{fu.observation}</p>
+                  </td>
+                  <td className="p-4 text-sm text-gray-600">
+                    <div className="flex flex-col">
+                      <span className="font-bold">{fu.date ? format(parseISO(fu.date), 'dd/MM/yyyy') : '-'}</span>
+                      {fu.date && isToday(parseISO(fu.date)) && <span className="text-[9px] text-rose-500 font-black uppercase">Hoje</span>}
+                    </div>
+                  </td>
+                  <td className="p-4">
+                    <button
+                      onClick={() => fu.status !== 'Concluído' && onUpdateStatus(fu.id, 'Concluído')}
+                      className={cn(
+                        "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider transition-colors flex items-center gap-1",
+                        fu.status === 'Pendente' ? "bg-amber-100 text-amber-700 hover:bg-amber-200" :
+                        fu.status === 'Concluído' ? "bg-green-100 text-green-700" : "bg-rose-100 text-rose-700"
+                      )}
+                    >
+                      <div className={cn("w-1.5 h-1.5 rounded-full", fu.status === 'Pendente' ? "bg-amber-500" : "bg-green-500")} />
+                      {fu.status}
+                    </button>
+                  </td>
+                  <td className="p-4">
+                    <div className="flex gap-2">
+                      <button onClick={() => onEdit && onEdit(fu)} className="p-2 text-gray-400 hover:text-rose-500 group transition-all hover:scale-110"><Pencil className="w-5 h-5" /></button>
+                      <button onClick={() => onDelete(fu.id)} className="p-2 text-gray-300 hover:text-red-500 group transition-all hover:scale-110"><Trash2 className="w-5 h-5" /></button>
+                    </div>
+                  </td>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={5} className="p-12 text-center text-gray-400 font-bold uppercase tracking-widest text-[10px]">
+                  {emptyMessage}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-black text-gray-900 tracking-tight">Follow-up</h1>
+          <p className="text-sm font-medium text-gray-500">Revise seus alertas de acompanhamento para fidelizar clientes.</p>
+        </div>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <button 
+            onClick={() => setShowHistory(!showHistory)}
+            className={cn(
+              "flex-1 sm:flex-none px-6 py-3 rounded-2xl font-bold border transition-all flex items-center justify-center gap-2",
+              showHistory ? "bg-rose-500 text-white border-rose-600 shadow-lg shadow-rose-200" : "bg-white border-rose-100 text-rose-500 hover:bg-rose-50"
+            )}
+          >
+            <RotateCcw className="w-5 h-5" />
+            {showHistory ? 'Mostrar Ativos' : 'Ver Histórico'}
+          </button>
+          <button 
+            onClick={onOpenNewFollowUp}
+            className="flex-1 sm:flex-none bg-rose-500 text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-rose-200 hover:bg-rose-600 transition-all flex items-center justify-center gap-2"
+          >
+            <Plus className="w-5 h-5" />
+            Novo
+          </button>
+        </div>
+      </header>
+
+      {showHistory ? (
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-4"
+        >
+          <div className="flex items-center gap-3 mb-2 px-2">
+            <CheckCircle2 className="w-5 h-5 text-green-500" />
+            <h3 className="font-black text-gray-900 uppercase tracking-tight">Histórico de Concluídos</h3>
+          </div>
+          {renderTable(completed, "Nenhum histórico disponível.")}
+        </motion.div>
+      ) : (
+        <div className="space-y-12">
+          {/* Hoje */}
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-4"
+          >
+            <div className="flex items-center gap-3 mb-2 px-2">
+              <div className="w-8 h-8 rounded-xl bg-rose-500 flex items-center justify-center text-white shadow-lg shadow-rose-200">
+                <BellRing className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-black text-gray-900 uppercase tracking-tight">Alertas de Hoje</h3>
+                <p className="text-[10px] font-bold text-rose-500 uppercase tracking-widest">{today.length} pendentes para agora</p>
+              </div>
+            </div>
+            {renderTable(today, "Nenhum acompanhamento programado para hoje.")}
+          </motion.div>
+
+          {/* Atrasados */}
+          {overdue.length > 0 && (
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-4"
+            >
+              <div className="flex items-center gap-3 mb-2 px-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-500 flex items-center justify-center text-white shadow-lg shadow-amber-200">
+                  <AlertCircle className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-black text-amber-600 uppercase tracking-tight">Pendentes / Atrasados</h3>
+                  <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">{overdue.length} atenções necessárias</p>
+                </div>
+              </div>
+              {renderTable(overdue, "")}
+            </motion.div>
+          )}
+
+          {/* Próximos */}
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-4"
+          >
+            <div className="flex items-center gap-3 mb-2 px-2">
+              <div className="w-8 h-8 rounded-xl bg-blue-500 flex items-center justify-center text-white shadow-lg shadow-blue-200">
+                <CalendarIcon className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-black text-blue-600 uppercase tracking-tight">Agendados Futuros</h3>
+                <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">Acompanhamentos que virão nos próximos dias</p>
+              </div>
+            </div>
+            {renderTable(upcoming, "Nenhum acompanhamento futuro agendado.")}
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };
@@ -4344,11 +4414,7 @@ export default function App() {
       );
       case 'follow-up': return (
         <FollowUpTab 
-          followUps={followUps.filter(fu => {
-            if (!fu.date) return false;
-            const fuDate = parseISO(fu.date);
-            return isSameDay(fuDate, new Date());
-          })} 
+          followUps={followUps} 
           onOpenNewFollowUp={() => setIsNewFollowUpModalOpen(true)}
           onUpdateStatus={handleUpdateFollowUpStatus}
           onDelete={handleDeleteFollowUp}
