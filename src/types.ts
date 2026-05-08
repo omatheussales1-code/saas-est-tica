@@ -48,6 +48,7 @@ export interface Appointment {
   photoBefore?: string;
   photoAfter?: string;
   ownerId?: string;
+  isPaid?: boolean;
 }
 
 export interface UserProfile {

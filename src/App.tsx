@@ -257,8 +257,8 @@ const FollowUpTriggerModal = ({
           >
             <CheckCircle2 className="w-8 h-8" />
           </motion.div>
-          <h2 className="text-2xl font-black text-white mb-1">Pagamento Confirmado!</h2>
-          <p className="text-rose-100 text-sm font-bold uppercase tracking-widest">Procedimento Finalizado com Sucesso</p>
+          <h2 className="text-2xl font-black text-white mb-1">Atendimento Finalizado!</h2>
+          <p className="text-rose-100 text-sm font-bold uppercase tracking-widest">Procedimento Concluído com Sucesso</p>
         </div>
 
         <div className="p-8 space-y-6">
@@ -941,6 +941,7 @@ const Agenda = ({
   clients, 
   procedures,
   onUpdateStatus,
+  onMarkAsFinished,
   onMarkAsPaid,
   onUndoMarkAsPaid,
   onOpenNewAppointment,
@@ -953,6 +954,7 @@ const Agenda = ({
   clients: Client[],
   procedures: Procedure[],
   onUpdateStatus: (id: string, status: AppointmentStatus) => void,
+  onMarkAsFinished: (id: string) => void,
   onMarkAsPaid: (id: string) => void,
   onUndoMarkAsPaid: (id: string) => void,
   onOpenNewAppointment: (date: Date) => void,
@@ -1201,20 +1203,28 @@ const Agenda = ({
                         </select>
                       </div>
                       
-                      <div className="pt-1">
+                      <div className="pt-2 grid grid-cols-1 gap-2">
                         {app.status !== 'realizado' ? (
                           <button
-                            onClick={() => onMarkAsPaid(app.id)}
-                            className="w-full bg-gray-900 hover:bg-gray-800 text-white py-3.5 rounded-[20px] text-[10px] font-black uppercase tracking-[0.15em] shadow-xl shadow-gray-200 transition-all flex items-center justify-center gap-2 hover:-translate-y-1 active:translate-y-0"
+                            onClick={() => onMarkAsFinished(app.id)}
+                            className="w-full bg-rose-500 hover:bg-rose-600 text-white py-3.5 rounded-[20px] text-[10px] font-black uppercase tracking-[0.15em] shadow-lg shadow-rose-100 transition-all flex items-center justify-center gap-2 hover:-translate-y-1 active:translate-y-0"
                           >
-                            <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
-                            Finalizar e Cobrar
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Finalizar Atendimento
+                          </button>
+                        ) : !app.isPaid ? (
+                          <button
+                            onClick={() => onMarkAsPaid(app.id)}
+                            className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-3.5 rounded-[20px] text-[10px] font-black uppercase tracking-[0.15em] shadow-lg shadow-emerald-100 transition-all flex items-center justify-center gap-2 hover:-translate-y-1 active:translate-y-0"
+                          >
+                            <DollarSign className="w-3.5 h-3.5" />
+                            Cobrar Agora
                           </button>
                         ) : (
                           <div className="flex gap-2">
                             <div className="flex-1 bg-emerald-50 text-emerald-600 py-3 rounded-[20px] text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 border border-emerald-100/50">
                               <CheckCircle2 className="w-3.5 h-3.5" />
-                              Pago
+                              Finalizado e Pago
                             </div>
                             <button
                               onClick={() => onUndoMarkAsPaid(app.id)}
@@ -1223,6 +1233,13 @@ const Agenda = ({
                             >
                               <RotateCcw className="w-4 h-4" />
                             </button>
+                          </div>
+                        )}
+
+                        {app.status === 'realizado' && !app.isPaid && (
+                          <div className="flex items-center justify-center gap-2 px-4 py-2 bg-amber-50 rounded-xl border border-amber-100">
+                            <span className="animate-pulse w-1.5 h-1.5 bg-amber-500 rounded-full" />
+                            <span className="text-[9px] font-black text-amber-600 uppercase tracking-wider">Aguardando Pagamento</span>
                           </div>
                         )}
                       </div>
@@ -1658,12 +1675,22 @@ const AppointmentsTab = ({
                     <td className="px-6 py-4 text-sm font-bold text-gray-900">{formatCurrency(app.price)}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-between gap-4">
-                        <span className={cn(
-                          "px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider",
-                          statusColors[app.status]
-                        )}>
-                          {statusLabels[app.status]}
-                        </span>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className={cn(
+                            "px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider",
+                            statusColors[app.status]
+                          )}>
+                            {statusLabels[app.status]}
+                          </span>
+                          {app.status === 'realizado' && (
+                            <span className={cn(
+                              "text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded",
+                              app.isPaid ? "bg-emerald-50 text-emerald-600 border border-emerald-100" : "bg-amber-50 text-amber-600 border border-amber-100 animate-pulse"
+                            )}>
+                              {app.isPaid ? "Pago" : "Pendente"}
+                            </span>
+                          )}
+                        </div>
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button 
                             onClick={() => handleSendWhatsApp(app, 'confirmation')}
@@ -2284,6 +2311,8 @@ const FinancialTab = ({
   onAddEntry,
   onEditEntry,
   onDeleteEntry,
+  onMarkAsPaid,
+  onSendWhatsApp,
   userProfile
 }: { 
   appointments: Appointment[], 
@@ -2293,11 +2322,18 @@ const FinancialTab = ({
   onAddEntry: (e: FinancialEntry) => void,
   onEditEntry: (e: FinancialEntry) => void,
   onDeleteEntry: (id: string) => void,
+  onMarkAsPaid: (id: string) => void,
+  onSendWhatsApp: (app: Appointment, type: 'payment') => void,
   userProfile: UserProfile | null
 }) => {
   const [desc, setDesc] = useState('');
   const [amount, setAmount] = useState('');
   const [type, setType] = useState<'receita' | 'despesa'>('receita');
+  
+  const pendingPayments = useMemo(() => {
+    return appointments.filter(app => app.status === 'realizado' && !app.isPaid);
+  }, [appointments]);
+
   const [category, setCategory] = useState('Geral');
   const [paymentMethod, setPaymentMethod] = useState<'pix' | 'cartao' | 'dinheiro' | 'outro'>('pix');
   
@@ -2453,6 +2489,71 @@ const FinancialTab = ({
           <p className="text-sm text-gray-500">Gestão completa e relatórios detalhados</p>
         </div>
       </div>
+
+      {pendingPayments.length > 0 && (
+        <div className="bg-amber-50 rounded-[32px] border border-amber-100 overflow-hidden shadow-sm">
+          <div className="px-8 py-6 border-b border-amber-100 bg-white/50 flex justify-between items-center">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-amber-100 rounded-2xl flex items-center justify-center text-amber-600 shadow-sm">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-black text-amber-900 tracking-tight">Pagamentos Pendentes</h3>
+                <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">Atendimentos realizados que ainda não foram cobrados</p>
+              </div>
+            </div>
+            <span className="bg-amber-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">{pendingPayments.length} Pendentes</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="text-[10px] font-black text-amber-700 uppercase tracking-widest bg-amber-50/50">
+                <tr>
+                  <th className="px-8 py-4">Cliente</th>
+                  <th className="px-8 py-4">Data</th>
+                  <th className="px-8 py-4 text-right">Valor</th>
+                  <th className="px-8 py-4"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-amber-100/50">
+                {pendingPayments.map(app => {
+                  const client = clients.find(c => c.id === app.clientId);
+                  const proc = procedures.find(p => p.id === app.procedureId);
+                  return (
+                    <tr key={app.id} className="hover:bg-white/40 transition-colors">
+                      <td className="px-8 py-4">
+                        <p className="font-black text-gray-900 text-sm leading-none mb-1">{client?.name}</p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase">{proc?.name}</p>
+                      </td>
+                      <td className="px-8 py-4 text-xs font-bold text-gray-500">
+                        {app.date ? format(parseISO(app.date), "dd/MM/yyyy") : '-'}
+                      </td>
+                      <td className="px-8 py-4 text-sm font-black text-amber-600 text-right">
+                        {formatCurrency(app.price)}
+                      </td>
+                      <td className="px-8 py-4 text-right">
+                        <div className="flex gap-2 justify-end">
+                          <button 
+                            onClick={() => onSendWhatsApp(app, 'payment')}
+                            className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-emerald-100 hover:bg-emerald-100 transition-all flex items-center gap-2"
+                          >
+                            <MessageCircle className="w-3 h-3" /> Cobrar
+                          </button>
+                          <button 
+                            onClick={() => onMarkAsPaid(app.id)}
+                            className="bg-gray-900 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-gray-100 hover:bg-black transition-all flex items-center gap-2"
+                          >
+                            <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Marcar Pago
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Filter Bar */}
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-rose-50 flex flex-wrap items-center gap-4">
@@ -3706,7 +3807,29 @@ export default function App() {
   const [isFollowUpTriggerModalOpen, setIsFollowUpTriggerModalOpen] = useState(false);
   const [followUpAppRef, setFollowUpAppRef] = useState<Appointment | null>(null);
 
-  const handleMarkAsPaid = async (id: string) => {
+  const handleMarkAsFinished = async (id: string, customStatus?: AppointmentStatus) => {
+    if (!user && !isDemo) return;
+    const status = customStatus || 'realizado';
+    if (isDemo) {
+      setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: status as AppointmentStatus } : a));
+      const app = appointments.find(a => a.id === id);
+      if (app && status === 'realizado') {
+        setFollowUpAppRef(app);
+        setIsFollowUpTriggerModalOpen(true);
+      }
+      return;
+    }
+    try {
+      await updateDoc(doc(db, 'appointments', id), { status: status as AppointmentStatus });
+      const app = appointments.find(a => a.id === id);
+      if (app && status === 'realizado') {
+        setFollowUpAppRef(app);
+        setIsFollowUpTriggerModalOpen(true);
+      }
+    } catch (e) { handleFirestoreError(e, OperationType.UPDATE, `appointments/${id}`); }
+  };
+
+  const handleMarkAsPaid = async (id: string, paymentMethod: any = 'pix') => {
     if (!user && !isDemo) return;
     const app = appointments.find(a => a.id === id);
     if (!app) return;
@@ -3715,7 +3838,7 @@ export default function App() {
     const proc = procedures.find(p => p.id === app.procedureId);
 
     if (isDemo) {
-      setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: 'realizado' } : a));
+      setAppointments(prev => prev.map(a => a.id === id ? { ...a, isPaid: true } : a));
       const entry: FinancialEntry = {
         id: Math.random().toString(36).substr(2, 9),
         description: `Atendimento: ${client?.name} (${proc?.name})`,
@@ -3724,17 +3847,15 @@ export default function App() {
         type: 'receita',
         category: 'Serviços',
         appointmentId: id,
+        paymentMethod,
         ownerId: 'demo-user'
       };
       setFinancialEntries(prev => [...prev, entry]);
-      
-      setFollowUpAppRef(app);
-      setIsFollowUpTriggerModalOpen(true);
       return;
     }
 
     try {
-      await updateDoc(doc(db, 'appointments', id), { status: 'realizado' });
+      await updateDoc(doc(db, 'appointments', id), { isPaid: true });
       await addDoc(collection(db, 'financialEntries'), {
         description: `Atendimento: ${client?.name} (${proc?.name})`,
         amount: app.price,
@@ -3742,24 +3863,20 @@ export default function App() {
         type: 'receita',
         category: 'Serviços',
         appointmentId: id,
+        paymentMethod,
         ownerId: user.uid
       });
-      
-      // Trigger follow-up modal
-      setFollowUpAppRef(app);
-      setIsFollowUpTriggerModalOpen(true);
-      
     } catch (e) { handleFirestoreError(e, OperationType.WRITE, 'payment'); }
   };
 
   const handleUndoMarkAsPaid = async (id: string) => {
     if (isDemo) {
-      setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: 'confirmado' } : a));
+      setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: 'confirmado', isPaid: false } : a));
       setFinancialEntries(prev => prev.filter(e => e.appointmentId !== id));
       return;
     }
     try {
-      await updateDoc(doc(db, 'appointments', id), { status: 'confirmado' });
+      await updateDoc(doc(db, 'appointments', id), { status: 'confirmado', isPaid: false });
       const entry = financialEntries.find(e => e.appointmentId === id);
       if (entry) {
         await deleteDoc(doc(db, 'financialEntries', entry.id));
@@ -4099,14 +4216,19 @@ export default function App() {
                  cLabel === 'Paciente' ? 'Pacientes' :
                  cLabel === 'Aluno' ? 'Alunos' : 'Membros';
 
-  const handleSendWhatsApp = (app: Appointment, type: 'confirmation' | 'reminder') => {
+  const handleSendWhatsApp = (app: Appointment, type: 'confirmation' | 'reminder' | 'payment') => {
     const client = clients.find(c => c.id === app.clientId);
     const proc = procedures.find(p => p.id === app.procedureId);
     if (!client) return;
 
-    const template = type === 'confirmation' 
-      ? (userProfile?.confirmationMessageTemplate || DEFAULT_CONFIRMATION_TEMPLATE)
-      : (userProfile?.reminderMessageTemplate || DEFAULT_REMINDER_TEMPLATE);
+    let template = '';
+    if (type === 'confirmation') {
+      template = userProfile?.confirmationMessageTemplate || DEFAULT_CONFIRMATION_TEMPLATE;
+    } else if (type === 'reminder') {
+      template = userProfile?.reminderMessageTemplate || DEFAULT_REMINDER_TEMPLATE;
+    } else {
+      template = `Olá {cliente_nome}! Tudo bem? Passando para te enviar o fechamento do seu atendimento de hoje ({procedimento}). O valor total ficou {valor}. Se preferir, pode fazer o PIX por aqui mesmo! 😊`;
+    }
 
     const appDate = app.date ? parseISO(app.date) : new Date();
     
@@ -4162,6 +4284,7 @@ export default function App() {
           clients={clients} 
           procedures={procedures}
           onUpdateStatus={handleUpdateStatus}
+          onMarkAsFinished={handleMarkAsFinished}
           onMarkAsPaid={handleMarkAsPaid}
           onUndoMarkAsPaid={handleUndoMarkAsPaid}
           onOpenNewAppointment={(date) => {
@@ -4242,6 +4365,8 @@ export default function App() {
           onAddEntry={handleAddFinancialEntry}
           onEditEntry={setEditingFinancialEntry}
           onDeleteEntry={handleDeleteFinancialEntry}
+          onMarkAsPaid={handleMarkAsPaid}
+          onSendWhatsApp={handleSendWhatsApp}
           userProfile={userProfile}
         />
       );
