@@ -64,6 +64,8 @@ export interface UserProfile {
   };
   workingDays: number[]; // 0-6 where 0 is Sunday
   budgetValidityDays?: number;
+  confirmationMessageTemplate?: string;
+  reminderMessageTemplate?: string;
   clientLabel: 'Cliente' | 'Paciente' | 'Aluno' | 'Membro';
   ownerId?: string;
   plan?: 'free' | 'pro' | 'master';

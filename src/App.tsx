@@ -39,6 +39,8 @@ import {
   Instagram,
   Globe,
   ExternalLink,
+  Info,
+  User as UserIcon,
   X
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -492,6 +494,26 @@ const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 };
 
+const resolveTemplate = (template: string, data: { 
+  customerName?: string, 
+  date?: string, 
+  time?: string, 
+  procedure?: string, 
+  address?: string, 
+  businessName?: string,
+  price?: number
+}) => {
+  let result = template;
+  result = result.replace(/{cliente_nome}/g, data.customerName || '');
+  result = result.replace(/{data}/g, data.date || '');
+  result = result.replace(/{hora}/g, data.time || '');
+  result = result.replace(/{procedimento}/g, data.procedure || '');
+  result = result.replace(/{endereco}/g, data.address || '');
+  result = result.replace(/{nome_espaco}/g, data.businessName || '');
+  result = result.replace(/{valor}/g, data.price ? formatCurrency(data.price) : '');
+  return result;
+};
+
 const LoadingScreen = () => (
   <div className="fixed inset-0 z-[1000] bg-rose-50 flex flex-col items-center justify-center p-6 text-center">
     <motion.div
@@ -571,7 +593,8 @@ const Dashboard = ({
   leads,
   setIsSidebarOpen,
   setIsNotificationsOpen,
-  isNotificationsOpen
+  isNotificationsOpen,
+  onSendWhatsApp
 }: { 
   appointments: Appointment[], 
   clients: Client[], 
@@ -584,7 +607,8 @@ const Dashboard = ({
   leads: Lead[],
   setIsSidebarOpen: (open: boolean) => void,
   setIsNotificationsOpen: (open: boolean) => void,
-  isNotificationsOpen: boolean
+  isNotificationsOpen: boolean,
+  onSendWhatsApp: (app: Appointment, type: 'confirmation' | 'reminder') => void
 }) => {
   const [now, setNow] = useState(new Date());
 
@@ -662,66 +686,138 @@ const Dashboard = ({
         </div>
       </header>
 
-      {/* Alertas Rápidos */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {tomorrowAppointments.length > 0 && (
-          <div className="bg-rose-50 border border-rose-100 p-4 rounded-2xl flex items-center gap-3">
-            <div className="w-10 h-10 bg-rose-500 rounded-xl flex items-center justify-center shadow-lg shadow-rose-200">
-              <CalendarIcon className="text-white w-5 h-5" />
-            </div>
+      {/* Painel Principal: Agenda e Lembretes */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+        {/* Lado Esquerdo: Agenda de Hoje */}
+        <div className="space-y-6">
+          <div className="flex justify-between items-center px-2">
             <div>
-              <p className="text-xs font-bold text-rose-400 uppercase">Amanhã</p>
-              <p className="text-sm font-bold text-rose-800">Você tem {tomorrowAppointments.length} atendimentos agendados para amanhã</p>
+              <h2 className="text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
+                <Clock className="w-6 h-6 text-rose-500" />
+                Próximos de Hoje
+              </h2>
+              <p className="text-xs font-medium text-gray-400 uppercase tracking-widest">{todayAppointments.length} agendamentos para hoje</p>
             </div>
+            <button 
+              onClick={onNavigateToAgenda}
+              className="p-3 bg-white border border-rose-50 rounded-2xl text-rose-500 hover:bg-rose-50 transition-all shadow-sm"
+              title="Ver Agenda"
+            >
+              <CalendarIcon className="w-5 h-5" />
+            </button>
           </div>
-        )}
 
-        {delayedAppointments.length > 0 && (
-          <div className="bg-red-50 border border-red-100 p-4 rounded-2xl flex items-center gap-3">
-            <div className="w-10 h-10 bg-red-500 rounded-xl flex items-center justify-center shadow-lg shadow-red-200">
-              <AlertCircle className="text-white w-5 h-5" />
-            </div>
+          <div className="bg-white p-4 rounded-[40px] border border-rose-50 shadow-sm space-y-2 min-h-[400px]">
+            {todayAppointments.length > 0 ? (
+              todayAppointments.slice(0, 5).map((app, index) => {
+                const client = clients.find(c => c.id === app.clientId);
+                const proc = procedures.find(p => p.id === app.procedureId);
+                return (
+                  <motion.div 
+                    key={app.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className="group p-5 rounded-[32px] hover:bg-rose-50 transition-all flex items-center justify-between border border-transparent hover:border-rose-100"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 bg-rose-50 rounded-2xl flex flex-col items-center justify-center text-rose-500 group-hover:bg-rose-500 group-hover:text-white transition-all shadow-sm">
+                        <span className="text-[10px] font-black uppercase">{format(parseISO(app.date!), 'HH:mm')}</span>
+                      </div>
+                      <div>
+                        <p className="font-bold text-gray-900 group-hover:text-rose-600 transition-colors">{client?.name}</p>
+                        <p className="text-xs font-medium text-gray-400">{proc?.name}</p>
+                      </div>
+                    </div>
+                    <div className={cn("px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-gray-50", statusColors[app.status])}>
+                      {statusLabels[app.status]}
+                    </div>
+                  </motion.div>
+                );
+              })
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-center p-8 space-y-4 opacity-40">
+                <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center">
+                  <CalendarIcon className="w-8 h-8" />
+                </div>
+                <p className="text-sm font-bold italic">Nenhum atendimento para hoje.</p>
+              </div>
+            )}
+            
+            {todayAppointments.length > 5 && (
+              <button 
+                onClick={onNavigateToAgenda}
+                className="w-full py-4 text-[10px] font-black text-rose-400 uppercase tracking-widest hover:text-rose-600 transition-colors"
+              >
+                + {todayAppointments.length - 5} outros atendimentos hoje
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Lado Direito: Fila de Lembretes (DIA ANTERIOR) */}
+        <div className="space-y-6">
+          <div className="flex justify-between items-center px-2">
             <div>
-              <p className="text-xs font-bold text-red-400 uppercase">Atraso</p>
-              <p className="text-sm font-bold text-red-800">{delayedAppointments.length} atendimento(s) em atraso</p>
+              <h2 className="text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
+                <MessageCircle className="w-6 h-6 text-emerald-500" />
+                Lembretes para Amanhã
+              </h2>
+              <p className="text-xs font-medium text-gray-400 uppercase tracking-widest">Enviar mensagens de confirmação</p>
             </div>
+            {tomorrowAppointments.length > 0 && (
+              <div className="bg-emerald-50 text-emerald-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase">
+                {tomorrowAppointments.length} Pendentes
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard 
-          title="Atendimentos Hoje" 
-          value={todayAppointments.length} 
-          icon={<CalendarIcon className="w-5 h-5" />} 
-          color="bg-rose-100 text-rose-600"
-          onClick={onNavigateToAgenda}
-          clickable
-        />
-        <StatCard 
-          title="Próximo Atendimento" 
-          value={nextApp?.date ? (timeRemaining || format(parseISO(nextApp.date), 'HH:mm')) : '--:--'} 
-          icon={<Clock className="w-5 h-5" />} 
-          color="bg-rose-100 text-rose-600" 
-        />
-        <StatCard 
-          title="Pendentes (Não foram)" 
-          value={missedAppointments} 
-          icon={<BellRing className="w-5 h-5" />} 
-          color="bg-rose-100 text-rose-600"
-        />
-        <StatCard 
-          title={`Total ${csLabel}`} 
-          value={clients.length} 
-          icon={<Users className="w-5 h-5 text-rose-600" />} 
-          color="bg-rose-50"
-        />
-        <StatCard 
-          title="Leads Ativos" 
-          value={leads.filter(l => l.status !== 'convertido' && l.status !== 'perdido').length} 
-          icon={<MessageCircle className="w-5 h-5 text-rose-600" />} 
-          color="bg-rose-50"
-        />
+          <div className="bg-emerald-50/30 p-4 rounded-[40px] border border-emerald-100 shadow-inner space-y-3 min-h-[400px]">
+            {tomorrowAppointments.length > 0 ? (
+              tomorrowAppointments.map((app, index) => {
+                const client = clients.find(c => c.id === app.clientId);
+                const proc = procedures.find(p => p.id === app.procedureId);
+                return (
+                  <motion.div 
+                    key={app.id}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className="bg-white p-5 rounded-[32px] border border-emerald-50 shadow-sm flex items-center justify-between group hover:border-emerald-200 transition-all"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-emerald-500 shadow-sm border border-emerald-50">
+                        <UserIcon className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-gray-900">{client?.name}</p>
+                        <p className="text-[10px] font-black text-gray-400 uppercase">
+                          {format(parseISO(app.date!), 'HH:mm')} • {proc?.name}
+                        </p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => onSendWhatsApp(app, 'reminder')}
+                      className="bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-3 rounded-[20px] font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-emerald-100 animate-in fade-in zoom-in duration-300"
+                    >
+                      Lembrar
+                    </button>
+                  </motion.div>
+                );
+              })
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-center p-12 space-y-4">
+                <div className="w-24 h-24 bg-white rounded-[40px] flex items-center justify-center shadow-md text-emerald-100 border border-emerald-50">
+                  <CheckCircle2 className="w-10 h-10" />
+                </div>
+                <div>
+                  <p className="font-black text-gray-400 uppercase text-xs tracking-widest mb-1">Tudo Enviado!</p>
+                  <p className="text-[10px] text-gray-400 font-medium leading-relaxed max-w-[200px]">Nenhum agendamento para amanhã precisa de lembrete agora.</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -850,7 +946,8 @@ const Agenda = ({
   onOpenNewAppointment,
   onEditAppointment,
   onDeleteAppointment,
-  cLabel
+  cLabel,
+  userProfile
 }: { 
   appointments: Appointment[], 
   clients: Client[],
@@ -861,7 +958,8 @@ const Agenda = ({
   onOpenNewAppointment: (date: Date) => void,
   onEditAppointment: (app: Appointment) => void,
   onDeleteAppointment: (id: string) => void,
-  cLabel: string
+  cLabel: string,
+  userProfile: UserProfile | null
 }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -878,6 +976,31 @@ const Agenda = ({
 
   const getAppointmentsForDay = (date: Date) => {
     return appointments.filter(a => a.date && isSameDay(parseISO(a.date), date));
+  };
+
+  const handleSendWhatsApp = (app: Appointment, type: 'confirmation' | 'reminder') => {
+    const client = clients.find(c => c.id === app.clientId);
+    const proc = procedures.find(p => p.id === app.procedureId);
+    if (!client) return;
+
+    const template = type === 'confirmation' 
+      ? (userProfile?.confirmationMessageTemplate || 'Olá {cliente_nome}, tudo bem? Seu horário {data} às {hora} está confirmado ❤️🧚♀️\n\nPra eu te atender do jeitinho que você gosta, me conta:\n• Você é mais de ficar quietinha relaxando ou gosta de bater papo durante a massagem?\n• Qual música ou cantor(a) você escolheria pra tocar na sua sessão?\n• Tem algo no seu corpo ou no seu dia a dia que te incomoda e que você gostaria muito que eu te ajudasse?\n\nVai ser um prazer te conhecer melhor! 💛\n\nEndereço: {endereco}\n{nome_espaco}')
+      : (userProfile?.reminderMessageTemplate || 'Olá {cliente_nome}, tudo bem? Passando para confirmar seu horário amanhã, {data} às {hora}. ❤️🧚♀️');
+
+    const appDate = app.date ? parseISO(app.date) : new Date();
+    
+    const message = resolveTemplate(template, {
+      customerName: client.name,
+      date: format(appDate, 'dd/MM/yyyy'),
+      time: format(appDate, 'HH:mm'),
+      procedure: proc?.name,
+      address: userProfile?.address,
+      businessName: userProfile?.businessName,
+      price: app.price
+    });
+
+    const phone = (client.phone || '').replace(/\D/g, '');
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
   };
 
   return (
@@ -1040,6 +1163,25 @@ const Agenda = ({
                     </div>
 
                     <div className="space-y-3 pt-4 border-t border-gray-50">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleSendWhatsApp(app, 'confirmation')}
+                          className="flex-1 bg-blue-50 text-blue-600 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-2 border border-blue-100 hover:bg-blue-100 transition-all"
+                          title="Enviar confirmação de agendamento"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                          Confirmar
+                        </button>
+                        <button
+                          onClick={() => handleSendWhatsApp(app, 'reminder')}
+                          className="flex-1 bg-amber-50 text-amber-600 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-2 border border-amber-100 hover:bg-amber-100 transition-all"
+                          title="Enviar lembrete (Dia anterior)"
+                        >
+                          <BellRing className="w-3.5 h-3.5" />
+                          Lembrete
+                        </button>
+                      </div>
+
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Activity className="w-3 h-3 text-gray-300" />
@@ -1372,7 +1514,8 @@ const AppointmentsTab = ({
   onUpdateStatus,
   onEditAppointment,
   onDeleteAppointment,
-  cLabel
+  cLabel,
+  userProfile
 }: { 
   appointments: Appointment[], 
   clients: Client[], 
@@ -1380,11 +1523,37 @@ const AppointmentsTab = ({
   onUpdateStatus: (id: string, status: AppointmentStatus) => void,
   onEditAppointment: (app: Appointment) => void,
   onDeleteAppointment: (id: string) => void,
-  cLabel: string
+  cLabel: string,
+  userProfile: UserProfile | null
 }) => {
   const [filter, setFilter] = useState<AppointmentStatus | 'todos'>('todos');
   const [startDate, setStartDate] = useState(format(subMonths(new Date(), 1), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+
+  const handleSendWhatsApp = (app: Appointment, type: 'confirmation' | 'reminder') => {
+    const client = clients.find(c => c.id === app.clientId);
+    const proc = procedures.find(p => p.id === app.procedureId);
+    if (!client) return;
+
+    const template = type === 'confirmation' 
+      ? (userProfile?.confirmationMessageTemplate || 'Olá {cliente_nome}, tudo bem? Seu horário {data} às {hora} está confirmado ❤️🧚♀️\n\nPra eu te atender do jeitinho que você gosta, me conta:\n• Você é mais de ficar quietinha relaxando ou gosta de bater papo durante a massagem?\n• Qual música ou cantor(a) você escolheria pra tocar na sua sessão?\n• Tem algo no seu corpo ou no seu dia a dia que te incomoda e que você gostaria muito que eu te ajudasse?\n\nVai ser um prazer te conhecer melhor! 💛\n\nEndereço: {endereco}\n{nome_espaco}')
+      : (userProfile?.reminderMessageTemplate || 'Olá {cliente_nome}, tudo bem? Passando para confirmar seu horário amanhã, {data} às {hora}. ❤️🧚♀️');
+
+    const appDate = app.date ? parseISO(app.date) : new Date();
+    
+    const message = resolveTemplate(template, {
+      customerName: client.name,
+      date: format(appDate, 'dd/MM/yyyy'),
+      time: format(appDate, 'HH:mm'),
+      procedure: proc?.name,
+      address: userProfile?.address,
+      businessName: userProfile?.businessName,
+      price: app.price
+    });
+
+    const phone = (client.phone || '').replace(/\D/g, '');
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+  };
   
   const filteredAppointments = appointments.filter(a => {
     const statusMatch = filter === 'todos' || a.status === filter;
@@ -1496,6 +1665,20 @@ const AppointmentsTab = ({
                           {statusLabels[app.status]}
                         </span>
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button 
+                            onClick={() => handleSendWhatsApp(app, 'confirmation')}
+                            className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
+                            title="Confirmação WhatsApp"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                          </button>
+                          <button 
+                            onClick={() => handleSendWhatsApp(app, 'reminder')}
+                            className="p-1.5 text-amber-500 hover:bg-amber-50 rounded-lg transition-all"
+                            title="Lembrete WhatsApp"
+                          >
+                            <BellRing className="w-3.5 h-3.5" />
+                          </button>
                           <button 
                             onClick={() => onEditAppointment(app)}
                             className="p-1.5 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
@@ -2728,7 +2911,7 @@ const SettingsTab = ({
   ];
 
   return (
-    <div className="max-w-5xl space-y-8 text-left pb-20">
+    <div className="max-w-full space-y-8 text-left pb-20 px-4">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-black text-gray-900 tracking-tight">Configurações</h1>
@@ -2969,6 +3152,148 @@ const SettingsTab = ({
           </section>
         </div>
       </div>
+
+      <section className="space-y-4 pt-12 border-t border-rose-50 overflow-hidden">
+        <div className="flex justify-between items-end px-4">
+          <div>
+            <h2 className="text-3xl font-black text-gray-900 tracking-tight flex items-center gap-4">
+              <MessageCircle className="w-8 h-8 text-rose-500" /> Mensagens Automáticas
+            </h2>
+            <p className="text-sm font-medium text-gray-500 ml-12">Configure como as suas clientes recebem as confirmações no WhatsApp</p>
+          </div>
+        </div>
+
+        <div className="bg-white p-12 rounded-[56px] shadow-sm border border-rose-50 space-y-20">
+          {[
+            { 
+              label: 'Confirmação de Agendamento', 
+              key: 'confirmationMessageTemplate', 
+              desc: 'Mensagem enviada logo após você salvar o horário no sistema.',
+              icon: <CheckCircle2 className="w-6 h-6" />
+            },
+            { 
+              label: 'Lembrete do Dia Anterior', 
+              key: 'reminderMessageTemplate', 
+              desc: 'Mensagem para confirmar que a cliente não esqueceu o compromisso.',
+              icon: <BellRing className="w-6 h-6" />
+            }
+          ].map((field) => (
+            <div key={field.key} className="space-y-10">
+              <div className="flex justify-between items-center px-4">
+                <div className="flex items-center gap-5">
+                  <div className="w-14 h-14 bg-rose-50 rounded-[20px] flex items-center justify-center text-rose-500 shadow-sm border border-rose-100">
+                    {field.icon}
+                  </div>
+                  <div>
+                    <label className="text-lg font-black text-gray-900 tracking-tight block">{field.label}</label>
+                    <p className="text-xs font-medium text-gray-400 uppercase tracking-[0.1em]">{field.desc}</p>
+                  </div>
+                </div>
+                <div className="hidden lg:flex items-center gap-3 bg-gray-50 px-5 py-2.5 rounded-2xl border border-gray-100">
+                  <Info className="w-4 h-4 text-gray-400" />
+                  <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest leading-none">Toque para inserir variáveis</span>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 xl:grid-cols-12 gap-12">
+                <div className="xl:col-span-12 2xl:col-span-8 space-y-6">
+                  <div className="relative group">
+                    <textarea 
+                      id={`textarea-${field.key}`}
+                      rows={8}
+                      value={(profile as any)[field.key] || ''} 
+                      placeholder="Sua mensagem aqui..."
+                      onChange={e => setProfile(p => ({ ...p, [field.key]: e.target.value }))}
+                      className="w-full p-10 rounded-[48px] bg-gray-50 border-2 border-transparent outline-none focus:border-rose-100 focus:bg-white transition-all font-medium text-gray-700 text-lg leading-relaxed shadow-inner resize-none block scrollbar-hide" 
+                    />
+                    <div className="absolute top-10 right-10 opacity-10 group-focus-within:opacity-0 transition-opacity">
+                      <MessageCircle className="w-12 h-12" />
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-3 p-4 bg-gray-50/50 rounded-[40px] border border-gray-100/50">
+                    {[
+                      { tag: '{cliente_nome}', label: 'Nome Cliente', color: 'bg-emerald-50 text-emerald-600 shadow-emerald-100/40' },
+                      { tag: '{data}', label: 'Data do Agend.', color: 'bg-blue-50 text-blue-600 shadow-blue-100/40' },
+                      { tag: '{hora}', label: 'Hora Marcada', color: 'bg-purple-50 text-purple-600 shadow-purple-100/40' },
+                      { tag: '{procedimento}', label: 'Procedimento', color: 'bg-amber-50 text-amber-600 shadow-amber-100/40' },
+                      { tag: '{endereco}', label: 'Seu Endereço', color: 'bg-rose-50 text-rose-600 shadow-rose-100/40' },
+                      { tag: '{valor}', label: 'Valor (R$)', color: 'bg-indigo-50 text-indigo-600 shadow-indigo-100/40' },
+                    ].map(v => (
+                      <button
+                        key={v.tag}
+                        onClick={() => {
+                          const textarea = document.getElementById(`textarea-${field.key}`) as HTMLTextAreaElement;
+                          if (!textarea) return;
+                          const start = textarea.selectionStart;
+                          const end = textarea.selectionEnd;
+                          const text = (profile as any)[field.key] || '';
+                          const newValue = text.substring(0, start) + v.tag + text.substring(end);
+                          setProfile(p => ({ ...p, [field.key]: newValue }));
+                          setTimeout(() => {
+                            textarea.focus();
+                            textarea.setSelectionRange(start + v.tag.length, start + v.tag.length);
+                          }, 10);
+                        }}
+                        className={`px-6 py-4 rounded-3xl text-xs font-black uppercase tracking-widest transition-all border-2 border-transparent hover:border-white shadow-sm hover:shadow-xl hover:scale-[1.03] active:scale-95 ${v.color}`}
+                      >
+                        + {v.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="xl:col-span-12 2xl:col-span-4 space-y-6">
+                  <div className="bg-[#e5ddd5] rounded-[56px] p-10 border border-gray-300 shadow-2xl flex flex-col h-full min-h-[450px] relative overflow-hidden ring-1 ring-black/5">
+                    <div className="absolute top-0 inset-x-0 h-24 bg-[#075e54] flex items-center px-10 z-20">
+                      <div className="w-12 h-12 bg-gray-200 rounded-full mr-4 border-2 border-white/20" />
+                      <div>
+                        <p className="text-white font-black text-base leading-tight">Clínica de Estética</p>
+                        <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest">Online agora</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-20 flex-1 bg-white p-8 rounded-[40px] rounded-tl-none border border-gray-200 text-base text-gray-700 whitespace-pre-wrap leading-relaxed shadow-sm relative flex flex-col justify-between z-10 self-start max-w-[92%]">
+                      <div className="relative z-10">
+                        {resolveTemplate((profile as any)[field.key] || '', {
+                          customerName: 'Tatiane Ferronatto',
+                          date: '08/05/2026',
+                          time: '14:30',
+                          procedure: 'Drenagem Linfática',
+                          address: profile.address || 'Seu Endereço aqui',
+                          businessName: profile.businessName || 'Seu Espaço',
+                          price: 180
+                        }).split(/({.*?})/).map((part, i) => (
+                          part.startsWith('{') && part.endsWith('}') ? (
+                            <span key={i} className="px-2.5 py-1 mx-0.5 bg-rose-50 text-rose-600 rounded-xl font-black text-[12px] ring-1 ring-rose-100 italic select-none">
+                              {part}
+                            </span>
+                          ) : part
+                        ))}
+                      </div>
+                      <div className="flex justify-end mt-6">
+                        <span className="text-[10px] text-gray-400 font-black opacity-60">10:30 ✓✓</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          <div className="bg-blue-50 p-10 rounded-[48px] border border-blue-100 flex gap-8 items-start shadow-inner">
+            <div className="bg-blue-500 p-4 rounded-[24px] text-white shadow-xl shadow-blue-200 ring-4 ring-white">
+              <Info className="w-8 h-8" />
+            </div>
+            <div className="space-y-2">
+              <p className="text-blue-900 font-black text-xl tracking-tight">Dica de Atendimento</p>
+              <p className="text-blue-700/80 font-medium leading-relaxed max-w-3xl">
+                O uso correto das variáveis garante que suas mensagens não pareçam "robóticas". Experimente incluir o endereço e o nome do espaço nas confirmações para facilitar a chegada da sua cliente.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 };
@@ -3009,9 +3334,12 @@ const checkIsDemo = () => {
 
 const IS_DEMO_INITIAL = checkIsDemo();
 
+const DEFAULT_CONFIRMATION_TEMPLATE = 'Olá {cliente_nome}, tudo bem? Seu horário {data} às {hora} está confirmado ❤️🧚♀️\n\nPra eu te atender do jeitinho que você gosta, me conta:\n• Você é mais de ficar quietinha relaxando ou gosta de bater papo durante a massagem?\n• Qual música ou cantor(a) você escolheria pra tocar na sua sessão?\n• Tem algo no seu corpo ou no seu dia a dia que te incomoda e que você gostaria muito que eu te ajudasse?\n\nVai ser um prazer te conhecer melhor! 💛\n\nEndereço: {endereco}\n{nome_espaco}';
+const DEFAULT_REMINDER_TEMPLATE = 'Olá {cliente_nome}, tudo bem? Passando para confirmar seu horário amanhã, {data} às {hora}. ❤️🧚♀️';
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
   const [user, setUser] = useState<User | null>(IS_DEMO_INITIAL ? ({ uid: 'demo-user' } as any) : null);
   const [isAuthReady, setIsAuthReady] = useState(IS_DEMO_INITIAL);
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(IS_DEMO_INITIAL ? true : null);
@@ -3035,6 +3363,8 @@ export default function App() {
     workingDays: [1, 2, 3, 4, 5, 6],
     budgetValidityDays: 15,
     clientLabel: 'Paciente',
+    confirmationMessageTemplate: DEFAULT_CONFIRMATION_TEMPLATE,
+    reminderMessageTemplate: DEFAULT_REMINDER_TEMPLATE,
     ownerId: 'demo-user',
     email: 'demo@demo.com',
     plan: 'pro',
@@ -3043,6 +3373,7 @@ export default function App() {
   } : null);
   const [isInitialLoading, setIsInitialLoading] = useState(!IS_DEMO_INITIAL);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [justCreatedAppointment, setJustCreatedAppointment] = useState<{app: Appointment, client: Client} | null>(null);
 
   // --- DEMO MODE LOGIC ---
   const isDemo = useMemo(() => IS_DEMO_INITIAL, []);
@@ -3079,6 +3410,8 @@ export default function App() {
         workingDays: [1, 2, 3, 4, 5, 6],
         budgetValidityDays: 15,
         clientLabel: 'Paciente',
+        confirmationMessageTemplate: DEFAULT_CONFIRMATION_TEMPLATE,
+        reminderMessageTemplate: DEFAULT_REMINDER_TEMPLATE,
         ownerId: 'demo-user',
         email: 'demo@demo.com'
       });
@@ -3435,18 +3768,22 @@ export default function App() {
   };
 
   const handleAddAppointment = async (app: Appointment) => {
+    const client = clients.find(c => c.id === app.clientId);
     if (isDemo) {
-      setAppointments(prev => [...prev, { ...app, id: Math.random().toString(36).substr(2, 9) }]);
+      const newApp = { ...app, id: Math.random().toString(36).substr(2, 9) };
+      setAppointments(prev => [...prev, newApp]);
       setIsNewAppModalOpen(false);
       addNotification('Agendamento salvo com sucesso! (Modo Demo)', 'info');
+      if (client) setJustCreatedAppointment({ app: newApp, client });
       return;
     }
     if (!user) return;
     try {
       const { id, ...data } = app;
-      await addDoc(collection(db, 'appointments'), { ...data, ownerId: user.uid });
+      const docRef = await addDoc(collection(db, 'appointments'), { ...data, ownerId: user.uid });
       setIsNewAppModalOpen(false);
       addNotification('Agendamento salvo com sucesso!', 'info');
+      if (client) setJustCreatedAppointment({ app: { ...app, id: docRef.id }, client });
     } catch (e) { handleFirestoreError(e, OperationType.CREATE, 'appointments'); }
   };
 
@@ -3762,6 +4099,31 @@ export default function App() {
                  cLabel === 'Paciente' ? 'Pacientes' :
                  cLabel === 'Aluno' ? 'Alunos' : 'Membros';
 
+  const handleSendWhatsApp = (app: Appointment, type: 'confirmation' | 'reminder') => {
+    const client = clients.find(c => c.id === app.clientId);
+    const proc = procedures.find(p => p.id === app.procedureId);
+    if (!client) return;
+
+    const template = type === 'confirmation' 
+      ? (userProfile?.confirmationMessageTemplate || DEFAULT_CONFIRMATION_TEMPLATE)
+      : (userProfile?.reminderMessageTemplate || DEFAULT_REMINDER_TEMPLATE);
+
+    const appDate = app.date ? parseISO(app.date) : new Date();
+    
+    const message = resolveTemplate(template, {
+      customerName: client.name,
+      date: format(appDate, 'dd/MM/yyyy'),
+      time: format(appDate, 'HH:mm'),
+      procedure: proc?.name,
+      address: userProfile?.address,
+      businessName: userProfile?.businessName,
+      price: app.price
+    });
+
+    const phone = (client.phone || '').replace(/\D/g, '');
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+  };
+
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'agenda', label: 'Agenda', icon: CalendarIcon },
@@ -3791,6 +4153,7 @@ export default function App() {
           setIsSidebarOpen={setIsSidebarOpen}
           setIsNotificationsOpen={setIsNotificationsOpen}
           isNotificationsOpen={isNotificationsOpen}
+          onSendWhatsApp={handleSendWhatsApp}
         />
       );
       case 'agenda': return (
@@ -3808,6 +4171,7 @@ export default function App() {
           onEditAppointment={setEditingAppointment}
           onDeleteAppointment={handleDeleteAppointment}
           cLabel={cLabel}
+          userProfile={userProfile}
         />
       );
       case 'clientes': return (
@@ -3839,6 +4203,7 @@ export default function App() {
           onEditAppointment={setEditingAppointment}
           onDeleteAppointment={handleDeleteAppointment}
           cLabel={cLabel}
+          userProfile={userProfile}
         />
       );
       case 'orcamentos': return (
@@ -3911,6 +4276,7 @@ export default function App() {
           setIsSidebarOpen={setIsSidebarOpen}
           setIsNotificationsOpen={setIsNotificationsOpen}
           isNotificationsOpen={isNotificationsOpen}
+          onSendWhatsApp={handleSendWhatsApp}
         />
       );
     }
@@ -4211,6 +4577,64 @@ export default function App() {
                 </button>
               </div>
             </form>
+          </motion.div>
+        </div>
+      )}
+
+      {justCreatedAppointment && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-md">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="bg-white rounded-[40px] w-full max-w-sm shadow-2xl overflow-hidden border border-rose-50 text-center p-10"
+          >
+            <div className="w-24 h-24 bg-emerald-50 rounded-[40px] flex items-center justify-center mx-auto mb-6 shadow-inner">
+              <div className="w-16 h-16 bg-emerald-500 rounded-[32px] flex items-center justify-center text-white shadow-lg shadow-emerald-200">
+                <CheckCircle2 className="w-10 h-10" />
+              </div>
+            </div>
+            
+            <h2 className="text-2xl font-black text-gray-900 tracking-tight mb-2">Agendado!</h2>
+            <p className="text-gray-500 font-medium text-sm leading-relaxed mb-10">
+              O horário de <span className="text-gray-900 font-bold">{justCreatedAppointment.client.name}</span> foi reservado com sucesso. Deseja enviar a mensagem de confirmação para o WhatsApp?
+            </p>
+
+            <div className="space-y-4">
+              <button 
+                onClick={() => {
+                  const app = justCreatedAppointment.app;
+                  const client = justCreatedAppointment.client;
+                  const proc = procedures.find(p => p.id === app.procedureId);
+                  
+                  const template = userProfile?.confirmationMessageTemplate || DEFAULT_CONFIRMATION_TEMPLATE;
+                  const appDate = app.date ? parseISO(app.date) : new Date();
+                  
+                  const message = resolveTemplate(template, {
+                    customerName: client.name,
+                    date: format(appDate, 'eeee, dd/MM/yyyy', { locale: ptBR }),
+                    time: format(appDate, 'HH:mm'),
+                    procedure: proc?.name,
+                    address: userProfile?.address,
+                    businessName: userProfile?.businessName,
+                    price: app.price
+                  });
+
+                  const phone = (client.phone || '').replace(/\D/g, '');
+                  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+                  setJustCreatedAppointment(null);
+                }}
+                className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-5 rounded-[24px] font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-emerald-100 transition-all flex items-center justify-center gap-3 active:scale-95"
+              >
+                <MessageCircle className="w-5 h-5" />
+                Enviar no WhatsApp
+              </button>
+              <button 
+                onClick={() => setJustCreatedAppointment(null)}
+                className="w-full text-gray-400 font-bold text-[10px] uppercase tracking-widest hover:text-gray-600 transition-colors py-2"
+              >
+                Agora não, obrigado
+              </button>
+            </div>
           </motion.div>
         </div>
       )}
@@ -4775,6 +5199,14 @@ export default function App() {
       </AnimatePresence>
 
       <div className="flex w-full h-full overflow-hidden">
+        {/* Mobile Backdrop */}
+        {isSidebarOpen && (
+          <div 
+            className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-[155] lg:hidden"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+        )}
+        
         <aside className={cn(
           "fixed lg:static inset-y-0 left-0 z-[160] w-72 bg-white border-r border-rose-50 transition-transform duration-300 ease-in-out lg:translate-x-0 flex-shrink-0",
           !isSidebarOpen && "-translate-x-full"
@@ -4811,7 +5243,13 @@ export default function App() {
             ))}
           </nav>
 
-          <div className="mt-4 p-5 bg-[#0f1115] rounded-[32px] text-white relative overflow-hidden group cursor-pointer border border-white/5 transition-all hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)]" onClick={() => setActiveTab('prospeccao')}>
+          <div 
+            className="mt-4 p-5 bg-[#0f1115] rounded-[32px] text-white relative overflow-hidden group cursor-pointer border border-white/5 transition-all hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)]" 
+            onClick={() => {
+              setActiveTab('prospeccao');
+              if (window.innerWidth < 1024) setIsSidebarOpen(false);
+            }}
+          >
             <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/20 rounded-full -mr-12 -mt-12 blur-3xl group-hover:bg-rose-500/40 transition-all" />
             <div className="relative z-10 flex flex-col gap-3">
               <div className="flex items-center gap-2">
