@@ -42,7 +42,9 @@ import {
   ExternalLink,
   Info,
   User as UserIcon,
-  X
+  X,
+  CreditCard,
+  RefreshCcw
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { 
@@ -106,7 +108,8 @@ import {
   MOCK_PROCEDURES, 
   MOCK_FINANCIAL, 
   MOCK_LEADS, 
-  MOCK_BUDGETS 
+  MOCK_BUDGETS,
+  MOCK_MESSAGE_TEMPLATES
 } from './mockData';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -493,6 +496,308 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }: { isO
   </AnimatePresence>
 );
 
+const PartialPaymentModal = ({ 
+  isOpen, 
+  onClose, 
+  onConfirm, 
+  appointment, 
+  procedure 
+}: { 
+  isOpen: boolean, 
+  onClose: () => void, 
+  onConfirm: (amount: number, method: any, isPartial: boolean) => void, 
+  appointment: Appointment | null,
+  procedure: Procedure | null
+}) => {
+  const [amount, setAmount] = useState(0);
+  const [method, setMethod] = useState<any>('pix');
+  const [isPartial, setIsPartial] = useState(false);
+
+  useEffect(() => {
+    if (appointment) {
+      const paid = appointment.paidAmount || 0;
+      const remaining = appointment.price - paid;
+      setAmount(remaining > 0 ? remaining : 0);
+      setIsPartial(false);
+    }
+  }, [appointment]);
+
+  if (!isOpen || !appointment) return null;
+
+  const alreadyPaid = appointment.paidAmount || 0;
+  const remainingTotal = appointment.price - alreadyPaid;
+
+  return (
+    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-white p-8 rounded-[40px] w-full max-w-md shadow-2xl border border-rose-50"
+      >
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-black text-gray-900 uppercase tracking-tight">Registrar Pagamento</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+            <X className="w-5 h-5 text-gray-400" />
+          </button>
+        </div>
+
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Valor Total</p>
+              <p className="text-sm font-black text-gray-700">{formatCurrency(appointment.price)}</p>
+            </div>
+            <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 text-right">
+              <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Já Pago</p>
+              <p className="text-sm font-black text-emerald-600">{formatCurrency(alreadyPaid)}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between p-5 bg-rose-50 rounded-3xl border-2 border-rose-100 shadow-inner">
+            <div>
+              <p className="text-[10px] font-black text-rose-400 uppercase tracking-[0.2em] mb-1">SALDO RESTANTE</p>
+              <p className="text-2xl font-black text-rose-600 tracking-tight">{formatCurrency(remainingTotal)}</p>
+            </div>
+            <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm">
+              <DollarSign className="w-6 h-6 text-rose-500" />
+            </div>
+          </div>
+
+          <div className="pt-2">
+            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 ml-1">Valor a Receber Agora</label>
+            <div className="relative group">
+              <span className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 font-black text-lg">R$</span>
+              <input 
+                type="number" 
+                step="0.01"
+                value={amount}
+                onChange={e => setAmount(Number(e.target.value))}
+                className="w-full bg-gray-50 border-2 border-transparent rounded-[28px] p-6 pl-14 font-black text-2xl text-rose-600 outline-none focus:border-rose-200 focus:bg-white transition-all shadow-sm"
+              />
+            </div>
+          </div>
+
+          <div 
+            className={cn(
+              "flex items-center gap-4 p-5 rounded-[28px] cursor-pointer transition-all border-2",
+              isPartial ? "bg-amber-50 border-amber-200" : "bg-gray-50 border-transparent hover:bg-gray-100"
+            )}
+            onClick={() => setIsPartial(!isPartial)}
+          >
+            <div className={cn(
+              "w-7 h-7 rounded-xl border-2 flex items-center justify-center transition-all shadow-sm",
+              isPartial ? "bg-amber-500 border-amber-500" : "bg-white border-gray-200"
+            )}>
+              {isPartial && <CheckCircle2 className="w-4 h-4 text-white" />}
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-black text-gray-900 leading-none mb-1">Pagamento Parcial</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">
+                {amount === remainingTotal ? 'Marque se não for pagar tudo agora' : `Restará ${formatCurrency(remainingTotal - amount)} para depois`}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Método</label>
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                { id: 'pix', label: 'PIX' },
+                { id: 'cartao', label: 'Cartão' },
+                { id: 'dinheiro', label: 'Dinheiro' },
+                { id: 'outro', label: 'Outro' }
+              ].map(opt => (
+                <button
+                  key={opt.id}
+                  onClick={() => setMethod(opt.id)}
+                  className={cn(
+                    "py-3 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all",
+                    method === opt.id ? "bg-rose-500 text-white border-rose-500 shadow-lg shadow-rose-100" : "bg-white border-gray-100 text-gray-400 hover:bg-gray-50"
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button 
+            onClick={() => onConfirm(amount, method, isPartial)}
+            className="w-full bg-rose-500 text-white p-6 rounded-[32px] font-black text-lg uppercase tracking-[0.1em] shadow-2xl shadow-rose-200 transition-all hover:-translate-y-1 active:translate-y-0"
+          >
+            {isPartial ? 'Confirmar Parcial' : 'Confirmar Pagamento'}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+const PagamentosTab = ({ 
+  appointments, 
+  clients, 
+  procedures, 
+  onMarkAsPaid, 
+  onUndoMarkAsPaid,
+  onSendWhatsApp
+}: { 
+  appointments: Appointment[], 
+  clients: Client[], 
+  procedures: Procedure[], 
+  onMarkAsPaid: (id: string) => void, 
+  onUndoMarkAsPaid: (id: string) => void,
+  onSendWhatsApp: (app: Appointment, type: 'payment') => void
+}) => {
+  const [filter, setFilter] = useState('all'); // all, paid, pending, partial
+  
+  const filteredApps = appointments.filter(app => {
+    if (filter === 'paid') return app.isPaid;
+    if (filter === 'pending') return !app.isPaid && (!app.paidAmount || app.paidAmount === 0);
+    if (filter === 'partial') return !app.isPaid && app.paidAmount && app.paidAmount > 0;
+    return true;
+  }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-black text-gray-900 uppercase tracking-tight">Controle de Pagamentos</h2>
+          <p className="text-gray-500 font-medium">Gestão de parcelamentos e saldos pendentes</p>
+        </div>
+        <div className="flex gap-2 bg-gray-100 p-1 rounded-2xl">
+          {[
+            { id: 'all', label: 'Todos' },
+            { id: 'partial', label: 'Parciais' },
+            { id: 'pending', label: 'Pendentes' },
+            { id: 'paid', label: 'Pagos' }
+          ].map(opt => (
+            <button
+              key={opt.id}
+              onClick={() => setFilter(opt.id)}
+              className={cn(
+                "px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                filter === opt.id ? "bg-white text-rose-500 shadow-sm" : "text-gray-400 hover:text-gray-600"
+              )}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-[40px] shadow-sm border border-rose-50 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-rose-50/30">
+                <th className="px-8 py-6 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Data</th>
+                <th className="px-8 py-6 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Cliente</th>
+                <th className="px-8 py-6 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Procedimento</th>
+                <th className="px-8 py-6 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Valor Total</th>
+                <th className="px-8 py-6 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Pago</th>
+                <th className="px-8 py-6 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Restante</th>
+                <th className="px-8 py-6 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Status</th>
+                <th className="px-8 py-6 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100 text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredApps.map(app => {
+                const client = clients.find(c => c.id === app.clientId);
+                const proc = procedures.find(p => p.id === app.procedureId);
+                const paid = app.paidAmount || 0;
+                const remaining = app.price - paid;
+                const isPartial = paid > 0 && !app.isPaid;
+
+                return (
+                  <tr key={app.id} className="group hover:bg-rose-50/20 transition-colors">
+                    <td className="px-8 py-6 border-b border-gray-50">
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold text-gray-900">{app.date ? format(parseISO(app.date), "dd/MM/yyyy") : '-'}</span>
+                        <span className="text-[10px] font-medium text-gray-400 uppercase">{app.date ? format(parseISO(app.date), "HH:mm") : '--:--'}</span>
+                      </div>
+                    </td>
+                    <td className="px-8 py-6 border-b border-gray-50">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-rose-100 rounded-full flex items-center justify-center text-[10px] font-black text-rose-600">
+                          {client?.name.substring(0, 2).toUpperCase()}
+                        </div>
+                        <span className="text-sm font-bold text-gray-900">{client?.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-8 py-6 border-b border-gray-50">
+                      <span className="text-xs font-bold text-gray-600">{proc?.name}</span>
+                    </td>
+                    <td className="px-8 py-6 border-b border-gray-50">
+                      <span className="text-sm font-black text-gray-900">{formatCurrency(app.price)}</span>
+                    </td>
+                    <td className="px-8 py-6 border-b border-gray-50">
+                      <span className={cn(
+                        "text-sm font-black",
+                        paid > 0 ? "text-emerald-600" : "text-gray-300"
+                      )}>{formatCurrency(paid)}</span>
+                    </td>
+                    <td className="px-8 py-6 border-b border-gray-50">
+                      <span className={cn(
+                        "text-sm font-black text-rose-600",
+                        remaining <= 0 && "text-gray-200"
+                      )}>{formatCurrency(Math.max(0, remaining))}</span>
+                    </td>
+                    <td className="px-8 py-6 border-b border-gray-50">
+                      <span className={cn(
+                        "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                        app.isPaid ? "bg-emerald-100 text-emerald-600" :
+                        isPartial ? "bg-amber-100 text-amber-600" : "bg-red-100 text-red-600"
+                      )}>
+                        {app.isPaid ? 'Pago' : isPartial ? 'Parcial' : 'Pendente'}
+                      </span>
+                    </td>
+                    <td className="px-8 py-6 border-b border-gray-50 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {!app.isPaid && (
+                          <button
+                            onClick={() => onSendWhatsApp(app, 'payment')}
+                            className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all"
+                            title="Cobrar via WhatsApp"
+                          >
+                            <MessageCircle className="w-5 h-5" />
+                          </button>
+                        )}
+                        {!app.isPaid ? (
+                          <button
+                            onClick={() => onMarkAsPaid(app.id)}
+                            className="px-4 py-2 bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-100 hover:-translate-y-0.5 transition-all"
+                          >
+                            {isPartial ? 'Completar' : 'Receber'}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => onUndoMarkAsPaid(app.id)}
+                            className="p-2 text-gray-300 hover:text-rose-500 transition-colors"
+                            title="Estornar Pagamento"
+                          >
+                            <RefreshCcw className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {filteredApps.length === 0 && (
+            <div className="p-20 text-center">
+               <DollarSign className="w-12 h-12 text-rose-100 mx-auto mb-4" />
+               <p className="text-gray-400 font-bold uppercase tracking-widest">Nenhum registro encontrado</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 };
@@ -593,7 +898,6 @@ const Dashboard = ({
   csLabel,
   user,
   userProfile,
-  setIsSidebarOpen,
   setIsNotificationsOpen,
   isNotificationsOpen,
   onSendWhatsApp
@@ -606,7 +910,6 @@ const Dashboard = ({
   csLabel: string,
   user: User | null,
   userProfile: UserProfile | null,
-  setIsSidebarOpen: (open: boolean) => void,
   setIsNotificationsOpen: (open: boolean) => void,
   isNotificationsOpen: boolean,
   onSendWhatsApp: (app: Appointment, type: 'confirmation' | 'reminder') => void
@@ -659,12 +962,6 @@ const Dashboard = ({
     <div className="space-y-6 relative">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
         <div className="flex items-center gap-4">
-          <button 
-            onClick={() => setIsSidebarOpen(true)}
-            className="lg:hidden p-2 text-gray-500 hover:bg-rose-50 rounded-lg"
-          >
-            <Menu className="w-6 h-6" />
-          </button>
           <div>
             <h1 className="text-2xl font-black text-gray-900 tracking-tight">Painel de Controle</h1>
             <p className="text-sm font-medium text-gray-500">Bem-vindo(a) de volta, {userProfile?.name?.split(' ')[0] || user?.displayName || 'Profissional'}!</p>
@@ -976,7 +1273,8 @@ const Agenda = ({
   onEditAppointment,
   onDeleteAppointment,
   cLabel,
-  userProfile
+  userProfile,
+  onSendWhatsApp
 }: { 
   appointments: Appointment[], 
   clients: Client[],
@@ -989,7 +1287,8 @@ const Agenda = ({
   onEditAppointment: (app: Appointment) => void,
   onDeleteAppointment: (id: string) => void,
   cLabel: string,
-  userProfile: UserProfile | null
+  userProfile: UserProfile | null,
+  onSendWhatsApp: (app: Appointment, type: 'confirmation' | 'reminder') => void
 }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -1006,31 +1305,6 @@ const Agenda = ({
 
   const getAppointmentsForDay = (date: Date) => {
     return appointments.filter(a => a.date && isSameDay(parseISO(a.date), date));
-  };
-
-  const handleSendWhatsApp = (app: Appointment, type: 'confirmation' | 'reminder') => {
-    const client = clients.find(c => c.id === app.clientId);
-    const proc = procedures.find(p => p.id === app.procedureId);
-    if (!client) return;
-
-    const template = type === 'confirmation' 
-      ? (userProfile?.confirmationMessageTemplate || 'Olá {cliente_nome}, tudo bem? Seu horário {data} às {hora} está confirmado ❤️🧚♀️\n\nPra eu te atender do jeitinho que você gosta, me conta:\n• Você é mais de ficar quietinha relaxando ou gosta de bater papo durante a massagem?\n• Qual música ou cantor(a) você escolheria pra tocar na sua sessão?\n• Tem algo no seu corpo ou no seu dia a dia que te incomoda e que você gostaria muito que eu te ajudasse?\n\nVai ser um prazer te conhecer melhor! 💛\n\nEndereço: {endereco}\n{nome_espaco}')
-      : (userProfile?.reminderMessageTemplate || 'Olá {cliente_nome}, tudo bem? Passando para confirmar seu horário amanhã, {data} às {hora}. ❤️🧚♀️');
-
-    const appDate = app.date ? parseISO(app.date) : new Date();
-    
-    const message = resolveTemplate(template, {
-      customerName: client.name,
-      date: format(appDate, 'dd/MM/yyyy'),
-      time: format(appDate, 'HH:mm'),
-      procedure: proc?.name,
-      address: userProfile?.address,
-      businessName: userProfile?.businessName,
-      price: app.price
-    });
-
-    const phone = (client.phone || '').replace(/\D/g, '');
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
   };
 
   return (
@@ -1195,7 +1469,7 @@ const Agenda = ({
                     <div className="space-y-3 pt-4 border-t border-gray-50">
                       <div className="flex gap-2">
                         <button
-                          onClick={() => handleSendWhatsApp(app, 'confirmation')}
+                          onClick={() => onSendWhatsApp(app, 'confirmation')}
                           className="flex-1 bg-blue-50 text-blue-600 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-2 border border-blue-100 hover:bg-blue-100 transition-all"
                           title="Enviar confirmação de agendamento"
                         >
@@ -1203,7 +1477,7 @@ const Agenda = ({
                           Confirmar
                         </button>
                         <button
-                          onClick={() => handleSendWhatsApp(app, 'reminder')}
+                          onClick={() => onSendWhatsApp(app, 'reminder')}
                           className="flex-1 bg-amber-50 text-amber-600 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-2 border border-amber-100 hover:bg-amber-100 transition-all"
                           title="Enviar lembrete (Dia anterior)"
                         >
@@ -1241,13 +1515,27 @@ const Agenda = ({
                             Finalizar Atendimento
                           </button>
                         ) : !app.isPaid ? (
-                          <button
-                            onClick={() => onMarkAsPaid(app.id)}
-                            className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-3.5 rounded-[20px] text-[10px] font-black uppercase tracking-[0.15em] shadow-lg shadow-emerald-100 transition-all flex items-center justify-center gap-2 hover:-translate-y-1 active:translate-y-0"
-                          >
-                            <DollarSign className="w-3.5 h-3.5" />
-                            Cobrar Agora
-                          </button>
+                          <div className="space-y-2">
+                            {app.paidAmount && app.paidAmount > 0 && (
+                              <div className="flex justify-between items-center px-4 py-2 bg-amber-50 rounded-xl border border-amber-100">
+                                <div className="flex flex-col">
+                                  <span className="text-[8px] font-bold text-amber-400 uppercase">Já Pago</span>
+                                  <span className="text-[10px] font-black text-amber-600">{formatCurrency(app.paidAmount)}</span>
+                                </div>
+                                <div className="flex flex-col text-right">
+                                  <span className="text-[8px] font-bold text-rose-400 uppercase">Restante</span>
+                                  <span className="text-[10px] font-black text-rose-600">{formatCurrency(app.price - app.paidAmount)}</span>
+                                </div>
+                              </div>
+                            )}
+                            <button
+                              onClick={() => onMarkAsPaid(app.id)}
+                              className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-3.5 rounded-[20px] text-[10px] font-black uppercase tracking-[0.15em] shadow-lg shadow-emerald-100 transition-all flex items-center justify-center gap-2 hover:-translate-y-1 active:translate-y-0"
+                            >
+                              <DollarSign className="w-3.5 h-3.5" />
+                              {app.paidAmount && app.paidAmount > 0 ? 'Completar Pagamento' : 'Cobrar Agora'}
+                            </button>
+                          </div>
                         ) : (
                           <div className="flex gap-2">
                             <div className="flex-1 bg-emerald-50 text-emerald-600 py-3 rounded-[20px] text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 border border-emerald-100/50">
@@ -1560,7 +1848,8 @@ const AppointmentsTab = ({
   onEditAppointment,
   onDeleteAppointment,
   cLabel,
-  userProfile
+  userProfile,
+  onSendWhatsApp
 }: { 
   appointments: Appointment[], 
   clients: Client[], 
@@ -1569,37 +1858,13 @@ const AppointmentsTab = ({
   onEditAppointment: (app: Appointment) => void,
   onDeleteAppointment: (id: string) => void,
   cLabel: string,
-  userProfile: UserProfile | null
+  userProfile: UserProfile | null,
+  onSendWhatsApp: (app: Appointment, type: 'confirmation' | 'reminder') => void
 }) => {
   const [filter, setFilter] = useState<AppointmentStatus | 'todos'>('todos');
   const [startDate, setStartDate] = useState(format(subMonths(new Date(), 1), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
 
-  const handleSendWhatsApp = (app: Appointment, type: 'confirmation' | 'reminder') => {
-    const client = clients.find(c => c.id === app.clientId);
-    const proc = procedures.find(p => p.id === app.procedureId);
-    if (!client) return;
-
-    const template = type === 'confirmation' 
-      ? (userProfile?.confirmationMessageTemplate || 'Olá {cliente_nome}, tudo bem? Seu horário {data} às {hora} está confirmado ❤️🧚♀️\n\nPra eu te atender do jeitinho que você gosta, me conta:\n• Você é mais de ficar quietinha relaxando ou gosta de bater papo durante a massagem?\n• Qual música ou cantor(a) você escolheria pra tocar na sua sessão?\n• Tem algo no seu corpo ou no seu dia a dia que te incomoda e que você gostaria muito que eu te ajudasse?\n\nVai ser um prazer te conhecer melhor! 💛\n\nEndereço: {endereco}\n{nome_espaco}')
-      : (userProfile?.reminderMessageTemplate || 'Olá {cliente_nome}, tudo bem? Passando para confirmar seu horário amanhã, {data} às {hora}. ❤️🧚♀️');
-
-    const appDate = app.date ? parseISO(app.date) : new Date();
-    
-    const message = resolveTemplate(template, {
-      customerName: client.name,
-      date: format(appDate, 'dd/MM/yyyy'),
-      time: format(appDate, 'HH:mm'),
-      procedure: proc?.name,
-      address: userProfile?.address,
-      businessName: userProfile?.businessName,
-      price: app.price
-    });
-
-    const phone = (client.phone || '').replace(/\D/g, '');
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
-  };
-  
   const filteredAppointments = appointments.filter(a => {
     const statusMatch = filter === 'todos' || a.status === filter;
     const date = parseISO(a.date);
@@ -1721,14 +1986,14 @@ const AppointmentsTab = ({
                         </div>
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button 
-                            onClick={() => handleSendWhatsApp(app, 'confirmation')}
+                            onClick={() => onSendWhatsApp(app, 'confirmation')}
                             className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
                             title="Confirmação WhatsApp"
                           >
                             <MessageCircle className="w-3.5 h-3.5" />
                           </button>
                           <button 
-                            onClick={() => handleSendWhatsApp(app, 'reminder')}
+                            onClick={() => onSendWhatsApp(app, 'reminder')}
                             className="p-1.5 text-amber-500 hover:bg-amber-50 rounded-lg transition-all"
                             title="Lembrete WhatsApp"
                           >
@@ -2427,10 +2692,6 @@ const FinancialTab = ({
   const [amount, setAmount] = useState('');
   const [type, setType] = useState<'receita' | 'despesa'>('receita');
   
-  const pendingPayments = useMemo(() => {
-    return appointments.filter(app => app.status === 'realizado' && !app.isPaid);
-  }, [appointments]);
-
   const [category, setCategory] = useState('Geral');
   const [paymentMethod, setPaymentMethod] = useState<'pix' | 'cartao' | 'dinheiro' | 'outro'>('pix');
   
@@ -2586,71 +2847,6 @@ const FinancialTab = ({
           <p className="text-sm text-gray-500">Gestão completa e relatórios detalhados</p>
         </div>
       </div>
-
-      {pendingPayments.length > 0 && (
-        <div className="bg-amber-50 rounded-[32px] border border-amber-100 overflow-hidden shadow-sm">
-          <div className="px-8 py-6 border-b border-amber-100 bg-white/50 flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-amber-100 rounded-2xl flex items-center justify-center text-amber-600 shadow-sm">
-                <Clock className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-black text-amber-900 tracking-tight">Pagamentos Pendentes</h3>
-                <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">Atendimentos realizados que ainda não foram cobrados</p>
-              </div>
-            </div>
-            <span className="bg-amber-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">{pendingPayments.length} Pendentes</span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="text-[10px] font-black text-amber-700 uppercase tracking-widest bg-amber-50/50">
-                <tr>
-                  <th className="px-8 py-4">Cliente</th>
-                  <th className="px-8 py-4">Data</th>
-                  <th className="px-8 py-4 text-right">Valor</th>
-                  <th className="px-8 py-4"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-amber-100/50">
-                {pendingPayments.map(app => {
-                  const client = clients.find(c => c.id === app.clientId);
-                  const proc = procedures.find(p => p.id === app.procedureId);
-                  return (
-                    <tr key={app.id} className="hover:bg-white/40 transition-colors">
-                      <td className="px-8 py-4">
-                        <p className="font-black text-gray-900 text-sm leading-none mb-1">{client?.name}</p>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase">{proc?.name}</p>
-                      </td>
-                      <td className="px-8 py-4 text-xs font-bold text-gray-500">
-                        {app.date ? format(parseISO(app.date), "dd/MM/yyyy") : '-'}
-                      </td>
-                      <td className="px-8 py-4 text-sm font-black text-amber-600 text-right">
-                        {formatCurrency(app.price)}
-                      </td>
-                      <td className="px-8 py-4 text-right">
-                        <div className="flex gap-2 justify-end">
-                          <button 
-                            onClick={() => onSendWhatsApp(app, 'payment')}
-                            className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-emerald-100 hover:bg-emerald-100 transition-all flex items-center gap-2"
-                          >
-                            <MessageCircle className="w-3 h-3" /> Cobrar
-                          </button>
-                          <button 
-                            onClick={() => onMarkAsPaid(app.id)}
-                            className="bg-gray-900 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-gray-100 hover:bg-black transition-all flex items-center gap-2"
-                          >
-                            <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Marcar Pago
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
 
       {/* Filter Bar */}
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-rose-50 flex flex-wrap items-center gap-4">
@@ -3063,12 +3259,14 @@ const SettingsTab = ({
   userProfile,
   onUpdateProfile,
   onResetMocks,
-  isDemo
+  isDemo,
+  onNavigateToMessages
 }: { 
   userProfile: UserProfile | null,
   onUpdateProfile: (updates: Partial<UserProfile>) => void,
   onResetMocks: () => void,
-  isDemo?: boolean
+  isDemo?: boolean,
+  onNavigateToMessages: () => void
 }) => {
   const [profile, setProfile] = useState<Partial<UserProfile>>(userProfile || {});
 
@@ -3297,6 +3495,38 @@ const SettingsTab = ({
 
           <section className="space-y-4">
             <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+              <MessageCircle className="w-5 h-5 text-rose-500" /> Mensagens Rápidas (Fallback)
+            </h2>
+            <div className="bg-white p-8 rounded-[32px] shadow-sm border border-rose-50 space-y-6">
+              <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100 flex gap-3">
+                <Info className="w-5 h-5 text-amber-500 shrink-0" />
+                <p className="text-xs font-medium text-amber-800">
+                  <span className="font-bold">Dica:</span> Para uma gestão completa, use a aba <button onClick={onNavigateToMessages} className="font-bold underline decoration-amber-500/30 hover:text-amber-600 transition-colors">Mensagens</button> para criar e definir modelos padrões personalizados. 
+                </p>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase ml-4">Texto de Reserva (Confirmação)</label>
+                <textarea 
+                  value={profile.confirmationMessageTemplate || DEFAULT_CONFIRMATION_TEMPLATE} 
+                  onChange={e => setProfile(p => ({ ...p, confirmationMessageTemplate: e.target.value }))}
+                  placeholder="Mensagem de confirmação..."
+                  className="w-full p-4 rounded-2xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-rose-500 font-medium text-gray-700 text-sm leading-relaxed h-32 resize-none" 
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase ml-4">Texto de Lembrete</label>
+                <textarea 
+                  value={profile.reminderMessageTemplate || DEFAULT_REMINDER_TEMPLATE} 
+                  onChange={e => setProfile(p => ({ ...p, reminderMessageTemplate: e.target.value }))}
+                  placeholder="Mensagem de lembrete..."
+                  className="w-full p-4 rounded-2xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-rose-500 font-medium text-gray-700 text-sm leading-relaxed h-32 resize-none" 
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
               <Palette className="w-5 h-5 text-rose-500" /> Cor do Sistema
             </h2>
             <div className="bg-white p-8 rounded-[32px] shadow-sm border border-rose-50 space-y-6">
@@ -3374,30 +3604,43 @@ const MessageTemplatesTab = ({
   const [name, setName] = useState('');
   const [content, setContent] = useState('');
   const [category, setCategory] = useState<MessageTemplate['category']>('outros');
+  const [isDefault, setIsDefault] = useState(false);
+  
+  useEffect(() => {
+    if (isAdding || isEditing) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => { document.body.style.overflow = 'unset'; };
+  }, [isAdding, isEditing]);
 
   const handleOpenEdit = (t: MessageTemplate) => {
     setIsEditing(t);
     setName(t.name || '');
     setContent(t.content || '');
     setCategory(t.category || 'outros');
+    setIsDefault(t.isDefault || false);
   };
 
   const handleSave = () => {
     if (isEditing) {
-      onUpdateTemplate(isEditing.id, { name, content, category });
+      onUpdateTemplate(isEditing.id, { name, content, category, isDefault });
       setIsEditing(null);
     } else {
       onAddTemplate({
         id: Math.random().toString(36).substr(2, 9),
         name,
         content,
-        category
+        category,
+        isDefault
       });
       setIsAdding(false);
     }
     setName('');
     setContent('');
     setCategory('outros');
+    setIsDefault(false);
   };
 
   const tags = [
@@ -3415,7 +3658,7 @@ const MessageTemplatesTab = ({
       <div className="flex justify-between items-center px-4">
         <div>
           <h1 className="text-3xl font-black text-gray-900 tracking-tight flex items-center gap-4">
-            <MessageCircle className="w-8 h-8 text-rose-500" /> Mensagens
+            <MessageCircle className="w-8 h-8 text-rose-500" /> Mensagens Automáticas
           </h1>
           <p className="text-sm font-medium text-gray-500">Configure seus modelos de WhatsApp e automatize seu atendimento</p>
         </div>
@@ -3428,7 +3671,53 @@ const MessageTemplatesTab = ({
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 px-4">
+      <div className="px-4 space-y-4">
+        <h2 className="text-xs font-black text-gray-400 uppercase tracking-widest ml-4">Sugestões de Modelos Prontos</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {[
+            { id: 'sug-1', name: '💖 Boas-vindas Acolhedor', category: 'outros', content: 'Olá, {cliente_nome} ✨ Seja muito bem-vinda! Ficamos radiantes com seu interesse em nossos cuidados. Preparamos tudo com muito carinho para que você tenha um momento de relaxamento e renovação único. Se tiver qualquer dúvida sobre o procedimento {procedimento}, estou aqui para te ajudar, viu? Um beijo e até breve! 🌸' },
+            { id: 'sug-2', name: '✨ Confirmação de Horário', category: 'agendamento', content: 'Olá, {cliente_nome}! ✨ Que alegria ter você conosco! Seu momento de cuidado para {procedimento} está confirmadíssimo no dia {data} às {hora}. 🌸\n\nPreparamos tudo com muito carinho para que você tenha uma experiência de relaxamento e renovação única aqui no {nome_espaco}.\n\nSe precisar desmarcar ou tiver qualquer dúvida, é só me chamar, tá bom? Estamos ansiosas para te receber! Um beijo! 💖\n\n📍 Endereço: {endereco}' },
+            { id: 'sug-3', name: '🌸 Lembrete de Carinho', category: 'lembrete', content: 'Oi, {cliente_nome}! 🌸 Passando para lembrar com todo carinho do nosso encontro amanhã, dia {data}, às {hora}.\n\nEstamos preparando seu momento de {procedimento} com muito amor e mal podemos esperar para te ver! ✨\n\nCaso precise de qualquer alteração no seu horário, nos avise por favor com um pouquinho de antecedência para liberarmos a vaga para outra cliente querida. Até amanhã! 💖' }
+          ].map(sug => {
+            const isAlreadyAdded = templates.some(t => t.content === sug.content);
+            return (
+              <div key={sug.id} className="bg-rose-50/50 p-6 rounded-[32px] border border-rose-100/50 space-y-4 relative group">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="text-sm font-black text-gray-800">{sug.name}</h3>
+                    <span className="text-[9px] font-bold text-rose-400 uppercase tracking-widest">{sug.category}</span>
+                  </div>
+                  {!isAlreadyAdded && (
+                    <button 
+                      onClick={() => onAddTemplate({
+                        id: Math.random().toString(36).substr(2, 9),
+                        name: sug.name.replace(/[^\w\s-s]/g, '').trim(),
+                        content: sug.content,
+                        category: sug.category as any,
+                        isDefault: false
+                      })}
+                      className="p-2 bg-white text-rose-500 rounded-xl shadow-sm hover:scale-110 transition-transform active:scale-95"
+                      title="Clique para adicionar aos seus modelos"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  )}
+                  {isAlreadyAdded && (
+                    <div className="p-2 bg-emerald-50 text-emerald-500 rounded-xl">
+                      <CheckCircle2 className="w-4 h-4" />
+                    </div>
+                  )}
+                </div>
+                <p className="text-[11px] text-gray-500 font-medium leading-relaxed line-clamp-3 italic">"{sug.content}"</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="px-4">
+        <h2 className="text-xs font-black text-gray-400 uppercase tracking-widest ml-4 mb-4">Meus Modelos Salvos</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {templates.map(t => (
           <motion.div 
             key={t.id}
@@ -3451,10 +3740,18 @@ const MessageTemplatesTab = ({
                 </div>
               </div>
               <div>
-                <h3 className="text-lg font-black text-gray-900 leading-tight truncate">{t.name}</h3>
-                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                  {t.category === 'agendamento' ? 'Confirmação' : t.category === 'lembrete' ? 'Lembrete' : 'Outros'}
-                </span>
+                <h3 className="text-lg font-black text-gray-900 leading-tight truncate flex items-center gap-2">
+                  {t.name}
+                  {t.isDefault && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                </h3>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                    {t.category === 'agendamento' ? 'Confirmação' : t.category === 'lembrete' ? 'Lembrete' : 'Outros'}
+                  </span>
+                  {t.isDefault && (
+                    <span className="text-[8px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full">Padrão</span>
+                  )}
+                </div>
               </div>
               <p className="text-gray-500 text-sm line-clamp-4 font-medium leading-relaxed italic">
                 "{t.content}"
@@ -3474,18 +3771,19 @@ const MessageTemplatesTab = ({
           </div>
         )}
       </div>
+    </div>
 
       {(isAdding || isEditing) && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-md">
+        <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-md">
           <motion.div 
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="bg-white rounded-[48px] shadow-2xl w-full max-w-6xl overflow-hidden border border-rose-50 flex flex-col lg:flex-row h-[90vh]"
+            className="bg-white rounded-[48px] shadow-2xl w-full max-w-6xl overflow-hidden border border-rose-50 flex flex-col lg:flex-row h-[92vh] relative mt-10 mb-4"
           >
             {/* Editor Side */}
-            <div className="flex-1 p-10 overflow-y-auto space-y-8 border-r border-rose-50 scrollbar-hide">
-              <div className="flex justify-between items-center">
-                <h2 className="text-3xl font-black text-gray-900 tracking-tight">
+            <div className="flex-1 p-6 lg:p-10 overflow-y-auto overscroll-contain space-y-8 border-r border-rose-50 pb-32 pt-20">
+              <div className="sticky top-0 bg-white z-20 pb-6 flex justify-between items-center border-b border-rose-50 -mx-6 lg:-mx-10 px-6 lg:px-10 mb-8">
+                <h2 className="text-2xl lg:text-3xl font-black text-gray-900 tracking-tight">
                   {isAdding ? 'Novo Modelo' : 'Editar Modelo'}
                 </h2>
                 <button onClick={() => { setIsAdding(false); setIsEditing(null); }} className="p-3 bg-gray-50 rounded-2xl hover:bg-gray-100 transition-colors">
@@ -3493,7 +3791,27 @@ const MessageTemplatesTab = ({
                 </button>
               </div>
 
-              <div className="space-y-6">
+              <div className="space-y-8">
+                {/* Sugestões Rápidas */}
+                <div className="space-y-4">
+                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-4">Sugestões de Modelos</label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { name: '💖 Boas-vindas', content: 'Olá, {cliente_nome} ✨ Seja muito bem-vinda! Ficamos radiantes com seu interesse em nossos cuidados. Preparamos tudo com muito carinho para que você tenha um momento de relaxamento e renovação único. Se tiver qualquer dúvida sobre o procedimento {procedimento}, estou aqui para te ajudar, viu? Um beijo e até breve! 🌸' },
+                      { name: '✨ Confirmação', content: 'Olá, {cliente_nome}! ✨ Que alegria ter você conosco! Seu momento de cuidado para {procedimento} está confirmadíssimo no dia {data} às {hora}. 🌸\n\nPreparamos tudo com muito carinho para que você tenha uma experiência de relaxamento e renovação única aqui no {nome_espaco}.\n\nSe precisar desmarcar ou tiver qualquer dúvida, é só me chamar, tá bom? Estamos ansiosas para te receber! Um beijo! 💖\n\n📍 Endereço: {endereco}' },
+                      { name: '🌸 Lembrete', content: 'Oi, {cliente_nome}! 🌸 Passando para lembrar com todo carinho do nosso encontro amanhã, dia {data}, às {hora}.\n\nEstamos preparando seu momento de {procedimento} com muito amor e mal podemos esperar para te ver! ✨\n\nCaso precise de qualquer alteração no seu horário, nos avise por favor com um pouquinho de antecedência para liberarmos a vaga para outra cliente querida. Até amanhã! 💖' }
+                    ].map(sug => (
+                      <button
+                        key={sug.name}
+                        onClick={() => { setName(sug.name.replace(/[^\w\s-s]/g, '').trim()); setContent(sug.content); }}
+                        className="px-4 py-2 bg-rose-50 text-rose-600 rounded-xl text-[10px] font-black uppercase tracking-tight hover:bg-rose-100 transition-all border border-rose-100"
+                      >
+                        {sug.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-4">Nome do Modelo</label>
                   <input 
@@ -3512,7 +3830,7 @@ const MessageTemplatesTab = ({
                         key={cat}
                         onClick={() => setCategory(cat as any)}
                         className={cn(
-                          "flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
+                          "flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
                           category === cat ? "bg-white text-rose-500 shadow-sm" : "text-gray-400 hover:text-gray-600"
                         )}
                       >
@@ -3520,6 +3838,24 @@ const MessageTemplatesTab = ({
                       </button>
                     ))}
                   </div>
+                </div>
+
+                <div className="flex items-center gap-4 ml-4">
+                  <button 
+                    onClick={() => setIsDefault(!isDefault)}
+                    className={cn(
+                      "flex items-center gap-2 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border-2",
+                      isDefault 
+                        ? "bg-rose-500 text-white border-rose-500 shadow-lg shadow-rose-200" 
+                        : "bg-white text-gray-400 border-gray-100 hover:border-gray-200"
+                    )}
+                  >
+                    <CheckCircle2 className={cn("w-4 h-4", isDefault ? "text-white" : "text-gray-200")} />
+                    Definir como Padrão da Agenda
+                  </button>
+                  <p className="text-[10px] font-medium text-gray-400 leading-tight">
+                    Este modelo será usado automaticamente nos botões de Confirmação/Lembrete.
+                  </p>
                 </div>
 
                 <div className="space-y-2 relative">
@@ -3530,7 +3866,7 @@ const MessageTemplatesTab = ({
                     value={content}
                     onChange={e => setContent(e.target.value)}
                     placeholder="Sua mensagem aqui... Use as tags para personalizar!"
-                    className="w-full p-8 rounded-[40px] bg-gray-50 border-none outline-none focus:ring-4 focus:ring-rose-100 font-medium text-gray-700 text-lg leading-relaxed shadow-inner resize-none"
+                    className="w-full p-8 rounded-[40px] bg-gray-50 border-none outline-none focus:ring-4 focus:ring-rose-100 font-medium text-gray-700 text-lg leading-relaxed shadow-inner resize-none min-h-[300px]"
                   />
                 </div>
 
@@ -3562,21 +3898,21 @@ const MessageTemplatesTab = ({
                     ))}
                   </div>
                 </div>
-              </div>
 
-              <div className="pt-8">
-                <button 
-                  onClick={handleSave}
-                  disabled={!name || !content}
-                  className={cn(
-                    "w-full py-6 rounded-[32px] font-black text-lg shadow-2xl transition-all uppercase tracking-widest",
-                    (!name || !content) 
-                      ? "bg-gray-100 text-gray-400 cursor-not-allowed shadow-none" 
-                      : "bg-rose-500 text-white shadow-rose-200 hover:-translate-y-1 active:translate-y-0"
-                  )}
-                >
-                  {isEditing ? 'Atualizar Modelo' : 'Criar Modelo'}
-                </button>
+                <div className="pt-8">
+                  <button 
+                    onClick={handleSave}
+                    disabled={!name || !content}
+                    className={cn(
+                      "w-full py-6 rounded-[32px] font-black text-lg shadow-2xl transition-all uppercase tracking-widest",
+                      (!name || !content) 
+                        ? "bg-gray-100 text-gray-400 cursor-not-allowed shadow-none" 
+                        : "bg-rose-500 text-white shadow-rose-200 hover:-translate-y-1 active:translate-y-0"
+                    )}
+                  >
+                    {isEditing ? 'Atualizar Modelo' : 'Criar Modelo'}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -3672,17 +4008,19 @@ const checkIsDemo = () => {
 
 const IS_DEMO_INITIAL = checkIsDemo();
 
-const DEFAULT_CONFIRMATION_TEMPLATE = 'Olá {cliente_nome}, tudo bem? Seu horário {data} às {hora} está confirmado ❤️🧚♀️\n\nPra eu te atender do jeitinho que você gosta, me conta:\n• Você é mais de ficar quietinha relaxando ou gosta de bater papo durante a massagem?\n• Qual música ou cantor(a) você escolheria pra tocar na sua sessão?\n• Tem algo no seu corpo ou no seu dia a dia que te incomoda e que você gostaria muito que eu te ajudasse?\n\nVai ser um prazer te conhecer melhor! 💛\n\nEndereço: {endereco}\n{nome_espaco}';
-const DEFAULT_REMINDER_TEMPLATE = 'Olá {cliente_nome}, tudo bem? Passando para confirmar seu horário amanhã, {data} às {hora}. ❤️🧚♀️';
+const DEFAULT_CONFIRMATION_TEMPLATE = 'Olá, {cliente_nome}! ✨ Que alegria ter você conosco! Seu momento de cuidado para {procedimento} está confirmadíssimo no dia {data} às {hora}. 🌸\n\nPreparamos tudo com muito carinho para que você tenha uma experiência de relaxamento e renovação única aqui no {nome_espaco}.\n\nSe precisar desmarcar ou tiver qualquer dúvida, é só me chamar, tá bom? Estamos ansiosas para te receber! Um beijo! 💖\n\n📍 Endereço: {endereco}';
+const DEFAULT_REMINDER_TEMPLATE = 'Oi, {cliente_nome}! 🌸 Passando para lembrar com todo carinho do nosso encontro amanhã, dia {data}, às {hora}.\n\nEstamos preparando seu momento de {procedimento} com muito amor e mal podemos esperar para te ver! ✨\n\nCaso precise de qualquer alteração no seu horário, nos avise por favor com um pouquinho de antecedência para liberarmos a vaga para outra cliente querida. Até amanhã! 💖';
+const DEFAULT_WELCOME_TEMPLATE = 'Olá, {cliente_nome} ✨ Seja muito bem-vinda! Ficamos radiantes com seu interesse em nossos cuidados. Preparamos tudo com muito carinho para que você tenha um momento de relaxamento e renovação único. Se tiver qualquer dúvida sobre o procedimento {procedimento}, estou aqui para te ajudar, viu? Um beijo e até breve! 🌸';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
-  const [isSidebarMini, setIsSidebarMini] = useState(false);
   const [user, setUser] = useState<User | null>(IS_DEMO_INITIAL ? ({ uid: 'demo-user' } as any) : null);
   const [isAuthReady, setIsAuthReady] = useState(IS_DEMO_INITIAL);
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(IS_DEMO_INITIAL ? true : null);
   
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [paymentAppId, setPaymentAppId] = useState<string | null>(null);
+
   const [clients, setClients] = useState<Client[]>(IS_DEMO_INITIAL ? MOCK_CLIENTS : []);
   const [appointments, setAppointments] = useState<Appointment[]>(IS_DEMO_INITIAL ? MOCK_APPOINTMENTS : []);
   const [procedures, setProcedures] = useState<Procedure[]>(IS_DEMO_INITIAL ? MOCK_PROCEDURES : []);
@@ -3729,10 +4067,7 @@ export default function App() {
       setFinancialEntries(MOCK_FINANCIAL);
       setLeads(MOCK_LEADS);
       setBudgets(MOCK_BUDGETS);
-      setMessageTemplates([
-        { id: '1', name: 'Confirmação de Agendamento', content: DEFAULT_CONFIRMATION_TEMPLATE, category: 'agendamento' },
-        { id: '2', name: 'Lembrete do Dia Anterior', content: DEFAULT_REMINDER_TEMPLATE, category: 'lembrete' }
-      ]);
+      setMessageTemplates(MOCK_MESSAGE_TEMPLATES);
       
       // Force user state for demo
       setUser({ 
@@ -3864,7 +4199,8 @@ export default function App() {
           // Migration/Initialization: Create default templates if none exist
           const defaults: MessageTemplate[] = [
             { id: 'conf', name: 'Confirmação de Agendamento', content: userProfile.confirmationMessageTemplate || DEFAULT_CONFIRMATION_TEMPLATE, category: 'agendamento', ownerId: user.uid },
-            { id: 'rem', name: 'Lembrete do Dia Anterior', content: userProfile.reminderMessageTemplate || DEFAULT_REMINDER_TEMPLATE, category: 'lembrete', ownerId: user.uid }
+            { id: 'rem', name: 'Lembrete do Dia Anterior', content: userProfile.reminderMessageTemplate || DEFAULT_REMINDER_TEMPLATE, category: 'lembrete', ownerId: user.uid },
+            { id: 'welc', name: 'Boas-vindas Acolhedor', content: DEFAULT_WELCOME_TEMPLATE, category: 'outros', ownerId: user.uid }
           ];
           defaults.forEach(async t => {
             const { id, ...data } = t;
@@ -4087,8 +4423,14 @@ export default function App() {
     } catch (e) { handleFirestoreError(e, OperationType.UPDATE, `appointments/${id}`); }
   };
 
-  const handleMarkAsPaid = async (id: string, paymentMethod: any = 'pix') => {
-    if (!user && !isDemo) return;
+  const handleMarkAsPaid = (id: string) => {
+    setPaymentAppId(id);
+    setIsPaymentModalOpen(true);
+  };
+
+  const handleConfirmPayment = async (amount: number, method: any = 'pix', isPartial: boolean = false) => {
+    if (!paymentAppId || (!user && !isDemo)) return;
+    const id = paymentAppId;
     const app = appointments.find(a => a.id === id);
     if (!app) return;
 
@@ -4096,47 +4438,68 @@ export default function App() {
     const proc = procedures.find(p => p.id === app.procedureId);
 
     if (isDemo) {
-      setAppointments(prev => prev.map(a => a.id === id ? { ...a, isPaid: true } : a));
+      setAppointments(prev => prev.map(a => a.id === id ? { 
+        ...a, 
+        isPaid: !isPartial, 
+        paidAmount: (a.paidAmount || 0) + amount,
+        paymentMethod: method
+      } : a));
+      
       const entry: FinancialEntry = {
         id: Math.random().toString(36).substr(2, 9),
-        description: `Atendimento: ${client?.name} (${proc?.name})`,
-        amount: app.price,
+        description: `Pagamento ${isPartial ? 'Parcial' : ''}: ${client?.name} (${proc?.name})`,
+        amount: amount,
         date: new Date().toISOString(),
         type: 'receita',
         category: 'Serviços',
         appointmentId: id,
-        paymentMethod,
+        paymentMethod: method,
         ownerId: 'demo-user'
       };
       setFinancialEntries(prev => [...prev, entry]);
+      setIsPaymentModalOpen(false);
+      setPaymentAppId(null);
+      addNotification(`Pagamento de ${formatCurrency(amount)} registrado!`, 'info');
       return;
     }
 
     try {
-      await updateDoc(doc(db, 'appointments', id), { isPaid: true });
+      const newPaidAmount = (app.paidAmount || 0) + amount;
+      const isActuallyPaid = !isPartial && newPaidAmount >= app.price;
+      
+      await updateDoc(doc(db, 'appointments', id), { 
+        isPaid: isActuallyPaid,
+        paidAmount: newPaidAmount,
+        paymentMethod: method
+      });
+
       await addDoc(collection(db, 'financialEntries'), {
-        description: `Atendimento: ${client?.name} (${proc?.name})`,
-        amount: app.price,
+        description: `Pagamento ${isPartial ? 'Parcial' : ''}: ${client?.name} (${proc?.name})`,
+        amount: amount,
         date: new Date().toISOString(),
         type: 'receita',
         category: 'Serviços',
         appointmentId: id,
-        paymentMethod,
+        paymentMethod: method,
         ownerId: user.uid
       });
+      
+      addNotification(`Pagamento de ${formatCurrency(amount)} registrado!`, 'info');
+      setIsPaymentModalOpen(false);
+      setPaymentAppId(null);
     } catch (e) { handleFirestoreError(e, OperationType.WRITE, 'payment'); }
   };
 
   const handleUndoMarkAsPaid = async (id: string) => {
     if (isDemo) {
-      setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: 'confirmado', isPaid: false } : a));
+      setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: 'confirmado', isPaid: false, paidAmount: 0 } : a));
       setFinancialEntries(prev => prev.filter(e => e.appointmentId !== id));
       return;
     }
     try {
-      await updateDoc(doc(db, 'appointments', id), { status: 'confirmado', isPaid: false });
-      const entry = financialEntries.find(e => e.appointmentId === id);
-      if (entry) {
+      await updateDoc(doc(db, 'appointments', id), { status: 'confirmado', isPaid: false, paidAmount: 0 });
+      const entries = financialEntries.filter(e => e.appointmentId === id);
+      for (const entry of entries) {
         await deleteDoc(doc(db, 'financialEntries', entry.id));
       }
     } catch (e) { handleFirestoreError(e, OperationType.WRITE, 'undo-payment'); }
@@ -4413,12 +4776,25 @@ export default function App() {
 
   const handleAddMessageTemplate = async (template: MessageTemplate) => {
     if (isDemo) {
-      setMessageTemplates(prev => [...prev, { ...template, id: Math.random().toString(36).substr(2, 9) }]);
+      const newTemplate = { ...template, id: Math.random().toString(36).substr(2, 9) };
+      setMessageTemplates(prev => {
+        let list = prev;
+        if (newTemplate.isDefault) {
+          list = list.map(t => t.category === newTemplate.category ? { ...t, isDefault: false } : t);
+        }
+        return [...list, newTemplate];
+      });
       return;
     }
     if (!user) return;
     try {
       const { id, ...data } = template;
+      if (template.isDefault) {
+        const others = messageTemplates.filter(t => t.category === template.category && t.isDefault);
+        for (const other of others) {
+          await updateDoc(doc(db, 'messageTemplates', other.id), { isDefault: false });
+        }
+      }
       await addDoc(collection(db, 'messageTemplates'), { ...data, ownerId: user.uid });
       addNotification('Modelo de mensagem criado!', 'info');
     } catch (e) { handleFirestoreError(e, OperationType.CREATE, 'messageTemplates'); }
@@ -4426,10 +4802,26 @@ export default function App() {
 
   const handleUpdateMessageTemplate = async (id: string, updates: Partial<MessageTemplate>) => {
     if (isDemo) {
-      setMessageTemplates(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+      setMessageTemplates(prev => {
+        let list = prev;
+        if (updates.isDefault) {
+          const current = prev.find(t => t.id === id);
+          const cat = updates.category || current?.category;
+          list = list.map(t => t.category === cat ? { ...t, isDefault: false } : t);
+        }
+        return list.map(t => t.id === id ? { ...t, ...updates } : t);
+      });
       return;
     }
     try {
+      if (updates.isDefault) {
+        const current = messageTemplates.find(t => t.id === id);
+        const cat = updates.category || current?.category;
+        const others = messageTemplates.filter(t => t.id !== id && t.category === cat && t.isDefault);
+        for (const other of others) {
+          await updateDoc(doc(db, 'messageTemplates', other.id), { isDefault: false });
+        }
+      }
       await updateDoc(doc(db, 'messageTemplates', id), updates);
       addNotification('Modelo de mensagem atualizado!', 'info');
     } catch (e) { handleFirestoreError(e, OperationType.UPDATE, `messageTemplates/${id}`); }
@@ -4518,10 +4910,10 @@ export default function App() {
 
     let template = '';
     if (type === 'confirmation') {
-      const t = messageTemplates.find(mt => mt.category === 'agendamento');
+      const t = messageTemplates.find(mt => mt.category === 'agendamento' && mt.isDefault) || messageTemplates.find(mt => mt.category === 'agendamento');
       template = t?.content || userProfile?.confirmationMessageTemplate || DEFAULT_CONFIRMATION_TEMPLATE;
     } else if (type === 'reminder') {
-      const t = messageTemplates.find(mt => mt.category === 'lembrete');
+      const t = messageTemplates.find(mt => mt.category === 'lembrete' && mt.isDefault) || messageTemplates.find(mt => mt.category === 'lembrete');
       template = t?.content || userProfile?.reminderMessageTemplate || DEFAULT_REMINDER_TEMPLATE;
     } else {
       template = `Olá {cliente_nome}! Tudo bem? Passando para te enviar o fechamento do seu atendimento de hoje ({procedimento}). O valor total ficou {valor}. Se preferir, pode fazer o PIX por aqui mesmo! 😊`;
@@ -4553,7 +4945,8 @@ export default function App() {
     { id: 'orcamentos', label: 'Orçamentos', icon: FileText },
     { id: 'follow-up', label: 'Follow-up', icon: BellRing },
     { id: 'financeiro', label: 'Financeiro', icon: DollarSign },
-    { id: 'mensagens', label: 'Mensagens', icon: MessageCircle },
+    { id: 'pagamentos', label: 'Controle de Pagamentos', icon: CreditCard },
+    { id: 'mensagens', label: 'Mensagens Automáticas', icon: MessageCircle },
     { id: 'configuracoes', label: 'Configurações', icon: Settings },
   ];
 
@@ -4569,7 +4962,6 @@ export default function App() {
           csLabel={csLabel}
           user={user}
           userProfile={userProfile}
-          setIsSidebarOpen={setIsSidebarOpen}
           setIsNotificationsOpen={setIsNotificationsOpen}
           isNotificationsOpen={isNotificationsOpen}
           onSendWhatsApp={handleSendWhatsApp}
@@ -4592,6 +4984,7 @@ export default function App() {
           onDeleteAppointment={handleDeleteAppointment}
           cLabel={cLabel}
           userProfile={userProfile}
+          onSendWhatsApp={handleSendWhatsApp}
         />
       );
       case 'clientes': return (
@@ -4624,6 +5017,7 @@ export default function App() {
           onDeleteAppointment={handleDeleteAppointment}
           cLabel={cLabel}
           userProfile={userProfile}
+          onSendWhatsApp={handleSendWhatsApp}
         />
       );
       case 'orcamentos': return (
@@ -4663,6 +5057,16 @@ export default function App() {
           userProfile={userProfile}
         />
       );
+      case 'pagamentos': return (
+        <PagamentosTab 
+          appointments={appointments}
+          clients={clients}
+          procedures={procedures}
+          onMarkAsPaid={handleMarkAsPaid}
+          onUndoMarkAsPaid={handleUndoMarkAsPaid}
+          onSendWhatsApp={handleSendWhatsApp}
+        />
+      );
       case 'servicos': return (
         <ServicesTab 
           procedures={procedures}
@@ -4687,6 +5091,7 @@ export default function App() {
           onUpdateProfile={handleUpdateProfile}
           onResetMocks={handleResetMocks}
           isDemo={isDemo}
+          onNavigateToMessages={() => setActiveTab('mensagens')}
         />
       );
       default: return (
@@ -4699,7 +5104,6 @@ export default function App() {
           csLabel={csLabel}
           user={user}
           userProfile={userProfile}
-          setIsSidebarOpen={setIsSidebarOpen}
           setIsNotificationsOpen={setIsNotificationsOpen}
           isNotificationsOpen={isNotificationsOpen}
           onSendWhatsApp={handleSendWhatsApp}
@@ -5363,6 +5767,17 @@ export default function App() {
         userProfile={userProfile}
       />
 
+      <PartialPaymentModal 
+        isOpen={isPaymentModalOpen}
+        onClose={() => {
+          setIsPaymentModalOpen(false);
+          setPaymentAppId(null);
+        }}
+        onConfirm={handleConfirmPayment}
+        appointment={appointments.find(a => a.id === paymentAppId) || null}
+        procedure={procedures.find(p => p.id === (appointments.find(a => a.id === paymentAppId)?.procedureId)) || null}
+      />
+
       {/* Edit Client Modal */}
       <AnimatePresence>
         {editingClient && (
@@ -5659,136 +6074,65 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <div className="flex w-full h-full overflow-hidden">
-        {/* Mobile Backdrop */}
-        {isSidebarOpen && (
-          <div 
-            className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-[155] lg:hidden"
-            onClick={() => setIsSidebarOpen(false)}
-          />
-        )}
-        
-        <aside className={cn(
-          "fixed lg:static inset-y-0 left-0 z-[160] p-0 bg-white border-r border-rose-50 transition-all duration-300 ease-in-out lg:translate-x-0 flex-shrink-0 flex flex-col",
-          isSidebarMini ? "w-20" : "w-72",
-          !isSidebarOpen && "-translate-x-full"
-        )}>
-        <div className="h-full flex flex-col p-4">
-          <div className="flex items-center gap-3 mb-10 px-2 justify-between">
-            <div className="flex items-center gap-3 overflow-hidden">
-              <div className="w-10 h-10 bg-rose-600 rounded-xl flex items-center justify-center shadow-lg shadow-rose-200 flex-shrink-0">
-                <ShieldCheck className="text-white w-6 h-6" />
-              </div>
-              {!isSidebarMini && (
-                <div className="flex flex-col whitespace-nowrap overflow-hidden">
-                  <span className="text-lg font-black tracking-tight text-gray-900 leading-none truncate max-w-[150px]">{userProfile?.businessName || 'MEU SISTEMA'}</span>
-                  <span className="text-[10px] font-bold text-rose-500 uppercase tracking-widest">{userProfile?.specialty || 'Gestão Profissional'}</span>
-                </div>
-              )}
-            </div>
-            <button 
-              onClick={() => setIsSidebarMini(!isSidebarMini)}
-              className="p-2 hover:bg-rose-50 rounded-lg text-gray-400 hidden lg:block"
-            >
-              {isSidebarMini ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-            </button>
+    <div className="flex flex-col w-full h-screen bg-[#fafafa] overflow-hidden">
+      {/* Top Navigation Header */}
+      <header className="h-24 flex-shrink-0 bg-white border-b border-rose-50 flex items-center justify-between px-6 lg:px-10 z-[160] shadow-sm">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-rose-600 rounded-2xl flex items-center justify-center shadow-lg shadow-rose-200 flex-shrink-0 cursor-pointer hover:rotate-6 transition-transform" onClick={() => setActiveTab('dashboard')}>
+            <ShieldCheck className="text-white w-7 h-7" />
           </div>
+          <div className="flex flex-col">
+            <span className="text-xl font-black tracking-tight text-gray-900 leading-none">{userProfile?.businessName || 'MEU SISTEMA'}</span>
+            <span className="text-[10px] font-bold text-rose-500 uppercase tracking-[0.2em] mt-1">{userProfile?.specialty || 'Gestão Profissional'}</span>
+          </div>
+        </div>
 
-          <nav className="flex-1 space-y-2 overflow-y-auto overflow-x-hidden scrollbar-hide py-2">
+        <div className="flex items-center gap-2">
+          <nav className="flex items-center gap-2 bg-gray-50 p-2 rounded-[28px] border border-gray-100 py-2">
             {menuItems.map((item) => (
-              <button
-                key={item.id}
-                title={item.label}
-                onClick={() => {
-                  setActiveTab(item.id);
-                  if (window.innerWidth >= 1024) setIsSidebarMini(true);
-                  if (window.innerWidth < 1024) setIsSidebarOpen(false);
-                }}
-                className={cn(
-                  "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all group relative",
-                  activeTab === item.id 
-                    ? "bg-rose-500 text-white shadow-lg shadow-rose-100" 
-                    : "text-gray-500 hover:bg-rose-50 hover:text-rose-600",
-                  isSidebarMini && "justify-center px-0"
-                )}
-              >
-                <item.icon className={cn("w-5 h-5 flex-shrink-0", activeTab === item.id ? "text-white" : "text-gray-400 group-hover:text-rose-500")} />
-                {!isSidebarMini && <span className="whitespace-nowrap overflow-hidden text-ellipsis">{item.label}</span>}
-              </button>
+              <div key={item.id} className="relative group/nav">
+                <button
+                  onClick={() => setActiveTab(item.id)}
+                  className={cn(
+                    "flex items-center justify-center w-11 h-11 lg:w-12 lg:h-12 rounded-2xl text-sm font-bold transition-all relative",
+                    activeTab === item.id 
+                      ? "bg-rose-500 text-white shadow-xl shadow-rose-200 scale-105" 
+                      : "text-gray-400 hover:bg-white hover:text-rose-500 hover:shadow-md"
+                  )}
+                >
+                  <item.icon className="w-5 h-5 lg:w-6 lg:h-6 flex-shrink-0" />
+                </button>
+                {/* Tooltip on Hover */}
+                <div className="absolute top-full left-1/2 -translate-x-1/2 pt-3 opacity-0 invisible group-hover/nav:opacity-100 group-hover/nav:visible transition-all duration-200 z-[200] translate-y-1 group-hover/nav:translate-y-0 pointer-events-none">
+                  <div className="bg-gray-900 text-white text-[10px] font-black uppercase tracking-[0.2em] px-4 py-2.5 rounded-xl whitespace-nowrap shadow-2xl relative">
+                    {item.label}
+                    <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-900 rotate-45" />
+                  </div>
+                </div>
+              </div>
             ))}
           </nav>
 
-          {!isSidebarMini && (
-            <div 
-              className="mt-4 p-5 bg-[#0f1115] rounded-[32px] text-white relative overflow-hidden group cursor-pointer border border-white/5 transition-all hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)]" 
-              onClick={() => {
-                setActiveTab('prospeccao');
-                if (window.innerWidth < 1024) setIsSidebarOpen(false);
-                if (window.innerWidth >= 1024) setIsSidebarMini(true);
-              }}
-            >
-              <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/20 rounded-full -mr-12 -mt-12 blur-3xl group-hover:bg-rose-500/40 transition-all" />
-              <div className="relative z-10 flex flex-col gap-3">
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 bg-rose-600 rounded-lg shadow-lg shadow-rose-600/20 group-hover:rotate-12 transition-transform">
-                    <Rocket className="w-3.5 h-3.5 text-white" />
-                  </div>
-                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-400 whitespace-nowrap">
-                    Impulso Extra
-                  </span>
-                </div>
-                <div>
-                  <p className="text-xs font-black leading-tight text-gray-100 whitespace-nowrap overflow-hidden">Encontre Novos Clientes</p>
-                  <p className="text-[10px] text-gray-500 font-bold mt-1">Anúncios que Funcionam</p>
-                </div>
-                <button className="mt-2 text-[10px] font-black uppercase flex items-center gap-1.5 text-rose-500 group-hover:gap-3 transition-all border-t border-white/5 pt-3 w-full">
-                  Quero saber mais <ChevronRight className="w-3 h-3" />
-                </button>
-              </div>
-            </div>
-          )}
+          <div className="h-10 w-px bg-gray-100 mx-4 hidden md:block" />
 
-          <div className={cn("pt-6 border-t border-rose-50 mt-4", isSidebarMini && "flex justify-center")}>
+          <div className="relative group/logout">
             <button 
               onClick={signOutUser}
-              title="Sair do Sistema"
-              className={cn(
-                "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-gray-400 hover:bg-red-50 hover:text-red-500 transition-all group",
-                isSidebarMini && "justify-center px-0"
-              )}
+              className="flex items-center justify-center w-11 h-11 lg:w-12 lg:h-12 rounded-2xl text-gray-300 hover:bg-rose-50 hover:text-red-500 hover:border-red-100 border border-transparent transition-all"
             >
-              <Trash2 className="w-5 h-5 group-hover:rotate-12 transition-transform flex-shrink-0" />
-              {!isSidebarMini && <span className="whitespace-nowrap overflow-hidden">Sair do Sistema</span>}
+              <Trash2 className="w-6 h-6" />
             </button>
+            <div className="absolute top-full left-1/2 -translate-x-1/2 pt-3 opacity-0 invisible group-hover/logout:opacity-100 group-hover/logout:visible transition-all duration-200 z-[200] translate-y-1 group-hover/logout:translate-y-0 pointer-events-none">
+              <div className="bg-red-600 text-white text-[10px] font-black uppercase tracking-[0.2em] px-4 py-2.5 rounded-xl whitespace-nowrap shadow-2xl relative">
+                Sair do Sistema
+                <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-red-600 rotate-45" />
+              </div>
+            </div>
           </div>
         </div>
-      </aside>
+      </header>
 
-      <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden relative">
-        {activeTab !== 'dashboard' && (
-          <header className="h-16 flex items-center px-4 lg:px-8 flex-shrink-0 sticky top-0 z-[150] pointer-events-none">
-            <div className="flex items-center gap-4 pointer-events-auto bg-white/80 backdrop-blur-md px-4 py-2 rounded-2xl border border-rose-50 shadow-sm">
-              <button 
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className="lg:hidden p-2 text-gray-500 hover:bg-rose-50 rounded-lg"
-              >
-                <Menu className="w-6 h-6" />
-              </button>
-              {isSidebarMini && (
-                <button 
-                  onClick={() => setIsSidebarMini(false)}
-                  className="hidden lg:flex p-2 text-rose-500 hover:bg-rose-50 rounded-lg items-center gap-2 transition-all group"
-                >
-                  <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                  <span className="text-xs font-black uppercase tracking-widest">Expandir Menu</span>
-                </button>
-              )}
-            </div>
-            <div className="ml-auto pointer-events-auto">
-               {/* Bell moved to specific tab headers or floating if needed */}
-            </div>
-          </header>
-        )}
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
 
             <AnimatePresence>
               {isNotificationsOpen && (
@@ -5853,14 +6197,14 @@ export default function App() {
               )}
             </AnimatePresence>
 
-        <div className="flex-1 overflow-y-auto p-4 lg:p-8">
+        <div className="flex-1 overflow-y-auto p-4 lg:p-10">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
             >
               {renderContent()}
             </motion.div>

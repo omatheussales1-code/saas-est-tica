@@ -1,4 +1,4 @@
-import { Client, Appointment, Procedure, FinancialEntry, Lead, Budget } from './types';
+import { Client, Appointment, Procedure, FinancialEntry, Lead, Budget, MessageTemplate } from './types';
 
 // Helper to get dates relative to now
 const daysAgo = (days: number) => new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
@@ -83,5 +83,31 @@ export const MOCK_BUDGETS: Budget[] = [
     date: daysAgo(2),
     status: 'pendente',
     validUntil: inDays(5)
+  }
+];
+
+export const MOCK_MESSAGE_TEMPLATES: MessageTemplate[] = [
+  {
+    id: 't-welcome',
+    name: 'Boas-vindas Acolhedor',
+    category: 'outros',
+    content: 'Olá, {cliente_nome} ✨ Seja muito bem-vinda! Ficamos radiantes com seu interesse em nossos cuidados. Preparamos tudo com muito carinho para que você tenha um momento de relaxamento e renovação único. Se tiver qualquer dúvida sobre o procedimento {procedimento}, estou aqui para te ajudar, viu? Um beijo e até breve! 🌸',
+    ownerId: 'demo-user'
+  },
+  {
+    id: 't-conf',
+    name: 'Confirmação de Agendamento',
+    category: 'agendamento',
+    content: 'Olá, {cliente_nome}! ✨ Que alegria ter você conosco! Seu momento de cuidado para {procedimento} está confirmadíssimo no dia {data} às {hora}. 🌸\n\nPreparamos tudo com muito carinho para que você tenha uma experiência de relaxamento e renovação única aqui no {nome_espaco}.\n\nSe precisar desmarcar ou tiver qualquer dúvida, é só me chamar, tá bom? Estamos ansiosas para te receber! Um beijo! 💖\n\n📍 Endereço: {endereco}',
+    ownerId: 'demo-user',
+    isDefault: true
+  },
+  {
+    id: 't-reminder',
+    name: 'Lembrete de Carinho',
+    category: 'lembrete',
+    content: 'Oi, {cliente_nome}! 🌸 Passando para lembrar com todo carinho do nosso encontro amanhã, dia {data}, às {hora}.\n\nEstamos preparando seu momento de {procedimento} com muito amor e mal podemos esperar para te ver! ✨\n\nCaso precise de qualquer alteração no seu horário, nos avise por favor com um pouquinho de antecedência para liberarmos a vaga para outra cliente querida. Até amanhã! 💖',
+    ownerId: 'demo-user',
+    isDefault: true
   }
 ];

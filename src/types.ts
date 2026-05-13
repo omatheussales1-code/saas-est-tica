@@ -45,6 +45,8 @@ export interface Appointment {
   status: AppointmentStatus;
   notes?: string;
   price: number;
+  paidAmount?: number;
+  paymentMethod?: 'pix' | 'cartao' | 'dinheiro' | 'outro';
   photoBefore?: string;
   photoAfter?: string;
   ownerId?: string;
@@ -57,6 +59,7 @@ export interface MessageTemplate {
   content: string;
   ownerId?: string;
   category?: 'agendamento' | 'lembrete' | 'outros';
+  isDefault?: boolean;
 }
 
 export interface UserProfile {
@@ -117,6 +120,7 @@ export interface Budget {
     price: number;
   }[];
   total: number;
+  paidAmount?: number;
   date: string;
   status: 'pendente' | 'aprovado' | 'rejeitado';
   validUntil: string;

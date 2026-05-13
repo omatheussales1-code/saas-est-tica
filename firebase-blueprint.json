@@ -23,7 +23,9 @@
         "date": { "type": "string", "format": "date-time" },
         "status": { "type": "string", "enum": ["pendente", "confirmado", "realizado", "faltou", "atrasado"] },
         "price": { "type": "number" },
+        "paidAmount": { "type": "number" },
         "isPaid": { "type": "boolean" },
+        "paymentMethod": { "type": "string" },
         "ownerId": { "type": "string" }
       },
       "required": ["clientId", "procedureId", "date", "ownerId"]
@@ -101,6 +103,18 @@
       },
       "required": ["clientId", "date", "ownerId"]
     },
+    "MessageTemplate": {
+      "title": "MessageTemplate",
+      "description": "WhatsApp message template",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "content": { "type": "string" },
+        "category": { "type": "string", "enum": ["agendamento", "lembrete", "outros"] },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["name", "content", "ownerId"]
+    },
     "UserProfile": {
       "title": "UserProfile",
       "description": "Professional's profile and business settings",
@@ -129,6 +143,7 @@
     "/leads/{leadId}": { "schema": "Lead", "description": "Sales leads" },
     "/budgets/{budgetId}": { "schema": "Budget", "description": "Price quotes" },
     "/followUps/{fUpId}": { "schema": "FollowUp", "description": "Post-service follow-ups" },
+    "/messageTemplates/{templateId}": { "schema": "MessageTemplate", "description": "WhatsApp message templates" },
     "/userProfiles/{userId}": { "schema": "UserProfile", "description": "User profile settings" }
   }
 }

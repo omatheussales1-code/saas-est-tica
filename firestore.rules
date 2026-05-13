@@ -16,7 +16,8 @@ service cloud.firestore {
     function isVerified() { 
       return isSignedIn() && (
         request.auth.token.email_verified == true || 
-        request.auth.token.firebase.sign_in_provider == 'google.com'
+        request.auth.token.firebase.sign_in_provider == 'google.com' ||
+        isAdmin()
       ); 
     }
     
@@ -30,10 +31,10 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      // Identity check + Verification check
-      return isVerified() && (
-        request.auth.token.email == 'teus.rma@gmail.com' || 
-        request.auth.token.email == 'brefer@gmail.com'
+      // Identity check
+      return isSignedIn() && (
+        request.auth.token.email.lower() == 'teus.rma@gmail.com' || 
+        request.auth.token.email.lower() == 'brefer@gmail.com'
       );
     }
 
@@ -89,11 +90,18 @@ service cloud.firestore {
     function isValidLead(data) {
       return data.keys().hasAll(['name', 'ownerId', 'status']) &&
              data.name is string && data.name.size() <= 100 &&
-             data.status in ['novo', 'contato', 'proposta', 'convertido', 'perdido'] &&
+             data.status in ['novo', 'contato', 'proposta', 'convertido', 'perdido', 'follow-up-1'] &&
              data.ownerId == request.auth.uid &&
              (data.get('email', '') is string) &&
              (data.get('phone', '') is string) &&
              (data.get('platform', '') is string);
+    }
+
+    function isValidMessageTemplate(data) {
+      return data.keys().hasAll(['name', 'content', 'ownerId']) &&
+             data.name is string && data.name.size() <= 100 &&
+             data.content is string && data.content.size() <= 2000 &&
+             data.ownerId == request.auth.uid;
     }
 
     // ===============================================================
@@ -176,6 +184,15 @@ service cloud.firestore {
       allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
       allow create: if isVerified() && incoming().ownerId == request.auth.uid;
       allow update: if isVerified() && isDocOwner() && incoming().ownerId == request.auth.uid;
+      allow delete: if isVerified() && isDocOwner();
+    }
+
+    // Message Templates
+    match /messageTemplates/{templateId} {
+      allow get: if isDocOwner();
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isVerified() && isValidMessageTemplate(incoming());
+      allow update: if isVerified() && isDocOwner() && isValidMessageTemplate(incoming());
       allow delete: if isVerified() && isDocOwner();
     }
   }
