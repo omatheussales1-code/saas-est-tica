@@ -51,6 +51,14 @@ export interface Appointment {
   isPaid?: boolean;
 }
 
+export interface MessageTemplate {
+  id: string;
+  name: string;
+  content: string;
+  ownerId?: string;
+  category?: 'agendamento' | 'lembrete' | 'outros';
+}
+
 export interface UserProfile {
   id?: string;
   name: string;

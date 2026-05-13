@@ -97,7 +97,8 @@ import {
   Budget, 
   AppointmentStatus,
   FollowUp,
-  UserProfile
+  UserProfile,
+  MessageTemplate
 } from './types';
 import { 
   MOCK_CLIENTS, 
@@ -3350,152 +3351,292 @@ const SettingsTab = ({
         </div>
       </div>
 
-      <section className="space-y-4 pt-12 border-t border-rose-50 overflow-hidden">
-        <div className="flex justify-between items-end px-4">
-          <div>
-            <h2 className="text-3xl font-black text-gray-900 tracking-tight flex items-center gap-4">
-              <MessageCircle className="w-8 h-8 text-rose-500" /> Mensagens Automáticas
-            </h2>
-            <p className="text-sm font-medium text-gray-500 ml-12">Configure como as suas clientes recebem as confirmações no WhatsApp</p>
-          </div>
-        </div>
+    </div>
+  );
+};
 
-        <div className="bg-white p-12 rounded-[56px] shadow-sm border border-rose-50 space-y-20">
-          {[
-            { 
-              label: 'Confirmação de Agendamento', 
-              key: 'confirmationMessageTemplate', 
-              desc: 'Mensagem enviada logo após você salvar o horário no sistema.',
-              icon: <CheckCircle2 className="w-6 h-6" />
-            },
-            { 
-              label: 'Lembrete do Dia Anterior', 
-              key: 'reminderMessageTemplate', 
-              desc: 'Mensagem para confirmar que a cliente não esqueceu o compromisso.',
-              icon: <BellRing className="w-6 h-6" />
-            }
-          ].map((field) => (
-            <div key={field.key} className="space-y-10">
-              <div className="flex justify-between items-center px-4">
-                <div className="flex items-center gap-5">
-                  <div className="w-14 h-14 bg-rose-50 rounded-[20px] flex items-center justify-center text-rose-500 shadow-sm border border-rose-100">
-                    {field.icon}
-                  </div>
-                  <div>
-                    <label className="text-lg font-black text-gray-900 tracking-tight block">{field.label}</label>
-                    <p className="text-xs font-medium text-gray-400 uppercase tracking-[0.1em]">{field.desc}</p>
-                  </div>
+const MessageTemplatesTab = ({
+  templates,
+  onAddTemplate,
+  onUpdateTemplate,
+  onDeleteTemplate,
+  userProfile
+}: {
+  templates: MessageTemplate[],
+  onAddTemplate: (t: MessageTemplate) => void,
+  onUpdateTemplate: (id: string, t: Partial<MessageTemplate>) => void,
+  onDeleteTemplate: (id: string) => void,
+  userProfile: UserProfile | null
+}) => {
+  const [isEditing, setIsEditing] = useState<MessageTemplate | null>(null);
+  const [isAdding, setIsAdding] = useState(false);
+  
+  const [name, setName] = useState('');
+  const [content, setContent] = useState('');
+  const [category, setCategory] = useState<MessageTemplate['category']>('outros');
+
+  const handleOpenEdit = (t: MessageTemplate) => {
+    setIsEditing(t);
+    setName(t.name || '');
+    setContent(t.content || '');
+    setCategory(t.category || 'outros');
+  };
+
+  const handleSave = () => {
+    if (isEditing) {
+      onUpdateTemplate(isEditing.id, { name, content, category });
+      setIsEditing(null);
+    } else {
+      onAddTemplate({
+        id: Math.random().toString(36).substr(2, 9),
+        name,
+        content,
+        category
+      });
+      setIsAdding(false);
+    }
+    setName('');
+    setContent('');
+    setCategory('outros');
+  };
+
+  const tags = [
+    { tag: '{cliente_nome}', label: 'Nome Cliente', color: 'bg-emerald-50 text-emerald-600 shadow-emerald-100/40' },
+    { tag: '{data}', label: 'Data do Agend.', color: 'bg-blue-50 text-blue-600 shadow-blue-100/40' },
+    { tag: '{hora}', label: 'Hora Marcada', color: 'bg-purple-50 text-purple-600 shadow-purple-100/40' },
+    { tag: '{procedimento}', label: 'Procedimento', color: 'bg-amber-50 text-amber-600 shadow-amber-100/40' },
+    { tag: '{endereco}', label: 'Seu Endereço', color: 'bg-rose-50 text-rose-600 shadow-rose-100/40' },
+    { tag: '{valor}', label: 'Valor (R$)', color: 'bg-indigo-50 text-indigo-600 shadow-indigo-100/40' },
+    { tag: '{nome_espaco}', label: 'Seu Espaço', color: 'bg-gray-50 text-gray-600 shadow-gray-100/40' },
+  ];
+
+  return (
+    <div className="space-y-8 pb-20">
+      <div className="flex justify-between items-center px-4">
+        <div>
+          <h1 className="text-3xl font-black text-gray-900 tracking-tight flex items-center gap-4">
+            <MessageCircle className="w-8 h-8 text-rose-500" /> Mensagens
+          </h1>
+          <p className="text-sm font-medium text-gray-500">Configure seus modelos de WhatsApp e automatize seu atendimento</p>
+        </div>
+        <button 
+          onClick={() => { setIsAdding(true); setName(''); setContent(''); setCategory('outros'); }}
+          className="bg-rose-500 hover:bg-rose-600 text-white px-8 py-4 rounded-2xl flex items-center gap-2 transition-all shadow-xl shadow-rose-200 font-bold active:scale-95"
+        >
+          <Plus className="w-5 h-5" />
+          Novo Modelo
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 px-4">
+        {templates.map(t => (
+          <motion.div 
+            key={t.id}
+            whileHover={{ y: -5 }}
+            className="bg-white p-8 rounded-[40px] shadow-sm border border-rose-50 flex flex-col justify-between group relative overflow-hidden h-[320px] cursor-pointer"
+            onClick={() => handleOpenEdit(t)}
+          >
+            <div className="space-y-4">
+              <div className="flex justify-between items-start">
+                <div className="w-12 h-12 bg-rose-50 rounded-2xl flex items-center justify-center text-rose-500">
+                  <MessageCircle className="w-6 h-6" />
                 </div>
-                <div className="hidden lg:flex items-center gap-3 bg-gray-50 px-5 py-2.5 rounded-2xl border border-gray-100">
-                  <Info className="w-4 h-4 text-gray-400" />
-                  <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest leading-none">Toque para inserir variáveis</span>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); onDeleteTemplate(t.id); }}
+                    className="p-2 text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
-              
-              <div className="grid grid-cols-1 xl:grid-cols-12 gap-12">
-                <div className="xl:col-span-12 2xl:col-span-8 space-y-6">
-                  <div className="relative group">
-                    <textarea 
-                      id={`textarea-${field.key}`}
-                      rows={8}
-                      value={(profile as any)[field.key] || ''} 
-                      placeholder="Sua mensagem aqui..."
-                      onChange={e => setProfile(p => ({ ...p, [field.key]: e.target.value }))}
-                      className="w-full p-10 rounded-[48px] bg-gray-50 border-2 border-transparent outline-none focus:border-rose-100 focus:bg-white transition-all font-medium text-gray-700 text-lg leading-relaxed shadow-inner resize-none block scrollbar-hide" 
-                    />
-                    <div className="absolute top-10 right-10 opacity-10 group-focus-within:opacity-0 transition-opacity">
-                      <MessageCircle className="w-12 h-12" />
-                    </div>
-                  </div>
-                  
-                  <div className="flex flex-wrap gap-3 p-4 bg-gray-50/50 rounded-[40px] border border-gray-100/50">
-                    {[
-                      { tag: '{cliente_nome}', label: 'Nome Cliente', color: 'bg-emerald-50 text-emerald-600 shadow-emerald-100/40' },
-                      { tag: '{data}', label: 'Data do Agend.', color: 'bg-blue-50 text-blue-600 shadow-blue-100/40' },
-                      { tag: '{hora}', label: 'Hora Marcada', color: 'bg-purple-50 text-purple-600 shadow-purple-100/40' },
-                      { tag: '{procedimento}', label: 'Procedimento', color: 'bg-amber-50 text-amber-600 shadow-amber-100/40' },
-                      { tag: '{endereco}', label: 'Seu Endereço', color: 'bg-rose-50 text-rose-600 shadow-rose-100/40' },
-                      { tag: '{valor}', label: 'Valor (R$)', color: 'bg-indigo-50 text-indigo-600 shadow-indigo-100/40' },
-                    ].map(v => (
+              <div>
+                <h3 className="text-lg font-black text-gray-900 leading-tight truncate">{t.name}</h3>
+                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                  {t.category === 'agendamento' ? 'Confirmação' : t.category === 'lembrete' ? 'Lembrete' : 'Outros'}
+                </span>
+              </div>
+              <p className="text-gray-500 text-sm line-clamp-4 font-medium leading-relaxed italic">
+                "{t.content}"
+              </p>
+            </div>
+            <div className="mt-8 pt-6 border-t border-rose-50 flex justify-between items-center opacity-0 group-hover:opacity-100 transition-opacity">
+              <span className="text-xs font-black text-rose-500 uppercase tracking-widest">Editar Modelo</span>
+              <ChevronRight className="w-4 h-4 text-rose-500" />
+            </div>
+          </motion.div>
+        ))}
+        {templates.length === 0 && (
+          <div className="col-span-full py-20 flex flex-col items-center justify-center bg-white rounded-[40px] border-2 border-dashed border-rose-100 opacity-60">
+            <MessageCircle className="w-12 h-12 text-rose-300 mb-4" />
+            <p className="text-gray-500 font-bold">Nenhum modelo criado ainda.</p>
+            <p className="text-gray-400 text-sm">Clique em "Novo Modelo" para começar.</p>
+          </div>
+        )}
+      </div>
+
+      {(isAdding || isEditing) && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-md">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="bg-white rounded-[48px] shadow-2xl w-full max-w-6xl overflow-hidden border border-rose-50 flex flex-col lg:flex-row h-[90vh]"
+          >
+            {/* Editor Side */}
+            <div className="flex-1 p-10 overflow-y-auto space-y-8 border-r border-rose-50 scrollbar-hide">
+              <div className="flex justify-between items-center">
+                <h2 className="text-3xl font-black text-gray-900 tracking-tight">
+                  {isAdding ? 'Novo Modelo' : 'Editar Modelo'}
+                </h2>
+                <button onClick={() => { setIsAdding(false); setIsEditing(null); }} className="p-3 bg-gray-50 rounded-2xl hover:bg-gray-100 transition-colors">
+                  <X className="w-6 h-6 text-gray-400" />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-4">Nome do Modelo</label>
+                  <input 
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    placeholder="Ex: Confirmação de Horário"
+                    className="w-full p-6 rounded-3xl bg-gray-50 border-none outline-none focus:ring-4 focus:ring-rose-100 font-black text-gray-700 text-lg transition-all"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-4">Categoria</label>
+                  <div className="flex gap-2 p-1 bg-gray-50 rounded-2xl">
+                    {['agendamento', 'lembrete', 'outros'].map(cat => (
                       <button
+                        key={cat}
+                        onClick={() => setCategory(cat as any)}
+                        className={cn(
+                          "flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
+                          category === cat ? "bg-white text-rose-500 shadow-sm" : "text-gray-400 hover:text-gray-600"
+                        )}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2 relative">
+                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-4">Conteúdo da Mensagem</label>
+                  <textarea 
+                    id="template-textarea"
+                    rows={8}
+                    value={content}
+                    onChange={e => setContent(e.target.value)}
+                    placeholder="Sua mensagem aqui... Use as tags para personalizar!"
+                    className="w-full p-8 rounded-[40px] bg-gray-50 border-none outline-none focus:ring-4 focus:ring-rose-100 font-medium text-gray-700 text-lg leading-relaxed shadow-inner resize-none"
+                  />
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 ml-4">
+                     <Info className="w-4 h-4 text-rose-500" />
+                     <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Variáveis Dinâmicas</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {tags.map(v => (
+                       <button
                         key={v.tag}
                         onClick={() => {
-                          const textarea = document.getElementById(`textarea-${field.key}`) as HTMLTextAreaElement;
+                          const textarea = document.getElementById('template-textarea') as HTMLTextAreaElement;
                           if (!textarea) return;
                           const start = textarea.selectionStart;
                           const end = textarea.selectionEnd;
-                          const text = (profile as any)[field.key] || '';
-                          const newValue = text.substring(0, start) + v.tag + text.substring(end);
-                          setProfile(p => ({ ...p, [field.key]: newValue }));
+                          const newValue = content.substring(0, start) + v.tag + content.substring(end);
+                          setContent(newValue);
                           setTimeout(() => {
                             textarea.focus();
                             textarea.setSelectionRange(start + v.tag.length, start + v.tag.length);
                           }, 10);
                         }}
-                        className={`px-6 py-4 rounded-3xl text-xs font-black uppercase tracking-widest transition-all border-2 border-transparent hover:border-white shadow-sm hover:shadow-xl hover:scale-[1.03] active:scale-95 ${v.color}`}
+                        className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border-2 border-transparent hover:border-white shadow-sm hover:scale-105 active:scale-95 ${v.color}`}
                       >
                         + {v.label}
                       </button>
                     ))}
                   </div>
                 </div>
+              </div>
 
-                <div className="xl:col-span-12 2xl:col-span-4 space-y-6">
-                  <div className="bg-[#e5ddd5] rounded-[56px] p-10 border border-gray-300 shadow-2xl flex flex-col h-full min-h-[450px] relative overflow-hidden ring-1 ring-black/5">
-                    <div className="absolute top-0 inset-x-0 h-24 bg-[#075e54] flex items-center px-10 z-20">
-                      <div className="w-12 h-12 bg-gray-200 rounded-full mr-4 border-2 border-white/20" />
-                      <div>
-                        <p className="text-white font-black text-base leading-tight">Clínica de Estética</p>
-                        <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest">Online agora</p>
-                      </div>
-                    </div>
-
-                    <div className="mt-20 flex-1 bg-white p-8 rounded-[40px] rounded-tl-none border border-gray-200 text-base text-gray-700 whitespace-pre-wrap leading-relaxed shadow-sm relative flex flex-col justify-between z-10 self-start max-w-[92%]">
-                      <div className="relative z-10">
-                        {resolveTemplate((profile as any)[field.key] || '', {
-                          customerName: 'Tatiane Ferronatto',
-                          date: '08/05/2026',
-                          time: '14:30',
-                          procedure: 'Drenagem Linfática',
-                          address: profile.address || 'Seu Endereço aqui',
-                          businessName: profile.businessName || 'Seu Espaço',
-                          price: 180
-                        }).split(/({.*?})/).map((part, i) => (
-                          part.startsWith('{') && part.endsWith('}') ? (
-                            <span key={i} className="px-2.5 py-1 mx-0.5 bg-rose-50 text-rose-600 rounded-xl font-black text-[12px] ring-1 ring-rose-100 italic select-none">
-                              {part}
-                            </span>
-                          ) : part
-                        ))}
-                      </div>
-                      <div className="flex justify-end mt-6">
-                        <span className="text-[10px] text-gray-400 font-black opacity-60">10:30 ✓✓</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+              <div className="pt-8">
+                <button 
+                  onClick={handleSave}
+                  disabled={!name || !content}
+                  className={cn(
+                    "w-full py-6 rounded-[32px] font-black text-lg shadow-2xl transition-all uppercase tracking-widest",
+                    (!name || !content) 
+                      ? "bg-gray-100 text-gray-400 cursor-not-allowed shadow-none" 
+                      : "bg-rose-500 text-white shadow-rose-200 hover:-translate-y-1 active:translate-y-0"
+                  )}
+                >
+                  {isEditing ? 'Atualizar Modelo' : 'Criar Modelo'}
+                </button>
               </div>
             </div>
-          ))}
 
-          <div className="bg-blue-50 p-10 rounded-[48px] border border-blue-100 flex gap-8 items-start shadow-inner">
-            <div className="bg-blue-500 p-4 rounded-[24px] text-white shadow-xl shadow-blue-200 ring-4 ring-white">
-              <Info className="w-8 h-8" />
+            {/* Preview Side */}
+            <div className="hidden lg:flex w-[450px] bg-[#e5ddd5] flex-col relative overflow-hidden shadow-inner">
+               <div className="absolute top-0 inset-x-0 h-24 bg-[#075e54] flex items-center px-8 z-20 shadow-md">
+                <div className="w-12 h-12 bg-gray-200 rounded-full mr-4 border-2 border-white/20 flex items-center justify-center overflow-hidden">
+                  <UserIcon className="w-8 h-8 text-gray-400" />
+                </div>
+                <div>
+                  <p className="text-white font-black text-base leading-tight truncate max-w-[250px]">{userProfile?.businessName || 'Seu Espaço'}</p>
+                  <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest">Online agora</p>
+                </div>
+              </div>
+
+              <div className="p-8 mt-24">
+                <motion.div 
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  key={content}
+                  className="bg-white p-6 rounded-[32px] rounded-tl-none border border-gray-200 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed shadow-sm relative flex flex-col justify-between z-10 self-start max-w-[95%]"
+                >
+                  <div className="relative z-10">
+                    {resolveTemplate(content || 'Sua mensagem aparecerá aqui...', {
+                      customerName: 'Ana Silva',
+                      date: format(addDays(new Date(), 1), 'dd/MM/yyyy'),
+                      time: '14:30',
+                      procedure: 'Limpeza de Pele',
+                      address: userProfile?.address || 'Rua das Flores, 123',
+                      businessName: userProfile?.businessName || 'Meu Espaço',
+                      price: 150
+                    }).split(/({.*?})/).map((part, i) => (
+                      part.startsWith('{') && part.endsWith('}') ? (
+                        <span key={i} className="px-2 py-0.5 mx-0.5 bg-rose-50 text-rose-600 rounded-lg font-black text-[11px] ring-1 ring-rose-100 italic select-none">
+                          {part}
+                        </span>
+                      ) : part
+                    ))}
+                  </div>
+                  <div className="flex justify-end mt-4">
+                    <span className="text-[9px] text-gray-400 font-black opacity-60">
+                      {format(new Date(), 'HH:mm')} ✓✓
+                    </span>
+                  </div>
+                </motion.div>
+              </div>
+              
+              <div className="absolute bottom-10 left-10 right-10 bg-white/90 backdrop-blur p-6 rounded-[32px] border border-white/50 shadow-xl">
+                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Dica de Emoji</p>
+                 <p className="text-[11px] text-gray-600 font-medium leading-snug">
+                   Seus emojis 🎉 e formatações (ex: *negrito*) aparecerão normalmente no WhatsApp da cliente.
+                 </p>
+              </div>
             </div>
-            <div className="space-y-2">
-              <p className="text-blue-900 font-black text-xl tracking-tight">Dica de Atendimento</p>
-              <p className="text-blue-700/80 font-medium leading-relaxed max-w-3xl">
-                O uso correto das variáveis garante que suas mensagens não pareçam "robóticas". Experimente incluir o endereço e o nome do espaço nas confirmações para facilitar a chegada da sua cliente.
-              </p>
-            </div>
-          </div>
+          </motion.div>
         </div>
-      </section>
+      )}
     </div>
   );
 };
-
-// --- Main App ---
 
 // Helper to check demo mode outside component for initial state
 const checkIsDemo = () => {
@@ -3537,6 +3678,7 @@ const DEFAULT_REMINDER_TEMPLATE = 'Olá {cliente_nome}, tudo bem? Passando para 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
+  const [isSidebarMini, setIsSidebarMini] = useState(false);
   const [user, setUser] = useState<User | null>(IS_DEMO_INITIAL ? ({ uid: 'demo-user' } as any) : null);
   const [isAuthReady, setIsAuthReady] = useState(IS_DEMO_INITIAL);
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(IS_DEMO_INITIAL ? true : null);
@@ -3548,6 +3690,7 @@ export default function App() {
   const [leads, setLeads] = useState<Lead[]>(IS_DEMO_INITIAL ? MOCK_LEADS : []);
   const [budgets, setBudgets] = useState<Budget[]>(IS_DEMO_INITIAL ? MOCK_BUDGETS : []);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
+  const [messageTemplates, setMessageTemplates] = useState<MessageTemplate[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(IS_DEMO_INITIAL ? {
     id: 'demo-user',
     name: 'Usuária Demo (Lookalike)',
@@ -3586,6 +3729,10 @@ export default function App() {
       setFinancialEntries(MOCK_FINANCIAL);
       setLeads(MOCK_LEADS);
       setBudgets(MOCK_BUDGETS);
+      setMessageTemplates([
+        { id: '1', name: 'Confirmação de Agendamento', content: DEFAULT_CONFIRMATION_TEMPLATE, category: 'agendamento' },
+        { id: '2', name: 'Lembrete do Dia Anterior', content: DEFAULT_REMINDER_TEMPLATE, category: 'lembrete' }
+      ]);
       
       // Force user state for demo
       setUser({ 
@@ -3711,6 +3858,21 @@ export default function App() {
       onSnapshot(q('leads'), (s) => setLeads(s.docs.map(d => ({ id: d.id, ...d.data() } as Lead))), (e) => handleFirestoreError(e, OperationType.LIST, 'leads')),
       onSnapshot(q('budgets'), (s) => setBudgets(s.docs.map(d => ({ id: d.id, ...d.data() } as Budget))), (e) => handleFirestoreError(e, OperationType.LIST, 'budgets')),
       onSnapshot(q('followUps'), (s) => setFollowUps(s.docs.map(d => ({ id: d.id, ...d.data() } as FollowUp))), (e) => handleFirestoreError(e, OperationType.LIST, 'followUps')),
+      onSnapshot(q('messageTemplates'), (s) => {
+        const templates = s.docs.map(d => ({ id: d.id, ...d.data() } as MessageTemplate));
+        if (templates.length === 0 && userProfile) {
+          // Migration/Initialization: Create default templates if none exist
+          const defaults: MessageTemplate[] = [
+            { id: 'conf', name: 'Confirmação de Agendamento', content: userProfile.confirmationMessageTemplate || DEFAULT_CONFIRMATION_TEMPLATE, category: 'agendamento', ownerId: user.uid },
+            { id: 'rem', name: 'Lembrete do Dia Anterior', content: userProfile.reminderMessageTemplate || DEFAULT_REMINDER_TEMPLATE, category: 'lembrete', ownerId: user.uid }
+          ];
+          defaults.forEach(async t => {
+            const { id, ...data } = t;
+            await addDoc(collection(db, 'messageTemplates'), data);
+          });
+        }
+        setMessageTemplates(templates);
+      }, (e) => handleFirestoreError(e, OperationType.LIST, 'messageTemplates')),
       onSnapshot(doc(db, 'userProfiles', user.uid), (s) => {
         if (s.exists()) {
           setUserProfile({ id: s.id, ...s.data() } as UserProfile);
@@ -4249,6 +4411,43 @@ export default function App() {
     });
   };
 
+  const handleAddMessageTemplate = async (template: MessageTemplate) => {
+    if (isDemo) {
+      setMessageTemplates(prev => [...prev, { ...template, id: Math.random().toString(36).substr(2, 9) }]);
+      return;
+    }
+    if (!user) return;
+    try {
+      const { id, ...data } = template;
+      await addDoc(collection(db, 'messageTemplates'), { ...data, ownerId: user.uid });
+      addNotification('Modelo de mensagem criado!', 'info');
+    } catch (e) { handleFirestoreError(e, OperationType.CREATE, 'messageTemplates'); }
+  };
+
+  const handleUpdateMessageTemplate = async (id: string, updates: Partial<MessageTemplate>) => {
+    if (isDemo) {
+      setMessageTemplates(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+      return;
+    }
+    try {
+      await updateDoc(doc(db, 'messageTemplates', id), updates);
+      addNotification('Modelo de mensagem atualizado!', 'info');
+    } catch (e) { handleFirestoreError(e, OperationType.UPDATE, `messageTemplates/${id}`); }
+  };
+
+  const handleDeleteMessageTemplate = (id: string) => {
+    showConfirm('Excluir Modelo', 'Tem certeza que deseja excluir este modelo de mensagem?', async () => {
+      if (isDemo) {
+        setMessageTemplates(prev => prev.filter(t => t.id !== id));
+        return;
+      }
+      try {
+        await deleteDoc(doc(db, 'messageTemplates', id));
+        addNotification('Modelo de mensagem excluído.', 'warning');
+      } catch (e) { handleFirestoreError(e, OperationType.DELETE, `messageTemplates/${id}`); }
+    });
+  };
+
   const handleUpdateAppointment = async (id: string, updates: Partial<Appointment>) => {
     if (isDemo) {
       setAppointments(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a));
@@ -4319,9 +4518,11 @@ export default function App() {
 
     let template = '';
     if (type === 'confirmation') {
-      template = userProfile?.confirmationMessageTemplate || DEFAULT_CONFIRMATION_TEMPLATE;
+      const t = messageTemplates.find(mt => mt.category === 'agendamento');
+      template = t?.content || userProfile?.confirmationMessageTemplate || DEFAULT_CONFIRMATION_TEMPLATE;
     } else if (type === 'reminder') {
-      template = userProfile?.reminderMessageTemplate || DEFAULT_REMINDER_TEMPLATE;
+      const t = messageTemplates.find(mt => mt.category === 'lembrete');
+      template = t?.content || userProfile?.reminderMessageTemplate || DEFAULT_REMINDER_TEMPLATE;
     } else {
       template = `Olá {cliente_nome}! Tudo bem? Passando para te enviar o fechamento do seu atendimento de hoje ({procedimento}). O valor total ficou {valor}. Se preferir, pode fazer o PIX por aqui mesmo! 😊`;
     }
@@ -4352,6 +4553,7 @@ export default function App() {
     { id: 'orcamentos', label: 'Orçamentos', icon: FileText },
     { id: 'follow-up', label: 'Follow-up', icon: BellRing },
     { id: 'financeiro', label: 'Financeiro', icon: DollarSign },
+    { id: 'mensagens', label: 'Mensagens', icon: MessageCircle },
     { id: 'configuracoes', label: 'Configurações', icon: Settings },
   ];
 
@@ -4470,6 +4672,15 @@ export default function App() {
           onEditProcedure={setEditingProcedure}
         />
       );
+      case 'mensagens': return (
+        <MessageTemplatesTab 
+          templates={messageTemplates}
+          onAddTemplate={handleAddMessageTemplate}
+          onUpdateTemplate={handleUpdateMessageTemplate}
+          onDeleteTemplate={handleDeleteMessageTemplate}
+          userProfile={userProfile}
+        />
+      );
       case 'configuracoes': return (
         <SettingsTab 
           userProfile={userProfile}
@@ -4552,6 +4763,41 @@ export default function App() {
               className="w-full bg-rose-500 text-white p-4 rounded-2xl font-bold shadow-lg shadow-rose-200 active:scale-95 transition-all"
             >
               Entrar no Sistema
+            </button>
+
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-100"></div>
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white px-4 text-gray-400 font-bold tracking-widest">Ou</span>
+              </div>
+            </div>
+
+            <button 
+              type="button"
+              onClick={handleGoogleLogin}
+              className="w-full bg-white border border-gray-100 p-4 rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-gray-50 transition-all shadow-sm active:scale-95"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24">
+                <path
+                  fill="#4285F4"
+                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                />
+              </svg>
+              Entrar com Google
             </button>
             <button 
               type="button"
@@ -5423,75 +5669,96 @@ export default function App() {
         )}
         
         <aside className={cn(
-          "fixed lg:static inset-y-0 left-0 z-[160] w-72 bg-white border-r border-rose-50 transition-transform duration-300 ease-in-out lg:translate-x-0 flex-shrink-0",
+          "fixed lg:static inset-y-0 left-0 z-[160] p-0 bg-white border-r border-rose-50 transition-all duration-300 ease-in-out lg:translate-x-0 flex-shrink-0 flex flex-col",
+          isSidebarMini ? "w-20" : "w-72",
           !isSidebarOpen && "-translate-x-full"
         )}>
-        <div className="h-full flex flex-col p-6">
-          <div className="flex items-center gap-3 mb-10 px-2">
-            <div className="w-10 h-10 bg-rose-600 rounded-xl flex items-center justify-center shadow-lg shadow-rose-200">
-              <ShieldCheck className="text-white w-6 h-6" />
+        <div className="h-full flex flex-col p-4">
+          <div className="flex items-center gap-3 mb-10 px-2 justify-between">
+            <div className="flex items-center gap-3 overflow-hidden">
+              <div className="w-10 h-10 bg-rose-600 rounded-xl flex items-center justify-center shadow-lg shadow-rose-200 flex-shrink-0">
+                <ShieldCheck className="text-white w-6 h-6" />
+              </div>
+              {!isSidebarMini && (
+                <div className="flex flex-col whitespace-nowrap overflow-hidden">
+                  <span className="text-lg font-black tracking-tight text-gray-900 leading-none truncate max-w-[150px]">{userProfile?.businessName || 'MEU SISTEMA'}</span>
+                  <span className="text-[10px] font-bold text-rose-500 uppercase tracking-widest">{userProfile?.specialty || 'Gestão Profissional'}</span>
+                </div>
+              )}
             </div>
-            <div className="flex flex-col">
-              <span className="text-lg font-black tracking-tight text-gray-900 leading-none truncate max-w-[180px]">{userProfile?.businessName || 'MEU SISTEMA'}</span>
-              <span className="text-[10px] font-bold text-rose-500 uppercase tracking-widest">{userProfile?.specialty || 'Gestão Profissional'}</span>
-            </div>
+            <button 
+              onClick={() => setIsSidebarMini(!isSidebarMini)}
+              className="p-2 hover:bg-rose-50 rounded-lg text-gray-400 hidden lg:block"
+            >
+              {isSidebarMini ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+            </button>
           </div>
 
-          <nav className="flex-1 space-y-1">
+          <nav className="flex-1 space-y-2 overflow-y-auto overflow-x-hidden scrollbar-hide py-2">
             {menuItems.map((item) => (
               <button
                 key={item.id}
+                title={item.label}
                 onClick={() => {
                   setActiveTab(item.id);
+                  if (window.innerWidth >= 1024) setIsSidebarMini(true);
                   if (window.innerWidth < 1024) setIsSidebarOpen(false);
                 }}
                 className={cn(
-                  "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all group",
+                  "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all group relative",
                   activeTab === item.id 
                     ? "bg-rose-500 text-white shadow-lg shadow-rose-100" 
-                    : "text-gray-500 hover:bg-rose-50 hover:text-rose-600"
+                    : "text-gray-500 hover:bg-rose-50 hover:text-rose-600",
+                  isSidebarMini && "justify-center px-0"
                 )}
               >
-                <item.icon className={cn("w-5 h-5", activeTab === item.id ? "text-white" : "text-gray-400 group-hover:text-rose-500")} />
-                {item.label}
+                <item.icon className={cn("w-5 h-5 flex-shrink-0", activeTab === item.id ? "text-white" : "text-gray-400 group-hover:text-rose-500")} />
+                {!isSidebarMini && <span className="whitespace-nowrap overflow-hidden text-ellipsis">{item.label}</span>}
               </button>
             ))}
           </nav>
 
-          <div 
-            className="mt-4 p-5 bg-[#0f1115] rounded-[32px] text-white relative overflow-hidden group cursor-pointer border border-white/5 transition-all hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)]" 
-            onClick={() => {
-              setActiveTab('prospeccao');
-              if (window.innerWidth < 1024) setIsSidebarOpen(false);
-            }}
-          >
-            <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/20 rounded-full -mr-12 -mt-12 blur-3xl group-hover:bg-rose-500/40 transition-all" />
-            <div className="relative z-10 flex flex-col gap-3">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 bg-rose-600 rounded-lg shadow-lg shadow-rose-600/20 group-hover:rotate-12 transition-transform">
-                  <Rocket className="w-3.5 h-3.5 text-white" />
+          {!isSidebarMini && (
+            <div 
+              className="mt-4 p-5 bg-[#0f1115] rounded-[32px] text-white relative overflow-hidden group cursor-pointer border border-white/5 transition-all hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)]" 
+              onClick={() => {
+                setActiveTab('prospeccao');
+                if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                if (window.innerWidth >= 1024) setIsSidebarMini(true);
+              }}
+            >
+              <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/20 rounded-full -mr-12 -mt-12 blur-3xl group-hover:bg-rose-500/40 transition-all" />
+              <div className="relative z-10 flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-rose-600 rounded-lg shadow-lg shadow-rose-600/20 group-hover:rotate-12 transition-transform">
+                    <Rocket className="w-3.5 h-3.5 text-white" />
+                  </div>
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-400 whitespace-nowrap">
+                    Impulso Extra
+                  </span>
                 </div>
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-400">
-                  Impulso Extra
-                </span>
+                <div>
+                  <p className="text-xs font-black leading-tight text-gray-100 whitespace-nowrap overflow-hidden">Encontre Novos Clientes</p>
+                  <p className="text-[10px] text-gray-500 font-bold mt-1">Anúncios que Funcionam</p>
+                </div>
+                <button className="mt-2 text-[10px] font-black uppercase flex items-center gap-1.5 text-rose-500 group-hover:gap-3 transition-all border-t border-white/5 pt-3 w-full">
+                  Quero saber mais <ChevronRight className="w-3 h-3" />
+                </button>
               </div>
-              <div>
-                <p className="text-xs font-black leading-tight text-gray-100">Encontre Novos Clientes</p>
-                <p className="text-[10px] text-gray-500 font-bold mt-1">Anúncios que Funcionam</p>
-              </div>
-              <button className="mt-2 text-[10px] font-black uppercase flex items-center gap-1.5 text-rose-500 group-hover:gap-3 transition-all border-t border-white/5 pt-3 w-full">
-                Quero saber mais <ChevronRight className="w-3 h-3" />
-              </button>
             </div>
-          </div>
+          )}
 
-          <div className="pt-6 border-t border-rose-50 mt-4">
+          <div className={cn("pt-6 border-t border-rose-50 mt-4", isSidebarMini && "flex justify-center")}>
             <button 
               onClick={signOutUser}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-gray-400 hover:bg-red-50 hover:text-red-500 transition-all group"
+              title="Sair do Sistema"
+              className={cn(
+                "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-gray-400 hover:bg-red-50 hover:text-red-500 transition-all group",
+                isSidebarMini && "justify-center px-0"
+              )}
             >
-              <Trash2 className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-              Sair do Sistema
+              <Trash2 className="w-5 h-5 group-hover:rotate-12 transition-transform flex-shrink-0" />
+              {!isSidebarMini && <span className="whitespace-nowrap overflow-hidden">Sair do Sistema</span>}
             </button>
           </div>
         </div>
@@ -5499,13 +5766,24 @@ export default function App() {
 
       <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden relative">
         {activeTab !== 'dashboard' && (
-          <header className="h-16 flex items-center justify-between px-4 lg:px-8 flex-shrink-0 sticky top-0 z-[150] pointer-events-none">
-            <button 
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="lg:hidden p-2 text-gray-500 hover:bg-rose-50 rounded-lg pointer-events-auto bg-white/80 backdrop-blur-md shadow-sm border border-rose-50"
-            >
-              <Menu className="w-6 h-6" />
-            </button>
+          <header className="h-16 flex items-center px-4 lg:px-8 flex-shrink-0 sticky top-0 z-[150] pointer-events-none">
+            <div className="flex items-center gap-4 pointer-events-auto bg-white/80 backdrop-blur-md px-4 py-2 rounded-2xl border border-rose-50 shadow-sm">
+              <button 
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="lg:hidden p-2 text-gray-500 hover:bg-rose-50 rounded-lg"
+              >
+                <Menu className="w-6 h-6" />
+              </button>
+              {isSidebarMini && (
+                <button 
+                  onClick={() => setIsSidebarMini(false)}
+                  className="hidden lg:flex p-2 text-rose-500 hover:bg-rose-50 rounded-lg items-center gap-2 transition-all group"
+                >
+                  <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  <span className="text-xs font-black uppercase tracking-widest">Expandir Menu</span>
+                </button>
+              )}
+            </div>
             <div className="ml-auto pointer-events-auto">
                {/* Bell moved to specific tab headers or floating if needed */}
             </div>
