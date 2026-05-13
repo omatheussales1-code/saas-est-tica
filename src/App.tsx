@@ -20,6 +20,7 @@ import {
   Eye,
   AlertCircle, 
   Menu, 
+  UserCheck,
   ShieldCheck,
   Activity,
   MessageCircle,
@@ -591,7 +592,6 @@ const Dashboard = ({
   csLabel,
   user,
   userProfile,
-  leads,
   setIsSidebarOpen,
   setIsNotificationsOpen,
   isNotificationsOpen,
@@ -605,7 +605,6 @@ const Dashboard = ({
   csLabel: string,
   user: User | null,
   userProfile: UserProfile | null,
-  leads: Lead[],
   setIsSidebarOpen: (open: boolean) => void,
   setIsNotificationsOpen: (open: boolean) => void,
   isNotificationsOpen: boolean,
@@ -686,6 +685,33 @@ const Dashboard = ({
           </button>
         </div>
       </header>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard 
+          title="Próximos Hoje" 
+          value={todayAppointments.length} 
+          icon={<Clock className="w-6 h-6 text-rose-500" />}
+          color="bg-rose-50"
+        />
+        <StatCard 
+          title="Lembretes Amanhã" 
+          value={tomorrowAppointments.length} 
+          icon={<MessageCircle className="w-6 h-6 text-emerald-500" />}
+          color="bg-emerald-50"
+        />
+        <StatCard 
+          title="Próximo Cliente" 
+          value={timeRemaining || '—'} 
+          icon={<UserCheck className="w-6 h-6 text-blue-500" />}
+          color="bg-blue-50"
+        />
+        <StatCard 
+          title="Faltas (Pendentes)" 
+          value={missedAppointments} 
+          icon={<AlertCircle className="w-6 h-6 text-red-500" />}
+          color="bg-red-50"
+        />
+      </div>
 
       {/* Painel Principal: Agenda e Lembretes */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
@@ -822,7 +848,7 @@ const Dashboard = ({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-white p-8 rounded-[40px] shadow-sm border border-rose-50 lg:col-span-3">
+        <div className="glass-card p-8 rounded-[40px] lg:col-span-3">
           <div className="flex items-center justify-between mb-8">
             <div>
               <h2 className="text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
@@ -2417,7 +2443,7 @@ const FinancialTab = ({
     despesa: ['Aluguel', 'Produtos', 'Marketing', 'Energia/Água', 'Outro']
   };
 
-  const allCategories = [...categories.receita, ...categories.despesa];
+  const allCategories = Array.from(new Set([...categories.receita, ...categories.despesa]));
 
   const filteredEntries = useMemo(() => {
     let result = entries;
@@ -3641,7 +3667,7 @@ export default function App() {
     const unsubscribeAuth = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
-        if (u.email === 'brefer@gmail.com') {
+        if (u.email === 'brefer@gmail.com' || u.email === 'teus.rma@gmail.com') {
           setIsAuthorized(true);
         } else {
           try {
@@ -4341,7 +4367,6 @@ export default function App() {
           csLabel={csLabel}
           user={user}
           userProfile={userProfile}
-          leads={leads}
           setIsSidebarOpen={setIsSidebarOpen}
           setIsNotificationsOpen={setIsNotificationsOpen}
           isNotificationsOpen={isNotificationsOpen}
@@ -4463,7 +4488,6 @@ export default function App() {
           csLabel={csLabel}
           user={user}
           userProfile={userProfile}
-          leads={leads}
           setIsSidebarOpen={setIsSidebarOpen}
           setIsNotificationsOpen={setIsNotificationsOpen}
           isNotificationsOpen={isNotificationsOpen}

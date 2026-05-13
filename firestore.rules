@@ -11,14 +11,22 @@ service cloud.firestore {
     // Helper Functions
     // ===============================================================
     function isSignedIn() { return request.auth != null; }
-    function isVerified() { return isSignedIn(); } // Relaxed for development/preview comfort
+    
+    // Mandate email verification for all writes in production
+    function isVerified() { 
+      return isSignedIn() && (
+        request.auth.token.email_verified == true || 
+        request.auth.token.firebase.sign_in_provider == 'google.com'
+      ); 
+    }
+    
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
     
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
     
     function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+      return isVerified() && request.auth.uid == userId;
     }
 
     function isAdmin() {
@@ -58,7 +66,7 @@ service cloud.firestore {
       return data.keys().hasAll(['clientId', 'procedureId', 'date', 'ownerId', 'status']) &&
              data.clientId is string &&
              data.procedureId is string &&
-             data.status in ['pendente', 'confirmado', 'realizado', 'faltou', 'atrasado'] &&
+             data.status in ['pendente', 'confirmado', 'realizado', 'faltou', 'atrasado', 'desmarcado'] &&
              data.ownerId == request.auth.uid &&
              data.date is string && data.date.size() <= 50;
     }
@@ -81,7 +89,7 @@ service cloud.firestore {
     function isValidLead(data) {
       return data.keys().hasAll(['name', 'ownerId', 'status']) &&
              data.name is string && data.name.size() <= 100 &&
-             data.status in ['novo', 'follow-up-1', 'convertido', 'perdido'] &&
+             data.status in ['novo', 'contato', 'proposta', 'convertido', 'perdido'] &&
              data.ownerId == request.auth.uid &&
              (data.get('email', '') is string) &&
              (data.get('phone', '') is string) &&
