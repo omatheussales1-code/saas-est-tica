@@ -822,6 +822,20 @@ const resolveTemplate = (template: string, data: {
   return result;
 };
 
+const generateWhatsAppUrl = (phone: string, message: string, prefix: string = '55') => {
+  const phoneRaw = (phone || '').replace(/\D/g, '');
+  // Se o número tem 10 ou 11 dígitos e ainda não tem o prefixo do país, adiciona o prefixo
+  const formattedPhone = (phoneRaw.length === 11 || phoneRaw.length === 10) && !phoneRaw.startsWith(prefix) 
+    ? `${prefix}${phoneRaw}` 
+    : phoneRaw;
+  return `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(message)}`;
+};
+
+const openWhatsApp = (phone: string, message: string, prefix: string = '55') => {
+  const url = generateWhatsAppUrl(phone, message, prefix);
+  window.open(url, '_blank', 'noopener,noreferrer');
+};
+
 const LoadingScreen = () => (
   <div className="fixed inset-0 z-[1000] bg-rose-50 flex flex-col items-center justify-center p-6 text-center">
     <motion.div
@@ -2075,6 +2089,21 @@ const BudgetsTab = ({
     setCustomPrice('');
   };
 
+  const generateWhatsAppUrl = (phone: string, message: string) => {
+    const phoneRaw = (phone || '').replace(/\D/g, '');
+    const prefix = userProfile?.whatsappPrefix || '55';
+    // Se o número tem 10 ou 11 dígitos e ainda não tem o prefixo do país, adiciona o prefixo
+    const formattedPhone = (phoneRaw.length === 11 || phoneRaw.length === 10) && !phoneRaw.startsWith(prefix) 
+      ? `${prefix}${phoneRaw}` 
+      : phoneRaw;
+    return `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(message)}`;
+  };
+
+  const openWhatsApp = (phone: string, message: string) => {
+    const url = generateWhatsAppUrl(phone, message);
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
   const handleSendToWhatsApp = (budget: Budget) => {
     const client = clients.find(c => c.id === budget.clientId);
     if (!client) return;
@@ -2084,7 +2113,7 @@ const BudgetsTab = ({
     }).join('\n');
     
     const text = `Olá ${client.name || cLabel}! Segue seu orçamento:\n\n${items}\n\nTotal: ${formatCurrency(budget.total)}\nVálido até: ${budget.validUntil ? format(parseISO(budget.validUntil), 'dd/MM/yyyy') : '-'}`;
-    window.open(`https://wa.me/${(client.phone || '').replace(/\D/g, '')}?text=${encodeURIComponent(text)}`);
+    openWhatsApp(client.phone || '', text, userProfile?.whatsappPrefix || '55');
   };
 
   return (
@@ -2394,7 +2423,7 @@ const LeadsTab = ({
                     </td>
                     <td className="p-6">
                       <button 
-                        onClick={() => window.open(`https://wa.me/${lead.phone.replace(/\D/g, '')}`, '_blank')}
+                        onClick={() => openWhatsApp(lead.phone, `Olá ${lead.name}! Vi seu interesse no Instagram sobre nossos serviços. Como posso te ajudar? ✨`, userProfile?.whatsappPrefix || '55')}
                         className="flex items-center gap-2 text-green-600 font-bold hover:underline"
                       >
                         <MessageCircle className="w-4 h-4" />
@@ -2508,7 +2537,7 @@ const FollowUpTab = ({
                             e.stopPropagation();
                             const phone = fu.clientPhone ? fu.clientPhone.replace(/\D/g, '') : '';
                             const text = `Olá ${fu.clientName}! Tudo bem? Gostaria de saber como você está se sentindo após o procedimento de ${fu.procedureName}...`;
-                            window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
+                            openWhatsApp(phone, text, userProfile?.whatsappPrefix || '55');
                           }}
                           className="p-1.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all shadow-sm group"
                           title="Conversar no WhatsApp"
@@ -3359,7 +3388,21 @@ const SettingsTab = ({
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-400 uppercase ml-4">Instagram</label>
+                    <label className="text-xs font-bold text-gray-400 uppercase ml-4">Cod. País (Opcional)</label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">+</span>
+                      <input 
+                        type="text" 
+                        placeholder="55"
+                        value={profile.whatsappPrefix || ''} 
+                        onChange={e => setProfile(p => ({ ...p, whatsappPrefix: e.target.value }))}
+                        className="w-full p-4 pl-10 rounded-2xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-rose-500 font-bold text-gray-700" 
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase ml-4">Instagram</label>
                     <div className="relative">
                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">@</span>
                       <input 
@@ -3371,7 +3414,6 @@ const SettingsTab = ({
                       />
                     </div>
                   </div>
-                </div>
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-gray-400 uppercase ml-4">Endereço do Estúdio</label>
                   <input 
@@ -3501,7 +3543,7 @@ const SettingsTab = ({
               <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100 flex gap-3">
                 <Info className="w-5 h-5 text-amber-500 shrink-0" />
                 <p className="text-xs font-medium text-amber-800">
-                  <span className="font-bold">Dica:</span> Para uma gestão completa, use a aba <button onClick={onNavigateToMessages} className="font-bold underline decoration-amber-500/30 hover:text-amber-600 transition-colors">Mensagens</button> para criar e definir modelos padrões personalizados. 
+                  <span className="font-bold">Dica:</span> Para uma gestão completa, use a aba <button onClick={onNavigateToMessages} className="font-bold underline decoration-amber-500/30 hover:text-amber-600 transition-colors">Mensagens Automáticas</button> para criar e definir modelos padrões personalizados. 
                 </p>
               </div>
               <div className="space-y-2">
@@ -3691,7 +3733,7 @@ const MessageTemplatesTab = ({
                     <button 
                       onClick={() => onAddTemplate({
                         id: Math.random().toString(36).substr(2, 9),
-                        name: sug.name.replace(/[^\w\s-s]/g, '').trim(),
+                        name: sug.name,
                         content: sug.content,
                         category: sug.category as any,
                         isDefault: false
@@ -3803,7 +3845,7 @@ const MessageTemplatesTab = ({
                     ].map(sug => (
                       <button
                         key={sug.name}
-                        onClick={() => { setName(sug.name.replace(/[^\w\s-s]/g, '').trim()); setContent(sug.content); }}
+                        onClick={() => { setName(sug.name); setContent(sug.content); }}
                         className="px-4 py-2 bg-rose-50 text-rose-600 rounded-xl text-[10px] font-black uppercase tracking-tight hover:bg-rose-100 transition-all border border-rose-100"
                       >
                         {sug.name}
@@ -4197,13 +4239,30 @@ export default function App() {
         const templates = s.docs.map(d => ({ id: d.id, ...d.data() } as MessageTemplate));
         if (templates.length === 0 && userProfile) {
           // Migration/Initialization: Create default templates if none exist
-          const defaults: MessageTemplate[] = [
-            { id: 'conf', name: 'Confirmação de Agendamento', content: userProfile.confirmationMessageTemplate || DEFAULT_CONFIRMATION_TEMPLATE, category: 'agendamento', ownerId: user.uid },
-            { id: 'rem', name: 'Lembrete do Dia Anterior', content: userProfile.reminderMessageTemplate || DEFAULT_REMINDER_TEMPLATE, category: 'lembrete', ownerId: user.uid },
-            { id: 'welc', name: 'Boas-vindas Acolhedor', content: DEFAULT_WELCOME_TEMPLATE, category: 'outros', ownerId: user.uid }
+          const defaults: Omit<MessageTemplate, 'id'>[] = [
+            { 
+              name: '💖 Boas-vindas Acolhedor', 
+              content: 'Olá, {cliente_nome} ✨ Seja muito bem-vinda! Ficamos radiantes com seu interesse em nossos cuidados. Preparamos tudo com muito carinho para que você tenha um momento de relaxamento e renovação único. Se tiver qualquer dúvida sobre o procedimento {procedimento}, estou aqui para te ajudar, viu? Um beijo e até breve! 🌸', 
+              category: 'outros', 
+              ownerId: user.uid,
+              isDefault: false
+            },
+            { 
+              name: '✨ Confirmação de Horário', 
+              content: 'Olá, {cliente_nome}! ✨ Que alegria ter você conosco! Seu momento de cuidado para {procedimento} está confirmadíssimo no dia {data} às {hora}. 🌸\n\nPreparamos tudo com muito carinho para que você tenha uma experiência de relaxamento e renovação única aqui no {nome_espaco}.\n\nSe precisar desmarcar ou tiver qualquer dúvida, é só me chamar, tá bom? Estamos ansiosas para te receber! Um beijo! 💖\n\n📍 Endereço: {endereco}', 
+              category: 'agendamento', 
+              ownerId: user.uid,
+              isDefault: true
+            },
+            { 
+              name: '🌸 Lembrete de Carinho', 
+              content: 'Oi, {cliente_nome}! 🌸 Passando para lembrar com todo carinho do nosso encontro amanhã, dia {data}, às {hora}.\n\nEstamos preparando seu momento de {procedimento} com muito amor e mal podemos esperar para te ver! ✨\n\nCaso precise de qualquer alteração no seu horário, nos avise por favor com um pouquinho de antecedência para liberarmos a vaga para outra cliente querida. Até amanhã! 💖', 
+              category: 'lembrete', 
+              ownerId: user.uid,
+              isDefault: true
+            }
           ];
-          defaults.forEach(async t => {
-            const { id, ...data } = t;
+          defaults.forEach(async data => {
             await addDoc(collection(db, 'messageTemplates'), data);
           });
         }
@@ -4931,8 +4990,7 @@ export default function App() {
       price: app.price
     });
 
-    const phone = (client.phone || '').replace(/\D/g, '');
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+    openWhatsApp(client.phone || '', message, userProfile?.whatsappPrefix || '55');
   };
 
   const menuItems = [
@@ -5484,8 +5542,7 @@ export default function App() {
                     price: app.price
                   });
 
-                  const phone = (client.phone || '').replace(/\D/g, '');
-                  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+                  openWhatsApp(client.phone || '', message, userProfile?.whatsappPrefix || '55');
                   setJustCreatedAppointment(null);
                 }}
                 className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-5 rounded-[24px] font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-emerald-100 transition-all flex items-center justify-center gap-3 active:scale-95"

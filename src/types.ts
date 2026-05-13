@@ -76,6 +76,7 @@ export interface UserProfile {
   };
   workingDays: number[]; // 0-6 where 0 is Sunday
   budgetValidityDays?: number;
+  whatsappPrefix?: string;
   confirmationMessageTemplate?: string;
   reminderMessageTemplate?: string;
   clientLabel: 'Cliente' | 'Paciente' | 'Aluno' | 'Membro';
