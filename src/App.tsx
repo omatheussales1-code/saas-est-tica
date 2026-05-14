@@ -661,10 +661,10 @@ const PagamentosTab = ({
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-black text-gray-900 uppercase tracking-tight">Controle de Pagamentos</h2>
-          <p className="text-gray-500 font-medium">Gestão de parcelamentos e saldos pendentes</p>
+          <h2 className="text-2xl lg:text-3xl font-black text-gray-900 uppercase tracking-tight">Pagamentos</h2>
+          <p className="text-sm font-medium text-gray-500">Gestão de parcelamentos e saldos pendentes</p>
         </div>
-        <div className="flex gap-2 bg-gray-100 p-1 rounded-2xl">
+        <div className="flex gap-1.5 bg-gray-100 p-1 rounded-[20px] overflow-x-auto no-scrollbar">
           {[
             { id: 'all', label: 'Todos' },
             { id: 'partial', label: 'Parciais' },
@@ -675,7 +675,7 @@ const PagamentosTab = ({
               key={opt.id}
               onClick={() => setFilter(opt.id)}
               className={cn(
-                "px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                "px-4 lg:px-6 py-2 lg:py-2.5 rounded-2xl text-[9px] lg:text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
                 filter === opt.id ? "bg-white text-rose-500 shadow-sm" : "text-gray-400 hover:text-gray-600"
               )}
             >
@@ -685,8 +685,8 @@ const PagamentosTab = ({
         </div>
       </div>
 
-      <div className="bg-white rounded-[40px] shadow-sm border border-rose-50 overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="bg-white rounded-3xl lg:rounded-[40px] shadow-sm border border-rose-50 overflow-hidden">
+        <div className="overflow-x-auto hidden lg:block">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-rose-50/30">
@@ -789,6 +789,91 @@ const PagamentosTab = ({
             <div className="p-20 text-center">
                <DollarSign className="w-12 h-12 text-rose-100 mx-auto mb-4" />
                <p className="text-gray-400 font-bold uppercase tracking-widest">Nenhum registro encontrado</p>
+            </div>
+          )}
+        </div>
+
+        {/* Mobile View for Pagamentos */}
+        <div className="lg:hidden divide-y divide-rose-50">
+          {filteredApps.length > 0 ? (
+            filteredApps.map(app => {
+              const client = clients.find(c => c.id === app.clientId);
+              const proc = procedures.find(p => p.id === app.procedureId);
+              const paid = app.paidAmount || 0;
+              const remaining = app.price - paid;
+              const isPartial = paid > 0 && !app.isPaid;
+
+              return (
+                <div key={app.id} className="p-6 space-y-4">
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-500 font-bold">
+                        {client?.name?.charAt(0) || '?'}
+                      </div>
+                      <div>
+                        <p className="font-bold text-gray-900 leading-tight">{client?.name}</p>
+                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+                          {app.date ? format(parseISO(app.date), 'dd/MM/yyyy') : '-'}
+                        </p>
+                      </div>
+                    </div>
+                    <span className={cn(
+                      "px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest",
+                      app.isPaid ? "bg-emerald-100 text-emerald-600" :
+                      isPartial ? "bg-amber-100 text-amber-600" : "bg-red-100 text-red-600"
+                    )}>
+                      {app.isPaid ? 'Pago' : isPartial ? 'Parcial' : 'Pendente'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="p-3 bg-gray-50 rounded-2xl">
+                      <p className="text-[9px] font-black uppercase text-gray-400 tracking-wider mb-0.5">Total</p>
+                      <p className="text-sm font-black text-gray-900">{formatCurrency(app.price)}</p>
+                    </div>
+                    <div className="p-3 bg-emerald-50 rounded-2xl">
+                      <p className="text-[9px] font-black uppercase text-emerald-400 tracking-wider mb-0.5">Pago</p>
+                      <p className="text-sm font-black text-emerald-600">{formatCurrency(paid)}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2">
+                    <div>
+                      <p className="text-[9px] font-black uppercase text-gray-400 tracking-wider mb-0.5">Restante</p>
+                      <p className="text-lg font-black text-rose-600">{formatCurrency(Math.max(0, remaining))}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      {!app.isPaid && (
+                        <button
+                          onClick={() => onSendWhatsApp(app, 'payment')}
+                          className="p-3 bg-emerald-50 text-emerald-600 rounded-xl"
+                        >
+                          <MessageCircle className="w-5 h-5" />
+                        </button>
+                      )}
+                      {!app.isPaid ? (
+                        <button
+                          onClick={() => onMarkAsPaid(app.id)}
+                          className="px-6 py-3 bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-100"
+                        >
+                          {isPartial ? 'Completar' : 'Receber'}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => onUndoMarkAsPaid(app.id)}
+                          className="p-3 bg-gray-50 text-gray-400 rounded-xl"
+                        >
+                          <RefreshCcw className="w-5 h-5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="p-12 text-center text-gray-400 font-bold uppercase tracking-widest text-[10px]">
+              Nenhum registro de pagamento encontrado.
             </div>
           )}
         </div>
@@ -998,7 +1083,7 @@ const Dashboard = ({
         </div>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard 
           title="Próximos Hoje" 
           value={todayAppointments.length} 
@@ -1379,7 +1464,7 @@ const Agenda = ({
                   key={idx}
                   onClick={() => setSelectedDate(day)}
                   className={cn(
-                    "bg-white min-h-[100px] p-2 text-left transition-all hover:bg-rose-50/50 flex flex-col gap-1 relative group",
+                    "bg-white min-h-[70px] md:min-h-[100px] p-2 text-left transition-all hover:bg-rose-50/50 flex flex-col gap-1 relative group",
                     !isCurrentMonth && "opacity-30",
                     isSelected && "ring-2 ring-inset ring-rose-500 z-10"
                   )}
@@ -1931,25 +2016,25 @@ const AppointmentsTab = ({
               className="text-xs font-bold outline-none bg-transparent"
             />
           </div>
-          <div className="flex gap-2 bg-white p-1 rounded-xl border border-rose-50 shadow-sm">
-            {(['todos', 'pendente', 'confirmado', 'atrasado', 'realizado', 'faltou'] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => setFilter(s)}
-                className={cn(
-                  "px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
-                  filter === s ? "bg-rose-500 text-white shadow-md" : "text-gray-500 hover:bg-rose-50"
-                )}
-              >
-                {s === 'todos' ? 'Todos' : statusLabels[s as AppointmentStatus] || s}
-              </button>
-            ))}
-          </div>
+          <div className="flex flex-wrap gap-2 bg-white p-1 rounded-2xl border border-rose-50 shadow-sm overflow-x-auto no-scrollbar">
+          {(['todos', 'pendente', 'confirmado', 'atrasado', 'realizado', 'faltou'] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setFilter(s)}
+              className={cn(
+                "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex-shrink-0",
+                filter === s ? "bg-rose-500 text-white shadow-lg shadow-rose-200" : "text-gray-400 hover:text-rose-500 bg-gray-50"
+              )}
+            >
+              {s === 'todos' ? 'Ver Todos' : statusLabels[s as AppointmentStatus] || s}
+            </button>
+          ))}
         </div>
       </div>
+    </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-rose-50 overflow-hidden text-left">
-        <div className="overflow-x-auto">
+      <div className="bg-white rounded-3xl lg:rounded-[40px] shadow-sm border border-rose-50 overflow-hidden text-left">
+        <div className="overflow-x-auto hidden lg:block">
           <table className="w-full text-left">
             <thead className="bg-rose-50 text-rose-700 text-xs font-bold uppercase tracking-wider">
               <tr>
@@ -2034,6 +2119,85 @@ const AppointmentsTab = ({
             </tbody>
           </table>
         </div>
+
+        {/* Mobile View */}
+        <div className="lg:hidden divide-y divide-rose-50">
+          {filteredAppointments.length > 0 ? (
+            filteredAppointments.map(app => {
+              const client = clients.find(c => c.id === app.clientId);
+              const proc = procedures.find(p => p.id === app.procedureId);
+              return (
+                <div key={app.id} className="p-5 space-y-4">
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-500 font-bold">
+                        {client?.name?.charAt(0) || '?'}
+                      </div>
+                      <div>
+                        <p className="font-bold text-gray-900 leading-tight">{client?.name || `${cLabel} Excluída`}</p>
+                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+                          {app.date ? format(parseISO(app.date), 'dd/MM/yyyy • HH:mm') : '-'}
+                        </p>
+                      </div>
+                    </div>
+                    <span className={cn(
+                      "px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest",
+                      statusColors[app.status]
+                    )}>
+                      {statusLabels[app.status]}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl">
+                    <div>
+                      <p className="text-[10px] font-black uppercase text-gray-400 tracking-wider mb-0.5">Serviço</p>
+                      <p className="text-sm font-bold text-gray-700">{proc?.name || 'Não definido'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-black uppercase text-gray-400 tracking-wider mb-0.5">Valor</p>
+                      <p className="text-sm font-black text-rose-600">{formatCurrency(app.price)}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => onSendWhatsApp(app, 'confirmation')}
+                        className="p-3 bg-blue-50 text-blue-500 rounded-xl"
+                      >
+                        <MessageCircle className="w-5 h-5" />
+                      </button>
+                      <button 
+                        onClick={() => onSendWhatsApp(app, 'reminder')}
+                        className="p-3 bg-amber-50 text-amber-500 rounded-xl"
+                      >
+                        <BellRing className="w-5 h-5" />
+                      </button>
+                    </div>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => onEditAppointment(app)}
+                        className="p-3 bg-gray-50 text-gray-400 rounded-xl"
+                      >
+                        <Pencil className="w-5 h-5" />
+                      </button>
+                      <button 
+                        onClick={() => onDeleteAppointment(app.id)}
+                        className="p-3 bg-red-50 text-red-400 rounded-xl"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="p-12 text-center text-gray-400 font-bold uppercase tracking-widest text-[10px]">
+              Nenhum agendamento encontrado no período.
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -2087,21 +2251,6 @@ const BudgetsTab = ({
     setSelectedClientId('');
     setSelectedProcedureId('');
     setCustomPrice('');
-  };
-
-  const generateWhatsAppUrl = (phone: string, message: string) => {
-    const phoneRaw = (phone || '').replace(/\D/g, '');
-    const prefix = userProfile?.whatsappPrefix || '55';
-    // Se o número tem 10 ou 11 dígitos e ainda não tem o prefixo do país, adiciona o prefixo
-    const formattedPhone = (phoneRaw.length === 11 || phoneRaw.length === 10) && !phoneRaw.startsWith(prefix) 
-      ? `${prefix}${phoneRaw}` 
-      : phoneRaw;
-    return `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(message)}`;
-  };
-
-  const openWhatsApp = (phone: string, message: string) => {
-    const url = generateWhatsAppUrl(phone, message);
-    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   const handleSendToWhatsApp = (budget: Budget) => {
@@ -2243,12 +2392,14 @@ const LeadsTab = ({
   leads, 
   onUpdateStatus,
   onDelete,
-  onAddLead
+  onAddLead,
+  userProfile
 }: { 
   leads: Lead[], 
   onUpdateStatus: (id: string, status: Lead['status']) => void, 
   onDelete: (id: string) => void,
-  onAddLead: (lead: Lead) => void
+  onAddLead: (lead: Lead) => void,
+  userProfile: UserProfile | null
 }) => {
   return (
     <div className="space-y-12 pb-24 -mt-8">
@@ -2397,7 +2548,7 @@ const LeadsTab = ({
         </div>
 
         <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50/50">
@@ -2469,6 +2620,62 @@ const LeadsTab = ({
               </tbody>
             </table>
           </div>
+
+          {/* Cards for Mobile */}
+          <div className="md:hidden divide-y divide-slate-50">
+            {leads.length > 0 ? leads.map(lead => (
+              <div key={lead.id} className="p-6 space-y-4">
+                <div className="flex justify-between items-start">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center font-bold text-slate-600">
+                      {lead.name.charAt(0)}
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-900">{lead.name}</p>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{lead.origin || 'Instagram'}</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => onDelete(lead.id)}
+                    className="p-2 text-slate-300 hover:text-red-500"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="flex flex-col gap-3">
+                  <button 
+                    onClick={() => openWhatsApp(lead.phone, `Olá ${lead.name}! Vi seu interesse no Instagram sobre nossos serviços. Como posso te ajudar? ✨`, userProfile?.whatsappPrefix || '55')}
+                    className="flex items-center gap-3 bg-green-50 text-green-600 font-bold p-3 rounded-2xl text-sm"
+                  >
+                    <MessageCircle className="w-5 h-5" />
+                    {lead.phone}
+                  </button>
+                  <div className="relative">
+                    <select 
+                      value={lead.status}
+                      onChange={(e) => onUpdateStatus(lead.id, e.target.value as any)}
+                      className={cn(
+                        "w-full px-4 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-slate-100 outline-none cursor-pointer appearance-none",
+                        lead.status === 'novo' ? "bg-blue-100 text-blue-700" :
+                        lead.status === 'contato' ? "bg-amber-100 text-amber-700" :
+                        lead.status === 'proposta' ? "bg-purple-100 text-purple-700" :
+                        lead.status === 'convertido' ? "bg-emerald-100 text-emerald-700" :
+                        "bg-slate-100 text-slate-600"
+                      )}
+                    >
+                      <option value="novo">Novo Lead</option>
+                      <option value="contato">Em Contato</option>
+                      <option value="proposta">Proposta Enviada</option>
+                      <option value="convertido">Convertido</option>
+                      <option value="perdido">Perdido</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )) : (
+              <div className="p-20 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">Nenhum lead encontrado para gerenciar.</div>
+            )}
+          </div>
         </div>
       </section>
     </div>
@@ -2481,14 +2688,16 @@ const FollowUpTab = ({
   onUpdateStatus,
   onDelete,
   onEdit,
-  cLabel
+  cLabel,
+  userProfile
 }: { 
   followUps: FollowUp[], 
   onOpenNewFollowUp: () => void,
   onUpdateStatus: (id: string, status: FollowUp['status']) => void,
   onDelete: (id: string) => void,
   onEdit?: (fu: FollowUp) => void,
-  cLabel: string
+  cLabel: string,
+  userProfile: UserProfile | null
 }) => {
   const [showHistory, setShowHistory] = useState(false);
 
@@ -2509,8 +2718,9 @@ const FollowUpTab = ({
   }, [followUps]);
 
   const renderTable = (list: FollowUp[], emptyMessage: string) => (
-    <div className="bg-white rounded-3xl shadow-sm border border-rose-50 overflow-hidden mb-8">
-      <div className="overflow-x-auto">
+    <div className="bg-white rounded-3xl lg:rounded-[40px] shadow-sm border border-rose-50 overflow-hidden mb-8">
+      {/* Desktop Table */}
+      <div className="overflow-x-auto hidden lg:block">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-rose-50/50">
@@ -2587,6 +2797,65 @@ const FollowUpTab = ({
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile Cards */}
+      <div className="lg:hidden divide-y divide-rose-50">
+        {list.length > 0 ? (
+          list.map(fu => (
+            <div key={fu.id} className="p-5 space-y-4">
+              <div className="flex justify-between items-start">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center font-bold text-rose-600">
+                    {fu.clientName?.charAt(0) || '?'}
+                  </div>
+                  <div>
+                    <span className="font-bold text-gray-900 block">{fu.clientName || 'Cliente'}</span>
+                    <span className="text-[10px] text-gray-400 font-bold uppercase">{fu.date ? format(parseISO(fu.date), 'dd/MM/yyyy') : '-'}</span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => fu.status !== 'Concluído' && onUpdateStatus(fu.id, 'Concluído')}
+                  className={cn(
+                    "px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5",
+                    fu.status === 'Pendente' ? "bg-amber-100 text-amber-700" :
+                    fu.status === 'Concluído' ? "bg-green-100 text-green-700" : "bg-rose-100 text-rose-700"
+                  )}
+                >
+                  <div className={cn("w-1.5 h-1.5 rounded-full", fu.status === 'Pendente' ? "bg-amber-500" : "bg-green-500")} />
+                  {fu.status}
+                </button>
+              </div>
+              
+              <div className="p-4 bg-gray-50 rounded-2xl">
+                <p className="text-sm font-bold text-gray-800 mb-1">{fu.procedureName}</p>
+                {fu.observation && <p className="text-xs text-gray-500">{fu.observation}</p>}
+              </div>
+
+              <div className="flex items-center justify-between">
+                <button 
+                  onClick={() => {
+                    const phone = fu.clientPhone ? fu.clientPhone.replace(/\D/g, '') : '';
+                    const text = `Olá ${fu.clientName}! Tudo bem? Gostaria de saber como você está se sentindo após o procedimento de ${fu.procedureName}...`;
+                    openWhatsApp(phone, text, userProfile?.whatsappPrefix || '55');
+                  }}
+                  className="flex items-center gap-2 bg-green-500 text-white px-4 py-3 rounded-2xl font-bold text-xs shadow-lg shadow-green-100"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  Conversar no WhatsApp
+                </button>
+                <div className="flex gap-1">
+                  <button onClick={() => onEdit && onEdit(fu)} className="p-3 text-gray-400 hover:text-rose-500"><Pencil className="w-5 h-5" /></button>
+                  <button onClick={() => onDelete(fu.id)} className="p-3 text-gray-300 hover:text-red-500"><Trash2 className="w-5 h-5" /></button>
+                </div>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="p-12 text-center text-gray-400 font-bold uppercase tracking-widest text-[10px]">
+            {emptyMessage}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -3021,7 +3290,7 @@ const FinancialTab = ({
             <h2 className="font-black text-gray-900 tracking-tight">Histórico de Movimentações</h2>
             <span className="text-[10px] font-black text-gray-400 uppercase">{filteredEntries.length} itens encontrados</span>
           </div>
-          <div className="overflow-x-auto flex-1">
+          <div className="overflow-x-auto flex-1 hidden md:block">
             <table className="w-full text-left">
               <thead className="bg-rose-50/50 text-rose-700 text-xs font-black uppercase">
                 <tr>
@@ -3060,6 +3329,37 @@ const FinancialTab = ({
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Cards for Mobile */}
+          <div className="md:hidden divide-y divide-gray-50">
+            {filteredEntries.length === 0 ? (
+              <div className="px-6 py-12 text-center text-gray-400 font-medium">Nenhum lançamento no período filtrado.</div>
+            ) : (
+              [...filteredEntries].sort((a,b) => (b.date || '').localeCompare(a.date || '')).map(entry => (
+                <div key={entry.id} className="p-4 space-y-3">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="text-sm font-bold text-gray-900">{entry.description}</div>
+                      <div className="text-[10px] text-gray-400 font-medium">{entry.date ? format(parseISO(entry.date), 'dd/MM/yyyy') : '-'}</div>
+                    </div>
+                    <div className={cn("text-sm font-black", entry.type === 'receita' ? "text-green-600" : "text-red-500")}>
+                      {entry.type === 'receita' ? '+' : '-'} {formatCurrency(entry.amount)}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] font-black uppercase text-gray-400 bg-gray-100 px-2 py-0.5 rounded-lg border border-gray-200">{entry.category || 'Geral'}</span>
+                      <span className="text-[9px] font-black uppercase text-rose-500 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-100">{entry.paymentMethod}</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => onEditEntry(entry)} className="p-2 text-gray-400 hover:text-rose-500 bg-gray-50 rounded-xl transition-all"><Pencil className="w-4 h-4" /></button>
+                      <button onClick={() => onDeleteEntry(entry.id)} className="p-2 text-gray-400 hover:text-red-500 bg-gray-50 rounded-xl transition-all"><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -4056,6 +4356,7 @@ const DEFAULT_WELCOME_TEMPLATE = 'Olá, {cliente_nome} ✨ Seja muito bem-vinda!
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [user, setUser] = useState<User | null>(IS_DEMO_INITIAL ? ({ uid: 'demo-user' } as any) : null);
   const [isAuthReady, setIsAuthReady] = useState(IS_DEMO_INITIAL);
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(IS_DEMO_INITIAL ? true : null);
@@ -5063,6 +5364,7 @@ export default function App() {
           onUpdateStatus={handleUpdateLeadStatus} 
           onDelete={handleDeleteLead} 
           onAddLead={handleAddLead}
+          userProfile={userProfile}
         />
       );
       case 'atendimentos': return (
@@ -5099,6 +5401,7 @@ export default function App() {
           onDelete={handleDeleteFollowUp}
           onEdit={setEditingFollowUp}
           cLabel={cLabel}
+          userProfile={userProfile}
         />
       );
       case 'financeiro': return (
@@ -6133,19 +6436,25 @@ export default function App() {
 
     <div className="flex flex-col w-full h-screen bg-[#fafafa] overflow-hidden">
       {/* Top Navigation Header */}
-      <header className="h-24 flex-shrink-0 bg-white border-b border-rose-50 flex items-center justify-between px-6 lg:px-10 z-[160] shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-rose-600 rounded-2xl flex items-center justify-center shadow-lg shadow-rose-200 flex-shrink-0 cursor-pointer hover:rotate-6 transition-transform" onClick={() => setActiveTab('dashboard')}>
-            <ShieldCheck className="text-white w-7 h-7" />
+      <header className="h-16 lg:h-24 flex-shrink-0 bg-white border-b border-rose-50 flex items-center justify-between px-4 lg:px-10 z-[160] shadow-sm">
+        <div className="flex items-center gap-3 lg:gap-4 overflow-hidden">
+          <button 
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="lg:hidden p-2 bg-rose-50 text-rose-500 rounded-xl"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+          <div className="w-10 h-10 lg:w-12 lg:h-12 bg-rose-600 rounded-xl lg:rounded-2xl flex items-center justify-center shadow-lg shadow-rose-200 flex-shrink-0 cursor-pointer hover:rotate-6 transition-transform" onClick={() => setActiveTab('dashboard')}>
+            <ShieldCheck className="text-white w-5 h-5 lg:w-7 lg:h-7" />
           </div>
-          <div className="flex flex-col">
-            <span className="text-xl font-black tracking-tight text-gray-900 leading-none">{userProfile?.businessName || 'MEU SISTEMA'}</span>
-            <span className="text-[10px] font-bold text-rose-500 uppercase tracking-[0.2em] mt-1">{userProfile?.specialty || 'Gestão Profissional'}</span>
+          <div className="flex flex-col min-w-0">
+            <span className="text-base lg:text-xl font-black tracking-tight text-gray-900 leading-none truncate">{userProfile?.businessName || 'MEU SISTEMA'}</span>
+            <span className="text-[8px] lg:text-[10px] font-bold text-rose-500 uppercase tracking-[0.2em] mt-1 truncate">{userProfile?.specialty || 'Gestão Profissional'}</span>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <nav className="flex items-center gap-2 bg-gray-50 p-2 rounded-[28px] border border-gray-100 py-2">
+          <nav className="hidden lg:flex items-center gap-2 bg-gray-50 p-2 rounded-[28px] border border-gray-100 py-2">
             {menuItems.map((item) => (
               <div key={item.id} className="relative group/nav">
                 <button
@@ -6170,14 +6479,14 @@ export default function App() {
             ))}
           </nav>
 
-          <div className="h-10 w-px bg-gray-100 mx-4 hidden md:block" />
+          <div className="h-10 w-px bg-gray-100 mx-4 hidden lg:block" />
 
           <div className="relative group/logout">
             <button 
               onClick={signOutUser}
-              className="flex items-center justify-center w-11 h-11 lg:w-12 lg:h-12 rounded-2xl text-gray-300 hover:bg-rose-50 hover:text-red-500 hover:border-red-100 border border-transparent transition-all"
+              className="flex items-center justify-center w-10 h-10 lg:w-12 lg:h-12 rounded-xl lg:rounded-2xl text-gray-300 hover:bg-rose-50 hover:text-red-500 hover:border-red-100 border border-transparent transition-all"
             >
-              <Trash2 className="w-6 h-6" />
+              <Trash2 className="w-5 h-5 lg:w-6 lg:h-6" />
             </button>
             <div className="absolute top-full left-1/2 -translate-x-1/2 pt-3 opacity-0 invisible group-hover/logout:opacity-100 group-hover/logout:visible transition-all duration-200 z-[200] translate-y-1 group-hover/logout:translate-y-0 pointer-events-none">
               <div className="bg-red-600 text-white text-[10px] font-black uppercase tracking-[0.2em] px-4 py-2.5 rounded-xl whitespace-nowrap shadow-2xl relative">
@@ -6189,7 +6498,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative pb-20 lg:pb-0">
 
             <AnimatePresence>
               {isNotificationsOpen && (
@@ -6268,6 +6577,119 @@ export default function App() {
           </AnimatePresence>
         </div>
       </main>
+
+      {/* Mobile Menu Drawer */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] lg:hidden"
+            />
+            <motion.div 
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed left-0 top-0 bottom-0 w-[85%] max-w-[320px] bg-white z-[210] lg:hidden shadow-2xl rounded-r-[40px] flex flex-col"
+            >
+              <div className="p-8 border-b border-rose-50 flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-black text-gray-900 uppercase">Menu Principal</h3>
+                  <p className="text-[10px] font-bold text-rose-500 uppercase tracking-widest mt-1">Navegação Completa</p>
+                </div>
+                <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 bg-gray-50 rounded-xl text-gray-400">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                {menuItems.map((item) => (
+                  <button
+                    key={item.id}
+                    id={`mobile-nav-${item.id}`}
+                    onClick={() => {
+                      setActiveTab(item.id);
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={cn(
+                      "w-full flex items-center gap-4 p-4 rounded-2xl transition-all",
+                      activeTab === item.id 
+                        ? "bg-rose-500 text-white shadow-xl shadow-rose-100" 
+                        : "text-gray-500 hover:bg-rose-50"
+                    )}
+                  >
+                    <div className={cn(
+                      "p-3 rounded-xl",
+                      activeTab === item.id ? "bg-white/20" : "bg-gray-50 text-rose-500"
+                    )}>
+                      <item.icon className="w-5 h-5" />
+                    </div>
+                    <span className="font-bold text-xs uppercase tracking-wider">{item.label}</span>
+                    {activeTab === item.id && <ChevronRight className="ml-auto w-4 h-4" />}
+                  </button>
+                ))}
+              </div>
+              <div className="p-6 border-t border-rose-50">
+                 <button 
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-4 p-4 rounded-2xl text-red-500 bg-red-50 font-bold text-sm uppercase tracking-wider"
+                >
+                  <LogOut className="w-5 h-5" />
+                  Sair do Sistema
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Bottom Navigation for Mobile */}
+      <nav className="fixed bottom-0 left-0 right-0 h-20 bg-white border-t border-rose-50 z-[180] lg:hidden flex items-center justify-around px-2 pb-safe shadow-[0_-8px_30px_rgb(0,0,0,0.04)] rounded-t-[32px]">
+        {menuItems.slice(0, 4).map((item) => {
+          const isActive = activeTab === item.id;
+          return (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className={cn(
+                "flex flex-col items-center justify-center gap-1.5 w-14 h-14 rounded-2xl transition-all relative",
+                isActive 
+                  ? "bg-rose-500 text-white shadow-lg shadow-rose-200" 
+                  : "text-gray-400 hover:text-rose-500"
+              )}
+            >
+              <item.icon className="w-5 h-5" />
+              <span className={cn(
+                "text-[9px] font-black uppercase tracking-tighter",
+                isActive ? "text-white" : "text-gray-400"
+              )}>
+                {item.label.split(' ')[0]}
+              </span>
+            </button>
+          );
+        })}
+        {/* More Button */}
+        <button
+          onClick={() => setIsMobileMenuOpen(true)}
+          className={cn(
+            "flex flex-col items-center justify-center gap-1.5 w-14 h-14 rounded-2xl transition-all relative",
+            isMobileMenuOpen 
+              ? "bg-rose-500 text-white shadow-lg shadow-rose-200" 
+              : "text-gray-400 hover:text-rose-500"
+          )}
+        >
+          <Menu className="w-5 h-5" />
+          <span className={cn(
+            "text-[9px] font-black uppercase tracking-tighter",
+            isMobileMenuOpen ? "text-white" : "text-gray-400"
+          )}>
+            Mais
+          </span>
+        </button>
+      </nav>
     </div>
   </div>
 );
