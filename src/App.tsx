@@ -1083,7 +1083,7 @@ const Dashboard = ({
         </div>
       </header>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard 
           title="Próximos Hoje" 
           value={todayAppointments.length} 
@@ -4356,7 +4356,6 @@ const DEFAULT_WELCOME_TEMPLATE = 'Olá, {cliente_nome} ✨ Seja muito bem-vinda!
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [user, setUser] = useState<User | null>(IS_DEMO_INITIAL ? ({ uid: 'demo-user' } as any) : null);
   const [isAuthReady, setIsAuthReady] = useState(IS_DEMO_INITIAL);
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(IS_DEMO_INITIAL ? true : null);
@@ -6438,12 +6437,6 @@ export default function App() {
       {/* Top Navigation Header */}
       <header className="h-16 lg:h-24 flex-shrink-0 bg-white border-b border-rose-50 flex items-center justify-between px-4 lg:px-10 z-[160] shadow-sm">
         <div className="flex items-center gap-3 lg:gap-4 overflow-hidden">
-          <button 
-            onClick={() => setIsMobileMenuOpen(true)}
-            className="lg:hidden p-2 bg-rose-50 text-rose-500 rounded-xl"
-          >
-            <Menu className="w-6 h-6" />
-          </button>
           <div className="w-10 h-10 lg:w-12 lg:h-12 bg-rose-600 rounded-xl lg:rounded-2xl flex items-center justify-center shadow-lg shadow-rose-200 flex-shrink-0 cursor-pointer hover:rotate-6 transition-transform" onClick={() => setActiveTab('dashboard')}>
             <ShieldCheck className="text-white w-5 h-5 lg:w-7 lg:h-7" />
           </div>
@@ -6578,77 +6571,9 @@ export default function App() {
         </div>
       </main>
 
-      {/* Mobile Menu Drawer */}
-      <AnimatePresence>
-        {isMobileMenuOpen && (
-          <>
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] lg:hidden"
-            />
-            <motion.div 
-              initial={{ x: '-100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '-100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed left-0 top-0 bottom-0 w-[85%] max-w-[320px] bg-white z-[210] lg:hidden shadow-2xl rounded-r-[40px] flex flex-col"
-            >
-              <div className="p-8 border-b border-rose-50 flex items-center justify-between">
-                <div>
-                  <h3 className="text-xl font-black text-gray-900 uppercase">Menu Principal</h3>
-                  <p className="text-[10px] font-bold text-rose-500 uppercase tracking-widest mt-1">Navegação Completa</p>
-                </div>
-                <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 bg-gray-50 rounded-xl text-gray-400">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <div className="flex-1 overflow-y-auto p-4 space-y-2">
-                {menuItems.map((item) => (
-                  <button
-                    key={item.id}
-                    id={`mobile-nav-${item.id}`}
-                    onClick={() => {
-                      setActiveTab(item.id);
-                      setIsMobileMenuOpen(false);
-                    }}
-                    className={cn(
-                      "w-full flex items-center gap-4 p-4 rounded-2xl transition-all",
-                      activeTab === item.id 
-                        ? "bg-rose-500 text-white shadow-xl shadow-rose-100" 
-                        : "text-gray-500 hover:bg-rose-50"
-                    )}
-                  >
-                    <div className={cn(
-                      "p-3 rounded-xl",
-                      activeTab === item.id ? "bg-white/20" : "bg-gray-50 text-rose-500"
-                    )}>
-                      <item.icon className="w-5 h-5" />
-                    </div>
-                    <span className="font-bold text-xs uppercase tracking-wider">{item.label}</span>
-                    {activeTab === item.id && <ChevronRight className="ml-auto w-4 h-4" />}
-                  </button>
-                ))}
-              </div>
-              <div className="p-6 border-t border-rose-50">
-                 <button 
-                  onClick={handleLogout}
-                  className="w-full flex items-center gap-4 p-4 rounded-2xl text-red-500 bg-red-50 font-bold text-sm uppercase tracking-wider"
-                >
-                  <LogOut className="w-5 h-5" />
-                  Sair do Sistema
-                </button>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
       {/* Bottom Navigation for Mobile */}
       <nav className="fixed bottom-0 left-0 right-0 h-20 bg-white border-t border-rose-50 z-[180] lg:hidden flex items-center justify-around px-2 pb-safe shadow-[0_-8px_30px_rgb(0,0,0,0.04)] rounded-t-[32px]">
-        {menuItems.slice(0, 4).map((item) => {
+        {menuItems.slice(0, 4).concat(menuItems.slice(-1)).map((item) => {
           const isActive = activeTab === item.id;
           return (
             <button
@@ -6666,29 +6591,11 @@ export default function App() {
                 "text-[9px] font-black uppercase tracking-tighter",
                 isActive ? "text-white" : "text-gray-400"
               )}>
-                {item.label.split(' ')[0]}
+                {item.id === 'configuracoes' ? 'Menu' : item.label.split(' ')[0]}
               </span>
             </button>
           );
         })}
-        {/* More Button */}
-        <button
-          onClick={() => setIsMobileMenuOpen(true)}
-          className={cn(
-            "flex flex-col items-center justify-center gap-1.5 w-14 h-14 rounded-2xl transition-all relative",
-            isMobileMenuOpen 
-              ? "bg-rose-500 text-white shadow-lg shadow-rose-200" 
-              : "text-gray-400 hover:text-rose-500"
-          )}
-        >
-          <Menu className="w-5 h-5" />
-          <span className={cn(
-            "text-[9px] font-black uppercase tracking-tighter",
-            isMobileMenuOpen ? "text-white" : "text-gray-400"
-          )}>
-            Mais
-          </span>
-        </button>
       </nav>
     </div>
   </div>
