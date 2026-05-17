@@ -57,6 +57,22 @@ const app = express();
 
 app.use(express.json());
 
+// Auth check for client-side auto-registration
+app.post('/api/auth/check-email', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ status: 'error', message: 'Email required' });
+
+  try {
+    const docRef = db.collection('authorized_emails').doc(email.toLowerCase().trim());
+    const docSnap = await docRef.get();
+    
+    res.json({ authorized: docSnap.exists });
+  } catch (error) {
+    console.error('Error checking authorized email:', error);
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
+  }
+});
+
 // Kiwify Webhook
 app.post('/api/webhook/kiwify', async (req, res) => {
   console.log('Kiwify Webhook Received:', JSON.stringify(req.body, null, 2));

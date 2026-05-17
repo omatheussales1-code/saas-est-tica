@@ -133,6 +133,19 @@
         "ownerId": { "type": "string" }
       },
       "required": ["name", "businessName", "ownerId"]
+    },
+    "AuthorizedEmail": {
+      "title": "AuthorizedEmail",
+      "description": "Emails authorized by purchase (Kiwify)",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "status": { "type": "string" },
+        "source": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email"]
     }
   },
   "firestore": {
@@ -144,6 +157,7 @@
     "/budgets/{budgetId}": { "schema": "Budget", "description": "Price quotes" },
     "/followUps/{fUpId}": { "schema": "FollowUp", "description": "Post-service follow-ups" },
     "/messageTemplates/{templateId}": { "schema": "MessageTemplate", "description": "WhatsApp message templates" },
-    "/userProfiles/{userId}": { "schema": "UserProfile", "description": "User profile settings" }
+    "/userProfiles/{userId}": { "schema": "UserProfile", "description": "User profile settings" },
+    "/authorized_emails/{email}": { "schema": "AuthorizedEmail", "description": "Authorized emails list" }
   }
 }

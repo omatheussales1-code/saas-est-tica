@@ -4627,6 +4627,17 @@ export default function App() {
   const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
+  const [isKiwifyFlow, setIsKiwifyFlow] = useState(false);
+
+  // Parse URL for pre-filled email
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const emailParam = params.get('email');
+    if (emailParam) {
+      setEmailInput(emailParam.toLowerCase().trim());
+      setIsKiwifyFlow(true);
+    }
+  }, []);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -4647,13 +4658,37 @@ export default function App() {
         
         if (isDefaultAdmin) {
           try {
-            // Attempt to sign in, if fails, create
             await signInWithEmailAndPassword(auth, email, password);
           } catch (signInErr: any) {
             await createUserWithEmailAndPassword(auth, email, password);
           }
         } else {
-          setAuthError('Usuário não encontrado ou senha incorreta.');
+          // Auto-registration flow for Kiwify customers
+          try {
+            const checkResponse = await fetch('/api/auth/check-email', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email })
+            });
+            const { authorized } = await checkResponse.json();
+            
+            if (authorized) {
+              // If email exists in authorized_emails but login failed, it might be a new user or wrong password
+              try {
+                await createUserWithEmailAndPassword(auth, email, password);
+              } catch (createErr: any) {
+                if (createErr.code === 'auth/email-already-in-use') {
+                  setAuthError('E-mail já cadastrado, mas a senha está incorreta.');
+                } else {
+                  setAuthError('Erro ao criar conta. Tente novamente mais tarde.');
+                }
+              }
+            } else {
+              setAuthError('Dados de acesso inválidos. Se você acabou de comprar via Kiwify, use o mesmo e-mail da compra ou aguarde alguns minutos.');
+            }
+          } catch (checkError) {
+            setAuthError('Usuário não encontrado ou senha incorreta.');
+          }
         }
       } else if (error.code === 'auth/operation-not-allowed') {
         setAuthError('O login por e-mail não está ativado no Firebase Console.');
@@ -5495,8 +5530,19 @@ export default function App() {
           <div className="w-20 h-20 bg-rose-500 rounded-3xl flex items-center justify-center shadow-xl shadow-rose-200 mx-auto mb-8">
             <ShieldCheck className="text-white w-10 h-10" />
           </div>
-          <h1 className="text-3xl font-black text-gray-900 mb-2 uppercase tracking-tight">Gestão Profissional</h1>
-          <p className="text-gray-500 font-medium mb-10 px-4">O sistema inteligente para organizar sua agenda, clientes e financeiro.</p>
+          <h1 className="text-3xl font-black text-gray-900 mb-2 uppercase tracking-tight">OrbyFlow</h1>
+          
+          {isKiwifyFlow ? (
+            <div className="bg-emerald-50 p-4 rounded-2xl mb-8 border border-emerald-100">
+              <p className="text-emerald-700 text-sm font-bold leading-tight">
+                ✨ Boas-vindas! Sua compra via Kiwify foi detectada. 
+                <br/>
+                <span className="text-xs font-medium mt-2 block opacity-80">Use o e-mail abaixo e escolha uma senha para seu primeiro acesso.</span>
+              </p>
+            </div>
+          ) : (
+            <p className="text-gray-500 font-medium mb-10 px-4">O sistema inteligente para organizar sua agenda, clientes e financeiro.</p>
+          )}
           
           <form onSubmit={handleEmailLogin} className="space-y-4 mb-6">
             <div className="text-left">
@@ -6442,7 +6488,7 @@ export default function App() {
           </div>
           <div className="flex flex-col min-w-0">
             <span className="text-base lg:text-xl font-black tracking-tight text-gray-900 leading-none truncate">{userProfile?.businessName || 'MEU SISTEMA'}</span>
-            <span className="text-[8px] lg:text-[10px] font-bold text-rose-500 uppercase tracking-[0.2em] mt-1 truncate">{userProfile?.specialty || 'Gestão Profissional'}</span>
+            <span className="text-[8px] lg:text-[10px] font-bold text-rose-500 uppercase tracking-[0.2em] mt-1 truncate">{userProfile?.specialty || 'OrbyFlow'}</span>
           </div>
         </div>
 
