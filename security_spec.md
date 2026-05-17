@@ -1,4 +1,4 @@
-# Security Specification - BF Gestão
+# Security Specification - OrbyFlow
 
 ## Data Invariants
 1. **Ownership**: Every document must have an `ownerId` that matches the creator's `uid`.

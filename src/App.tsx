@@ -4625,6 +4625,15 @@ export default function App() {
   const [selectedDateForNewApp, setSelectedDateForNewApp] = useState(new Date());
   
   const [emailInput, setEmailInput] = useState('');
+
+  // Detect email from URL (useful for Kiwify redirects)
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const emailParam = params.get('email') || params.get('customer_email');
+    if (emailParam) {
+      setEmailInput(emailParam);
+    }
+  }, []);
   const [passwordInput, setPasswordInput] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   const [isKiwifyFlow, setIsKiwifyFlow] = useState(false);
@@ -5533,19 +5542,16 @@ export default function App() {
           <h1 className="text-4xl font-black mb-2 uppercase tracking-tighter bg-linear-to-r from-rose-600 to-rose-400 bg-clip-text text-transparent">
             OrbyFlow
           </h1>
-          {/* Build v1.0.2 - Redirect flow update */}
           
-          {isKiwifyFlow ? (
-            <div className="bg-emerald-50 p-4 rounded-2xl mb-8 border border-emerald-100">
-              <p className="text-emerald-700 text-sm font-bold leading-tight">
-                ✨ Boas-vindas! Sua compra via Kiwify foi detectada. 
-                <br/>
-                <span className="text-xs font-medium mt-2 block opacity-80">Use o e-mail abaixo e escolha uma senha para seu primeiro acesso.</span>
-              </p>
-            </div>
-          ) : (
-            <p className="text-gray-500 font-medium mb-10 px-4">O sistema inteligente para organizar sua agenda, clientes e financeiro.</p>
-          )}
+          <div className="bg-rose-50 p-5 rounded-2xl mb-8 border border-rose-100 text-left">
+            <h3 className="text-rose-900 font-black text-sm uppercase tracking-wider mb-1 flex items-center gap-2">
+              <span className="flex h-2 w-2 rounded-full bg-rose-500 animate-pulse"></span>
+              Primeiro Acesso?
+            </h3>
+            <p className="text-rose-700/80 text-[11px] font-bold leading-relaxed">
+              Se você acabou de adquirir sua licença, basta preencher seu e-mail de compra e criar sua senha agora mesmo para entrar.
+            </p>
+          </div>
           
           <form onSubmit={handleEmailLogin} className="space-y-4 mb-6">
             <div className="text-left">
