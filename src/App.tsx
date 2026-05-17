@@ -5530,7 +5530,10 @@ export default function App() {
           <div className="w-20 h-20 bg-rose-500 rounded-3xl flex items-center justify-center shadow-xl shadow-rose-200 mx-auto mb-8">
             <ShieldCheck className="text-white w-10 h-10" />
           </div>
-          <h1 className="text-3xl font-black text-gray-900 mb-2 uppercase tracking-tight">OrbyFlow</h1>
+          <h1 className="text-4xl font-black mb-2 uppercase tracking-tighter bg-linear-to-r from-rose-600 to-rose-400 bg-clip-text text-transparent">
+            OrbyFlow
+          </h1>
+          {/* Build v1.0.2 - Redirect flow update */}
           
           {isKiwifyFlow ? (
             <div className="bg-emerald-50 p-4 rounded-2xl mb-8 border border-emerald-100">
