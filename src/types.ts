@@ -53,6 +53,7 @@ export interface Appointment {
   photoAfter?: string;
   ownerId?: string;
   isPaid?: boolean;
+  sessionNumber?: number;
 }
 
 export interface MessageTemplate {

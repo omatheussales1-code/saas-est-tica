@@ -27,6 +27,7 @@
         "price": { "type": "number" },
         "paidAmount": { "type": "number" },
         "isPaid": { "type": "boolean" },
+        "sessionNumber": { "type": "number" },
         "paymentMethod": { "type": "string" },
         "ownerId": { "type": "string" }
       },

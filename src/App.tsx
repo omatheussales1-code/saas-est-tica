@@ -71,7 +71,8 @@ import {
   addWeeks,
   getDay,
   isValid,
-  addDays
+  addDays,
+  addMinutes
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'motion/react';
@@ -641,14 +642,16 @@ const PagamentosTab = ({
   procedures, 
   onMarkAsPaid, 
   onUndoMarkAsPaid,
-  onSendWhatsApp
+  onSendWhatsApp,
+  onOpenNewAppointment
 }: { 
   appointments: Appointment[], 
   clients: Client[], 
   procedures: Procedure[], 
   onMarkAsPaid: (id: string) => void, 
   onUndoMarkAsPaid: (id: string) => void,
-  onSendWhatsApp: (app: Appointment, type: 'payment') => void
+  onSendWhatsApp: (app: Appointment, type: 'payment') => void,
+  onOpenNewAppointment: (date: Date) => void
 }) => {
   const [filter, setFilter] = useState('all'); // all, paid, pending, partial
   
@@ -662,9 +665,18 @@ const PagamentosTab = ({
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl lg:text-3xl font-black text-gray-900 uppercase tracking-tight">Pagamentos</h2>
-          <p className="text-sm font-medium text-gray-500">Gestão de parcelamentos e saldos pendentes</p>
+        <div className="flex items-center gap-4">
+          <div>
+            <h2 className="text-2xl lg:text-3xl font-black text-gray-900 uppercase tracking-tight">Pagamentos</h2>
+            <p className="text-sm font-medium text-gray-500">Gestão de parcelamentos e saldos pendentes</p>
+          </div>
+          <button 
+            onClick={() => onOpenNewAppointment(new Date())}
+            className="p-3 bg-rose-500 text-white rounded-2xl hover:bg-rose-600 transition-all shadow-lg shadow-rose-200"
+            title="Novo Registro / Adicionar Pessoa"
+          >
+            <Plus className="w-5 h-5" />
+          </button>
         </div>
         <div className="flex gap-1.5 bg-gray-100 p-1 rounded-[20px] overflow-x-auto no-scrollbar">
           {[
@@ -699,6 +711,7 @@ const PagamentosTab = ({
                 <th className="px-8 py-6 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Pago</th>
                 <th className="px-8 py-6 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Restante</th>
                 <th className="px-8 py-6 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Status</th>
+                <th className="px-8 py-6 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Sessão</th>
                 <th className="px-8 py-6 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100 text-right">Ações</th>
               </tr>
             </thead>
@@ -751,6 +764,11 @@ const PagamentosTab = ({
                         isPartial ? "bg-amber-100 text-amber-600" : "bg-red-100 text-red-600"
                       )}>
                         {app.isPaid ? 'Pago' : isPartial ? 'Parcial' : 'Pendente'}
+                      </span>
+                    </td>
+                    <td className="px-8 py-6 border-b border-gray-50">
+                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50 px-2 py-1 rounded-lg">
+                        {app.sessionNumber || 1}
                       </span>
                     </td>
                     <td className="px-8 py-6 border-b border-gray-50 text-right">
@@ -1580,7 +1598,13 @@ const Agenda = ({
                         <div className="flex items-center gap-2 mt-0.5">
                           <div className="flex items-center gap-1 text-rose-500">
                             <Clock className="w-3 h-3" />
-                            <span className="text-[10px] font-black uppercase tracking-wider">{app.date ? format(parseISO(app.date), 'HH:mm') : '--:--'}</span>
+                            <span className="text-[10px] font-black uppercase tracking-wider">
+                              {(() => {
+                                const start = parseISO(app.date);
+                                const end = addMinutes(start, proc?.duration || 60);
+                                return `${format(start, 'HH:mm')} - ${format(end, 'HH:mm')}`;
+                              })()}
+                            </span>
                           </div>
                           <span className="text-gray-300">•</span>
                           <span className="text-[10px] font-bold text-gray-400 truncate uppercase tracking-widest">{proc?.name || 'Serviço'}</span>
@@ -5617,6 +5641,10 @@ export default function App() {
           onMarkAsPaid={handleMarkAsPaid}
           onUndoMarkAsPaid={handleUndoMarkAsPaid}
           onSendWhatsApp={handleSendWhatsApp}
+          onOpenNewAppointment={(date) => {
+            setSelectedDateForNewApp(date);
+            setIsNewAppModalOpen(true);
+          }}
         />
       );
       case 'servicos': return (
@@ -5883,6 +5911,7 @@ export default function App() {
                 }
                 
                 const procedureId = formData.get('procedureId') as string;
+                const sessionNumber = parseInt(formData.get('sessionNumber') as string) || 1;
                 
                 if (!clientId) {
                   addNotification('Por favor, selecione uma cliente da lista.', 'error');
@@ -5928,7 +5957,8 @@ export default function App() {
                         procedureId,
                         date: current.toISOString(),
                         status: 'confirmado',
-                        price: proc?.price || 0
+                        price: proc?.price || 0,
+                        sessionNumber: appsToCreate.length + 1
                       });
                     }
 
@@ -5966,7 +5996,8 @@ export default function App() {
                     procedureId,
                     date: baseDate.toISOString(),
                     status: 'confirmado',
-                    price: proc?.price || 0
+                    price: proc?.price || 0,
+                    sessionNumber
                   });
                 }
 
@@ -6061,6 +6092,17 @@ export default function App() {
                     <option key={p.id} value={p.id}>{p.name} - {formatCurrency(p.price)}</option>
                   ))}
                 </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-400 uppercase">Número da Sessão</label>
+                <input 
+                  name="sessionNumber" 
+                  type="number" 
+                  min={1}
+                  defaultValue={1}
+                  className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 font-bold" 
+                />
               </div>
 
               {/* Repetição Section */}
