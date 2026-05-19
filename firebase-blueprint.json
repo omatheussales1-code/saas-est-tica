@@ -28,6 +28,7 @@
         "paidAmount": { "type": "number" },
         "isPaid": { "type": "boolean" },
         "sessionNumber": { "type": "number" },
+        "totalSessions": { "type": "number" },
         "paymentMethod": { "type": "string" },
         "ownerId": { "type": "string" }
       },

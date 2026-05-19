@@ -91,7 +91,7 @@ import {
   Timestamp 
 } from 'firebase/firestore';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { db, auth, googleProvider, signInWithPopup, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword } from './firebase';
+import { db, auth, googleProvider, signInWithPopup, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from './firebase';
 import { cn } from './lib/utils';
 import { 
   Client, 
@@ -643,7 +643,9 @@ const PagamentosTab = ({
   onMarkAsPaid, 
   onUndoMarkAsPaid,
   onSendWhatsApp,
-  onOpenNewAppointment
+  onOpenNewAppointment,
+  onEditAppointment,
+  onDeleteAppointment
 }: { 
   appointments: Appointment[], 
   clients: Client[], 
@@ -651,7 +653,9 @@ const PagamentosTab = ({
   onMarkAsPaid: (id: string) => void, 
   onUndoMarkAsPaid: (id: string) => void,
   onSendWhatsApp: (app: Appointment, type: 'payment') => void,
-  onOpenNewAppointment: (date: Date) => void
+  onOpenNewAppointment: (date: Date) => void,
+  onEditAppointment: (app: Appointment) => void,
+  onDeleteAppointment: (id: string) => void
 }) => {
   const [filter, setFilter] = useState('all'); // all, paid, pending, partial
   
@@ -712,6 +716,7 @@ const PagamentosTab = ({
                 <th className="px-8 py-6 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Restante</th>
                 <th className="px-8 py-6 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Status</th>
                 <th className="px-8 py-6 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Sessão</th>
+                <th className="px-8 py-6 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Faltam</th>
                 <th className="px-8 py-6 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100 text-right">Ações</th>
               </tr>
             </thead>
@@ -766,9 +771,20 @@ const PagamentosTab = ({
                         {app.isPaid ? 'Pago' : isPartial ? 'Parcial' : 'Pendente'}
                       </span>
                     </td>
+                    <td className="px-8 py-6 border-b border-gray-50 text-center">
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] font-black text-gray-900 bg-gray-50 px-2 py-1 rounded-lg">
+                          {app.sessionNumber || 1}
+                        </span>
+                        <span className="text-[8px] font-bold text-gray-300">de</span>
+                        <span className="text-[10px] font-black text-gray-400 bg-gray-50 px-2 py-1 rounded-lg">
+                          {app.totalSessions || 1}
+                        </span>
+                      </div>
+                    </td>
                     <td className="px-8 py-6 border-b border-gray-50">
-                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50 px-2 py-1 rounded-lg">
-                        {app.sessionNumber || 1}
+                      <span className="text-[10px] font-black text-rose-500 bg-rose-50 px-2 py-1 rounded-lg">
+                        {Math.max(0, (app.totalSessions || 1) - (app.sessionNumber || 1))}
                       </span>
                     </td>
                     <td className="px-8 py-6 border-b border-gray-50 text-right">
@@ -782,6 +798,20 @@ const PagamentosTab = ({
                             <MessageCircle className="w-5 h-5" />
                           </button>
                         )}
+                        <button
+                          onClick={() => onEditAppointment(app)}
+                          className="p-2 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+                          title="Editar Registro"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => onDeleteAppointment(app.id)}
+                          className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                          title="Excluir Registro"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                         {!app.isPaid ? (
                           <button
                             onClick={() => onMarkAsPaid(app.id)}
@@ -863,6 +893,20 @@ const PagamentosTab = ({
                       <p className="text-lg font-black text-rose-600">{formatCurrency(Math.max(0, remaining))}</p>
                     </div>
                     <div className="flex gap-2">
+                      <button
+                        onClick={() => onEditAppointment(app)}
+                        className="p-3 bg-gray-50 text-gray-400 rounded-xl"
+                        title="Editar Registro"
+                      >
+                        <Pencil className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => onDeleteAppointment(app.id)}
+                        className="p-3 bg-gray-50 text-gray-300 hover:text-red-500 rounded-xl"
+                        title="Excluir Registro"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
                       {!app.isPaid && (
                         <button
                           onClick={() => onSendWhatsApp(app, 'payment')}
@@ -4693,12 +4737,18 @@ export default function App() {
   const [passwordInput, setPasswordInput] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   const [isKiwifyFlow, setIsKiwifyFlow] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
 
   // Parse URL for pre-filled email
   useEffect(() => {
+    const savedEmail = localStorage.getItem('last_login_email');
+    if (savedEmail) {
+      setEmailInput(savedEmail);
+    }
+
     const params = new URLSearchParams(window.location.search);
     const emailParam = params.get('email');
-    if (emailParam) {
+    if (emailParam && !emailParam.includes('${')) {
       setEmailInput(emailParam.toLowerCase().trim());
       setIsKiwifyFlow(true);
     }
@@ -4708,7 +4758,7 @@ export default function App() {
     e.preventDefault();
     setAuthError(null);
     const email = emailInput.toLowerCase().trim();
-    const password = passwordInput.toLowerCase(); // Per request: case-insensitive
+    const password = passwordInput.toLowerCase(); 
     
     if (password.length < 6) {
       setAuthError('A senha deve ter pelo menos 6 caracteres.');
@@ -4716,6 +4766,11 @@ export default function App() {
     }
 
     try {
+      if (rememberMe) {
+        localStorage.setItem('last_login_email', email);
+      } else {
+        localStorage.removeItem('last_login_email');
+      }
       await signInWithEmailAndPassword(auth, email, password);
     } catch (error: any) {
       if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
@@ -4725,6 +4780,20 @@ export default function App() {
       } else {
         setAuthError('Erro ao entrar. ' + error.message);
       }
+    }
+  };
+
+  const handleResetPassword = async () => {
+    const email = emailInput.toLowerCase().trim();
+    if (!email) {
+      setAuthError('Digite seu e-mail acima para recuperar a senha.');
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, email);
+      addNotification('E-mail de recuperação enviado! Verifique sua caixa de entrada.', 'info');
+    } catch (error: any) {
+      setAuthError('Erro ao enviar e-mail de recuperação: ' + error.message);
     }
   };
 
@@ -4746,10 +4815,13 @@ export default function App() {
 
     useEffect(() => {
       const params = new URLSearchParams(window.location.search);
+      
       const emailParam = params.get('email') || params.get('customer_email');
-      if (emailParam) setReqEmail(emailParam);
+      // Fix: check if it's a literal template string from Kiwify (common mistake)
+      if (emailParam && !emailParam.includes('${')) setReqEmail(emailParam);
+      
       const nameParam = params.get('name') || params.get('customer_name');
-      if (nameParam) setReqName(nameParam);
+      if (nameParam && !nameParam.includes('${')) setReqName(nameParam);
     }, []);
 
     const handleCreateAccount = async (e: React.FormEvent) => {
@@ -4758,24 +4830,36 @@ export default function App() {
       setError(null);
       
       try {
+        const finalEmail = reqEmail.toLowerCase().trim();
         // 1. Create the Auth User
-        const userCredential = await createUserWithEmailAndPassword(auth, reqEmail.toLowerCase().trim(), reqPassword);
+        const userCredential = await createUserWithEmailAndPassword(auth, finalEmail, reqPassword);
         const newUser = userCredential.user;
 
-        // 2. Initialize User Profile/Settings if needed
+        // 2. Initialize User Profile
         await setDoc(doc(db, 'userProfiles', newUser.uid), {
-          name: reqName,
-          businessName: 'Minha Estética', // Default value
+          name: reqName || finalEmail.split('@')[0],
+          businessName: 'Minha Estética',
           ownerId: newUser.uid,
-          email: reqEmail.toLowerCase().trim(),
+          email: finalEmail,
           role: 'user',
+          plan: 'free',
+          accentColor: 'rose',
           createdAt: new Date().toISOString(),
           setupComplete: true
         });
 
-        // 3. Success! The onAuthStateChanged in App.tsx will detect the login 
-        // and switch to the 'app' view automatically.
-        setCurrentPage('app');
+        addNotification('Acesso ativado com sucesso! Faça login para entrar.', 'info');
+        
+        // 3. Sign out and redirect to login as requested
+        await signOut(auth);
+        
+        // Remove 'page' from URL safely
+        const url = new URL(window.location.href);
+        url.searchParams.delete('page');
+        url.searchParams.set('email', finalEmail); // Pre-fill login
+        window.history.pushState({}, '', url);
+        
+        setCurrentPage('app'); // Back to login view
       } catch (err: any) {
         console.error(err);
         if (err.code === 'auth/email-already-in-use') {
@@ -5645,6 +5729,8 @@ export default function App() {
             setSelectedDateForNewApp(date);
             setIsNewAppModalOpen(true);
           }}
+          onEditAppointment={setEditingAppointment}
+          onDeleteAppointment={handleDeleteAppointment}
         />
       );
       case 'servicos': return (
@@ -5696,16 +5782,9 @@ export default function App() {
     return <ObrigadoPage />;
   }
 
-  if (!isAuthReady && !isDemo) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#FFF9F9]">
-        <motion.div 
-          animate={{ scale: [1, 1.1, 1], opacity: [1, 0.5, 1] }}
-          transition={{ duration: 1.5, repeat: Infinity }}
-          className="w-16 h-16 bg-rose-500 rounded-2xl shadow-xl shadow-rose-200"
-        />
-      </div>
-    );
+  // Fixing the "Blinking" issue: Show LoadingScreen while checking auth OR waiting for initial profile load
+  if ((!isAuthReady || (user && isInitialLoading)) && !isDemo) {
+    return <LoadingScreen />;
   }
 
   if (!user && !isDemo) {
@@ -5748,10 +5827,49 @@ export default function App() {
                 required
               />
             </div>
-            {authError && <p className="text-rose-500 text-xs font-bold">{authError}</p>}
+            {authError && (
+              <div className="bg-rose-50 p-4 rounded-2xl border border-rose-100 mb-4 animate-shake">
+                <p className="text-rose-600 text-xs font-bold">{authError}</p>
+                <button 
+                  type="button"
+                  onClick={handleResetPassword}
+                  className="mt-2 text-[10px] text-rose-400 hover:text-rose-600 underline uppercase font-black"
+                >
+                  Esqueci minha senha
+                </button>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between px-2 mb-4">
+              <label className="flex items-center gap-2 cursor-pointer group">
+                <div className="relative">
+                  <input 
+                    type="checkbox" 
+                    checked={rememberMe}
+                    onChange={e => setRememberMe(e.target.checked)}
+                    className="sr-only"
+                  />
+                  <div className={cn(
+                    "w-5 h-5 rounded-lg border-2 transition-all flex items-center justify-center",
+                    rememberMe ? "bg-rose-500 border-rose-500" : "border-gray-200 bg-gray-50"
+                  )}>
+                    {rememberMe && <CheckCircle2 className="w-3 h-3 text-white" />}
+                  </div>
+                </div>
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest group-hover:text-gray-600 transition-colors">Lembrar-me</span>
+              </label>
+              <button 
+                type="button"
+                onClick={handleResetPassword}
+                className="text-[10px] font-black text-rose-400 uppercase tracking-widest hover:text-rose-600 transition-colors"
+              >
+                Esqueci a senha
+              </button>
+            </div>
+
             <button 
               type="submit"
-              className="w-full bg-rose-500 text-white p-4 rounded-2xl font-bold shadow-lg shadow-rose-200 active:scale-95 transition-all"
+              className="w-full bg-rose-500 text-white p-4 rounded-2xl font-bold shadow-lg shadow-rose-200 active:scale-95 transition-all text-sm uppercase tracking-widest"
             >
               Entrar no Sistema
             </button>
@@ -5912,6 +6030,7 @@ export default function App() {
                 
                 const procedureId = formData.get('procedureId') as string;
                 const sessionNumber = parseInt(formData.get('sessionNumber') as string) || 1;
+                const totalSessions = parseInt(formData.get('totalSessions') as string) || (parseInt(formData.get('repeatCount') as string) || 1);
                 
                 if (!clientId) {
                   addNotification('Por favor, selecione uma cliente da lista.', 'error');
@@ -5958,7 +6077,8 @@ export default function App() {
                         date: current.toISOString(),
                         status: 'confirmado',
                         price: proc?.price || 0,
-                        sessionNumber: appsToCreate.length + 1
+                        sessionNumber: appsToCreate.length + 1,
+                        totalSessions: maxTotal
                       });
                     }
 
@@ -5997,7 +6117,8 @@ export default function App() {
                     date: baseDate.toISOString(),
                     status: 'confirmado',
                     price: proc?.price || 0,
-                    sessionNumber
+                    sessionNumber,
+                    totalSessions
                   });
                 }
 
@@ -6094,15 +6215,27 @@ export default function App() {
                 </select>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-400 uppercase">Número da Sessão</label>
-                <input 
-                  name="sessionNumber" 
-                  type="number" 
-                  min={1}
-                  defaultValue={1}
-                  className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 font-bold" 
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase">Número da Sessão</label>
+                  <input 
+                    name="sessionNumber" 
+                    type="number" 
+                    min={1}
+                    defaultValue={1}
+                    className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 font-bold" 
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase">Total de Sessões</label>
+                  <input 
+                    name="totalSessions" 
+                    type="number" 
+                    min={1}
+                    defaultValue={1}
+                    className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 font-bold" 
+                  />
+                </div>
               </div>
 
               {/* Repetição Section */}
@@ -6787,7 +6920,9 @@ export default function App() {
                   handleUpdateAppointment(editingAppointment.id, {
                     date: `${date}T${time}:00`,
                     procedureId: formData.get('procedureId') as string,
-                    status: formData.get('status') as AppointmentStatus
+                    status: formData.get('status') as AppointmentStatus,
+                    sessionNumber: parseInt(formData.get('sessionNumber') as string) || 1,
+                    totalSessions: parseInt(formData.get('totalSessions') as string) || 1
                   });
                   setEditingAppointment(null);
                 }}
@@ -6803,11 +6938,33 @@ export default function App() {
                     <input name="time" type="time" required defaultValue={editingAppointment?.date?.split('T')[1]?.substring(0, 5) || ''} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 font-bold" />
                   </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-400 uppercase">Serviço</label>
-                  <select name="procedureId" required defaultValue={editingAppointment.procedureId} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 font-bold">
-                    {procedures.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Serviço</label>
+                    <select name="procedureId" required defaultValue={editingAppointment.procedureId} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 font-bold">
+                      {procedures.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Sessão Atual</label>
+                    <input 
+                      name="sessionNumber" 
+                      type="number" 
+                      min={1} 
+                      defaultValue={editingAppointment.sessionNumber || 1} 
+                      className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 font-bold" 
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Total Sessões</label>
+                    <input 
+                      name="totalSessions" 
+                      type="number" 
+                      min={1} 
+                      defaultValue={editingAppointment.totalSessions || 1} 
+                      className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 font-bold" 
+                    />
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-gray-400 uppercase">Status</label>

@@ -54,6 +54,7 @@ export interface Appointment {
   ownerId?: string;
   isPaid?: boolean;
   sessionNumber?: number;
+  totalSessions?: number;
 }
 
 export interface MessageTemplate {
