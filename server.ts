@@ -98,7 +98,9 @@ app.post('/api/webhook/kiwify', async (req, res) => {
     console.warn('Webhook Warning: KIWIFY_WEBHOOK_SECRET not set. Skipping signature verification.');
   }
 
-  const { order_status, customer_email, customer_name } = req.body;
+  const order_status = req.body.order_status;
+  const customer_email = req.body.customer_email || req.body.customer?.email;
+  const customer_name = req.body.customer_name || req.body.customer?.name;
 
   if (order_status === 'paid' || order_status === 'approved') {
     try {

@@ -106,7 +106,7 @@ service cloud.firestore {
 
     // Authorized Emails (Kiwify Integration)
     match /authorized_emails/{email} {
-      allow get: if isSignedIn() && request.auth.token.email.lower() == email.lower();
+      allow get, create: if isSignedIn() && request.auth.token.email.lower() == email.lower();
       allow list: if isAdmin();
     }
 
