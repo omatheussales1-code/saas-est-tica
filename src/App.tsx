@@ -987,11 +987,7 @@ const openWhatsApp = (phone: string, message: string, prefix: string = '55') => 
 
 const LoadingScreen = () => (
   <div className="fixed inset-0 z-[1000] bg-rose-50 flex flex-col items-center justify-center p-6 text-center">
-    <motion.div
-      initial={{ scale: 0.8, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      className="bg-white p-12 rounded-[48px] shadow-2xl border-4 border-white flex flex-col items-center gap-8"
-    >
+    <div className="bg-white p-12 rounded-[48px] shadow-2xl border-4 border-white flex flex-col items-center gap-8">
       <div className="relative">
         <div className="w-24 h-24 bg-rose-500 rounded-[32px] flex items-center justify-center shadow-2xl shadow-rose-200 animate-bounce">
           <ShieldCheck className="text-white w-12 h-12" />
@@ -999,20 +995,10 @@ const LoadingScreen = () => (
         <div className="absolute -inset-4 border-2 border-dashed border-rose-200 rounded-[40px] animate-spin-slow" />
       </div>
       <div>
-        <h2 className="text-2xl font-black text-gray-900 mb-2">Preparando Tudo...</h2>
-        <p className="text-gray-500 font-medium">Organizando sua agenda e seus dados.</p>
+        <h2 className="text-2xl font-black text-gray-900 mb-2 uppercase tracking-tight">Preparando Tudo...</h2>
+        <p className="text-gray-500 font-bold text-xs uppercase tracking-widest animate-pulse">Organizando seu espaço com segurança.</p>
       </div>
-      <div className="flex gap-2">
-        {[0, 1, 2].map(i => (
-          <motion.div
-            key={i}
-            animate={{ scale: [1, 1.5, 1], opacity: [0.3, 1, 0.3] }}
-            transition={{ repeat: Infinity, duration: 1, delay: i * 0.2 }}
-            className="w-3 h-3 bg-rose-500 rounded-full"
-          />
-        ))}
-      </div>
-    </motion.div>
+    </div>
   </div>
 );
 
@@ -2302,6 +2288,7 @@ const BudgetsTab = ({
   onAddProcedure, 
   onUpdateProcedure,
   onDeleteBudget,
+  onEditBudget,
   cLabel,
   userProfile
 }: { 
@@ -2312,6 +2299,7 @@ const BudgetsTab = ({
   onAddProcedure: (p: Procedure) => void, 
   onUpdateProcedure: (id: string, u: Partial<Procedure>) => void,
   onDeleteBudget: (id: string) => void,
+  onEditBudget: (b: Budget) => void,
   cLabel: string,
   userProfile: UserProfile | null
 }) => {
@@ -2375,6 +2363,13 @@ const BudgetsTab = ({
           return (
             <div key={budget.id} className="bg-white p-5 rounded-2xl shadow-sm border border-rose-50 hover:border-rose-200 transition-all group relative">
               <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button 
+                  onClick={() => onEditBudget(budget.id as any)}
+                  className="p-2 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+                  title="Editar Orçamento"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
                 <button 
                   onClick={() => onDeleteBudget(budget.id)}
                   className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
@@ -4831,8 +4826,10 @@ export default function App() {
       
       try {
         const finalEmail = reqEmail.toLowerCase().trim();
+        const finalPassword = reqPassword.toLowerCase(); // Consistent with login force lowercase
+
         // 1. Create the Auth User
-        const userCredential = await createUserWithEmailAndPassword(auth, finalEmail, reqPassword);
+        const userCredential = await createUserWithEmailAndPassword(auth, finalEmail, finalPassword);
         const newUser = userCredential.user;
 
         // 2. Initialize User Profile
@@ -4863,11 +4860,11 @@ export default function App() {
       } catch (err: any) {
         console.error(err);
         if (err.code === 'auth/email-already-in-use') {
-          setError('Este e-mail já possui uma conta. Tente fazer login normalmente.');
+          setError('Este e-mail já possui uma conta cadastrada no OrbyFlow. Se você não lembra sua senha, use a opção "Esqueci a Senha" na tela de login.');
         } else if (err.code === 'auth/weak-password') {
           setError('A senha deve ter pelo menos 6 caracteres.');
         } else {
-          setError('Erro ao criar conta. Verifique os dados ou tente novamente.');
+          setError('Erro ao criar conta: ' + (err.message || 'Verifique os dados ou tente novamente.'));
         }
       } finally {
         setIsSubmitting(false);
@@ -4944,6 +4941,17 @@ export default function App() {
               {isSubmitting ? 'Gerando Acesso...' : 'Ativar Meu Acesso Agora'}
               <ArrowRight className="w-5 h-5" />
             </button>
+
+            <div className="text-center mt-6 pt-6 border-t border-rose-50 flex flex-col gap-4">
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Já ativou seu acesso? Ou esqueceu a senha?</p>
+              <button 
+                type="button"
+                onClick={() => setCurrentPage('app')}
+                className="text-rose-500 font-black text-xs uppercase tracking-widest hover:underline py-2"
+              >
+                Voltar para o Login
+              </button>
+            </div>
           </form>
           
           <p className="mt-8 text-[10px] font-black text-gray-300 uppercase tracking-[0.2em]">
@@ -4956,6 +4964,7 @@ export default function App() {
 
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
+  const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
   const [editingProcedure, setEditingProcedure] = useState<Procedure | null>(null);
   const [editingFinancialEntry, setEditingFinancialEntry] = useState<FinancialEntry | null>(null);
   const [editingFollowUp, setEditingFollowUp] = useState<FollowUp | null>(null);
@@ -5688,6 +5697,7 @@ export default function App() {
           onAddProcedure={handleAddProcedure} 
           onUpdateProcedure={handleUpdateProcedure}
           onDeleteBudget={handleDeleteBudget}
+          onEditBudget={setEditingBudget}
           cLabel={cLabel}
           userProfile={userProfile}
         />
@@ -5782,7 +5792,7 @@ export default function App() {
     return <ObrigadoPage />;
   }
 
-  // Fixing the "Blinking" issue: Show LoadingScreen while checking auth OR waiting for initial profile load
+  // Smooth Loading Screen
   if ((!isAuthReady || (user && isInitialLoading)) && !isDemo) {
     return <LoadingScreen />;
   }
