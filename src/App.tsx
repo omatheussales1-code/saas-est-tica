@@ -68,6 +68,8 @@ import {
   differenceInMinutes,
   isAfter,
   isBefore,
+  addWeeks,
+  getDay,
   isValid,
   addDays
 } from 'date-fns';
@@ -1485,9 +1487,22 @@ const Agenda = ({
                           app.status === 'confirmado' ? 'bg-rose-500' : 
                           app.status === 'faltou' ? 'bg-red-500' : 'bg-amber-500'
                         )} />
-                        <span className="text-[10px] font-medium text-gray-500 truncate">
-                          {clients.find(c => c.id === app.clientId)?.name?.split(' ')[0] || cLabel}
-                        </span>
+                        {(() => {
+                          const client = clients.find(c => c.id === app.clientId);
+                          return (
+                            <>
+                              <span className="text-[10px] font-medium text-gray-500 truncate">
+                                {client?.name?.split(' ')[0] || cLabel}
+                              </span>
+                              {client?.label && (
+                                <div 
+                                  className="w-1 h-1 rounded-full shrink-0" 
+                                  style={{ backgroundColor: client.labelColor || '#f43f5e' }} 
+                                />
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                     ))}
                   </div>
@@ -1553,6 +1568,14 @@ const Agenda = ({
                         <p className="font-black text-gray-900 text-base flex items-center gap-2 truncate">
                           {client?.name || 'Cliente Excluída'}
                           {isRealized && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                          {client?.label && (
+                            <span 
+                              className="px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest text-white shadow-sm"
+                              style={{ backgroundColor: client.labelColor || '#f43f5e' }}
+                            >
+                              {client.label}
+                            </span>
+                          )}
                         </p>
                         <div className="flex items-center gap-2 mt-0.5">
                           <div className="flex items-center gap-1 text-rose-500">
@@ -4624,6 +4647,15 @@ export default function App() {
   const [clientStep, setClientStep] = useState(1);
   const [selectedDateForNewApp, setSelectedDateForNewApp] = useState(new Date());
   
+  // Recurrence States
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurrenceFreq, setRecurrenceFreq] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
+  const [recurrenceInterval, setRecurrenceInterval] = useState(1);
+  const [recurrenceDays, setRecurrenceDays] = useState<number[]>([]); // 0-6
+  const [recurrenceEndType, setRecurrenceEndType] = useState<'count' | 'date' | 'never'>('count');
+  const [recurrenceCount, setRecurrenceCount] = useState(4);
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState(addMonths(new Date(), 1));
+  
   const [emailInput, setEmailInput] = useState('');
 
   // Detect email from URL (useful for Kiwify redirects)
@@ -4670,6 +4702,148 @@ export default function App() {
         setAuthError('Erro ao entrar. ' + error.message);
       }
     }
+  };
+
+  const [currentPage, setCurrentPage] = useState<'app' | 'obrigado'>('app');
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('page') === 'obrigado') {
+      setCurrentPage('obrigado');
+    }
+  }, []);
+
+  const ObrigadoPage = () => {
+    const [reqName, setReqName] = useState('');
+    const [reqEmail, setReqEmail] = useState('');
+    const [reqPassword, setReqPassword] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+      const params = new URLSearchParams(window.location.search);
+      const emailParam = params.get('email') || params.get('customer_email');
+      if (emailParam) setReqEmail(emailParam);
+      const nameParam = params.get('name') || params.get('customer_name');
+      if (nameParam) setReqName(nameParam);
+    }, []);
+
+    const handleCreateAccount = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setIsSubmitting(true);
+      setError(null);
+      
+      try {
+        // 1. Create the Auth User
+        const userCredential = await createUserWithEmailAndPassword(auth, reqEmail.toLowerCase().trim(), reqPassword);
+        const newUser = userCredential.user;
+
+        // 2. Initialize User Profile/Settings if needed
+        await setDoc(doc(db, 'userProfiles', newUser.uid), {
+          name: reqName,
+          businessName: 'Minha Estética', // Default value
+          ownerId: newUser.uid,
+          email: reqEmail.toLowerCase().trim(),
+          role: 'user',
+          createdAt: new Date().toISOString(),
+          setupComplete: true
+        });
+
+        // 3. Success! The onAuthStateChanged in App.tsx will detect the login 
+        // and switch to the 'app' view automatically.
+        setCurrentPage('app');
+      } catch (err: any) {
+        console.error(err);
+        if (err.code === 'auth/email-already-in-use') {
+          setError('Este e-mail já possui uma conta. Tente fazer login normalmente.');
+        } else if (err.code === 'auth/weak-password') {
+          setError('A senha deve ter pelo menos 6 caracteres.');
+        } else {
+          setError('Erro ao criar conta. Verifique os dados ou tente novamente.');
+        }
+      } finally {
+        setIsSubmitting(false);
+      }
+    };
+
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#FFF9F9] p-4">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white p-8 sm:p-10 rounded-[40px] shadow-2xl border border-rose-50 w-full max-w-xl text-center relative overflow-hidden"
+        >
+          <div className="absolute top-0 left-0 w-full h-2 bg-linear-to-r from-rose-500 to-rose-300" />
+          
+          <div className="w-20 h-20 bg-emerald-500 rounded-3xl flex items-center justify-center shadow-xl shadow-emerald-100 mx-auto mb-6">
+            <CheckCircle className="text-white w-10 h-10" />
+          </div>
+          
+          <h1 className="text-3xl font-black mb-2 uppercase tracking-tighter bg-linear-to-r from-emerald-600 to-emerald-400 bg-clip-text text-transparent">
+            Pagamento Aprovado!
+          </h1>
+          <p className="text-gray-500 font-bold mb-8 text-sm">Crie sua senha para acessar o OrbyFlow agora mesmo.</p>
+          
+          <form onSubmit={handleCreateAccount} className="space-y-4 text-left">
+            {error && (
+              <div className="bg-rose-50 text-rose-600 p-4 rounded-2xl text-xs font-bold border border-rose-100 animate-shake">
+                {error}
+              </div>
+            )}
+
+            <div>
+              <label className="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-2">Nome Completo</label>
+              <input 
+                type="text" 
+                required
+                value={reqName}
+                onChange={e => setReqName(e.target.value)}
+                placeholder="Seu nome"
+                className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 font-bold text-gray-700 outline-none focus:ring-2 focus:ring-rose-500 transition-all text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-2">E-mail de Acesso</label>
+              <input 
+                type="email" 
+                required
+                value={reqEmail}
+                onChange={e => setReqEmail(e.target.value)}
+                placeholder="exemplo@gmail.com"
+                className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 font-bold text-gray-700 outline-none focus:ring-2 focus:ring-rose-500 transition-all text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-2">Crie uma Senha</label>
+              <input 
+                type="password" 
+                required
+                min={6}
+                value={reqPassword}
+                onChange={e => setReqPassword(e.target.value)}
+                placeholder="Mínimo 6 caracteres"
+                className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 font-bold text-gray-700 outline-none focus:ring-2 focus:ring-rose-500 transition-all text-sm"
+              />
+            </div>
+
+            <button 
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full bg-rose-600 text-white p-5 rounded-3xl font-black uppercase tracking-wider text-sm shadow-xl shadow-rose-200 hover:bg-rose-700 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 mt-4"
+            >
+              {isSubmitting ? 'Gerando Acesso...' : 'Ativar Meu Acesso Agora'}
+              <ArrowRight className="w-5 h-5" />
+            </button>
+          </form>
+          
+          <p className="mt-8 text-[10px] font-black text-gray-300 uppercase tracking-[0.2em]">
+            Bem-vinda ao OrbyFlow Systems
+          </p>
+        </motion.div>
+      </div>
+    );
   };
 
   const [editingClient, setEditingClient] = useState<Client | null>(null);
@@ -4874,22 +5048,31 @@ export default function App() {
   };
 
   const handleAddAppointment = async (app: Appointment) => {
-    const client = clients.find(c => c.id === app.clientId);
+    await handleAddAppointments([app]);
+  };
+
+  const handleAddAppointments = async (apps: Appointment[]) => {
+    if (apps.length === 0) return;
+    const client = clients.find(c => c.id === apps[0].clientId);
+    
     if (isDemo) {
-      const newApp = { ...app, id: Math.random().toString(36).substr(2, 9) };
-      setAppointments(prev => [...prev, newApp]);
+      const newApps = apps.map(app => ({ ...app, id: Math.random().toString(36).substr(2, 9) }));
+      setAppointments(prev => [...prev, ...newApps]);
       setIsNewAppModalOpen(false);
-      addNotification('Agendamento salvo com sucesso! (Modo Demo)', 'info');
-      if (client) setJustCreatedAppointment({ app: newApp, client });
+      addNotification(`${apps.length > 1 ? `${apps.length} agendamentos salvos` : 'Agendamento salvo'} com sucesso! (Modo Demo)`, 'info');
+      if (client) setJustCreatedAppointment({ app: newApps[0], client });
       return;
     }
     if (!user) return;
     try {
-      const { id, ...data } = app;
-      const docRef = await addDoc(collection(db, 'appointments'), { ...data, ownerId: user.uid });
+      const promises = apps.map(app => {
+        const { id, ...data } = app;
+        return addDoc(collection(db, 'appointments'), { ...data, ownerId: user.uid, createdAt: new Date().toISOString() });
+      });
+      const docRefs = await Promise.all(promises);
       setIsNewAppModalOpen(false);
-      addNotification('Agendamento salvo com sucesso!', 'info');
-      if (client) setJustCreatedAppointment({ app: { ...app, id: docRef.id }, client });
+      addNotification(`${apps.length > 1 ? `${apps.length} agendamentos salvos` : 'Agendamento salvo'} com sucesso!`, 'info');
+      if (client) setJustCreatedAppointment({ app: { ...apps[0], id: docRefs[0].id }, client });
     } catch (e) { handleFirestoreError(e, OperationType.CREATE, 'appointments'); }
   };
 
@@ -5481,6 +5664,10 @@ export default function App() {
     }
   };
 
+  if (currentPage === 'obrigado') {
+    return <ObrigadoPage />;
+  }
+
   if (!isAuthReady && !isDemo) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#FFF9F9]">
@@ -5664,23 +5851,32 @@ export default function App() {
       <NotificationCenter alerts={alerts} />
       {/* Modals (Placeholders for reconstruction) */}
       {isNewAppModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
           <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl"
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="bg-white rounded-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh] overflow-hidden"
           >
-            <h2 className="text-2xl font-black text-gray-900 mb-6">Novo Agendamento</h2>
-            <form 
-              onSubmit={(e) => {
+            <div className="p-8 pb-4 border-b border-gray-50 flex justify-between items-center shrink-0">
+              <h2 className="text-2xl font-black text-gray-900">Novo Agendamento</h2>
+              <button 
+                onClick={() => setIsNewAppModalOpen(false)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            <div className="p-8 pt-6 overflow-y-auto custom-scrollbar">
+              <form 
+                onSubmit={(e) => {
                 e.preventDefault();
                 const formData = new FormData(e.currentTarget);
-                const date = formData.get('date') as string;
-                const time = formData.get('time') as string;
+                const dateStr = formData.get('date') as string;
+                const timeStr = formData.get('time') as string;
                 let clientId = formData.get('clientId') as string;
                 const clientSearch = formData.get('clientSearch') as string;
                 
-                // Fallback: Tentativa de encontrar pelo nome se o ID estiver vazio
                 if (!clientId && clientSearch) {
                   const match = clients.find(c => (c.name || '').toLowerCase() === clientSearch.toLowerCase());
                   if (match) clientId = match.id;
@@ -5692,22 +5888,91 @@ export default function App() {
                   addNotification('Por favor, selecione uma cliente da lista.', 'error');
                   return;
                 }
-                if (!procedureId || !date || !time) {
+                if (!procedureId || !dateStr || !timeStr) {
                   addNotification('Por favor, preencha todos os campos do agendamento.', 'error');
                   return;
                 }
 
+                const baseDate = parseISO(`${dateStr}T${timeStr}:00`);
+                if (!isValid(baseDate)) {
+                  addNotification('Data ou horário inválido.', 'error');
+                  return;
+                }
+
                 const proc = procedures.find(p => p.id === procedureId);
-                const newApp: Appointment = {
-                  id: Math.random().toString(36).substr(2, 9),
-                  clientId,
-                  procedureId,
-                  date: `${date}T${time}:00`,
-                  status: 'confirmado',
-                  price: proc?.price || 0
-                };
-                handleAddAppointment(newApp);
+                const appsToCreate: Appointment[] = [];
+
+                if (isRecurring) {
+                  // Generate multiple dates
+                  let current = new Date(baseDate);
+                  const maxTotal = recurrenceEndType === 'count' ? recurrenceCount : 50; 
+                  const stopDate = recurrenceEndType === 'date' ? recurrenceEndDate : addMonths(baseDate, 12);
+
+                  while (appsToCreate.length < maxTotal) {
+                    let shouldAdd = false;
+                    if (recurrenceFreq === 'daily') {
+                      shouldAdd = true;
+                    } else if (recurrenceFreq === 'weekly') {
+                      const d = getDay(current);
+                      if (recurrenceDays.length === 0 || recurrenceDays.includes(d)) {
+                        shouldAdd = true;
+                      }
+                    } else if (recurrenceFreq === 'monthly') {
+                      shouldAdd = true;
+                    }
+
+                    if (shouldAdd) {
+                      appsToCreate.push({
+                        id: Math.random().toString(36).substr(2, 9),
+                        clientId,
+                        procedureId,
+                        date: current.toISOString(),
+                        status: 'confirmado',
+                        price: proc?.price || 0
+                      });
+                    }
+
+                    // Increment
+                    if (recurrenceFreq === 'daily') {
+                      current = addDays(current, recurrenceInterval);
+                    } else if (recurrenceFreq === 'weekly') {
+                      // Logic for weekly needs to be smarter if we have multiple days selected
+                      // If we pick MON and WED, and interval is 1.
+                      // We should check every day until we hit the next recurrence interval or next week.
+                      current = addDays(current, 1);
+                      // If we moved to a new week, skip by interval?
+                      // Actually, let's keep it simple: 
+                      // Weekly Frequency with Days:
+                      // If I pick Mon/Wed, it checks every day. 
+                      // If I want "Every 2 weeks on Mon/Wed", that's harder.
+                      // Let's assume Interval applies to the WHOLE week for now.
+                      if (getDay(current) === getDay(baseDate)) {
+                         if (recurrenceInterval > 1) {
+                           current = addWeeks(current, recurrenceInterval - 1);
+                         }
+                      }
+                    } else {
+                      current = addMonths(current, recurrenceInterval);
+                    }
+
+                    if (recurrenceEndType === 'date' && current > stopDate) break;
+                    if (appsToCreate.length >= maxTotal) break;
+                    if (recurrenceEndType === 'never' && appsToCreate.length >= 12) break;
+                  }
+                } else {
+                  appsToCreate.push({
+                    id: Math.random().toString(36).substr(2, 9),
+                    clientId,
+                    procedureId,
+                    date: baseDate.toISOString(),
+                    status: 'confirmado',
+                    price: proc?.price || 0
+                  });
+                }
+
+                handleAddAppointments(appsToCreate);
                 setIsNewAppModalOpen(false);
+                setIsRecurring(false); // Reset recurrence
               }}
               className="space-y-4"
             >
@@ -5798,6 +6063,177 @@ export default function App() {
                 </select>
               </div>
 
+              {/* Repetição Section */}
+              <div className="border-t border-gray-100 pt-4 mt-2">
+                <button 
+                  type="button"
+                  onClick={() => setIsRecurring(!isRecurring)}
+                  className={cn(
+                    "flex items-center gap-2 text-xs font-black uppercase tracking-wider transition-all",
+                    isRecurring ? "text-rose-500" : "text-gray-400 hover:text-gray-600"
+                  )}
+                >
+                  <RotateCcw className={cn("w-4 h-4", isRecurring && "animate-spin-slow")} />
+                  Repetir Agendamento
+                </button>
+
+                <AnimatePresence>
+                  {isRecurring && (
+                    <motion.div 
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden space-y-4 mt-4"
+                    >
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-gray-400 uppercase">Frequência</label>
+                        <select 
+                          value={recurrenceFreq}
+                          onChange={(e) => setRecurrenceFreq(e.target.value as any)}
+                          className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 text-sm font-bold"
+                        >
+                          <option value="daily">Repetir Diariamente</option>
+                          <option value="weekly">Repetir Semanalmente</option>
+                          <option value="monthly">Repetir Mensalmente</option>
+                        </select>
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        <label className="text-[10px] font-black text-gray-400 uppercase shrink-0">Repetir a cada</label>
+                        <div className="flex items-center gap-2 bg-gray-50 rounded-xl border border-gray-100 p-1">
+                          <button 
+                            type="button"
+                            onClick={() => setRecurrenceInterval(Math.max(1, recurrenceInterval - 1))}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white transition-colors"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                          <span className="w-8 text-center font-black text-sm">{recurrenceInterval}</span>
+                          <button 
+                            type="button"
+                            onClick={() => setRecurrenceInterval(recurrenceInterval + 1)}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white transition-colors"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </div>
+                        <span className="text-[10px] font-black text-gray-400 uppercase">
+                          {recurrenceFreq === 'daily' ? 'Dia(s)' : recurrenceFreq === 'weekly' ? 'Semana(s)' : 'Mês(es)'}
+                        </span>
+                      </div>
+
+                      {recurrenceFreq === 'weekly' && (
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-gray-400 uppercase">Selecione os dias</label>
+                          <div className="flex gap-1">
+                            {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => {
+                                  setRecurrenceDays(prev => 
+                                    prev.includes(idx) ? prev.filter(d => d !== idx) : [...prev, idx]
+                                  );
+                                }}
+                                className={cn(
+                                  "flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all",
+                                  recurrenceDays.includes(idx) 
+                                    ? "bg-rose-500 text-white shadow-lg shadow-rose-100" 
+                                    : "bg-gray-50 text-gray-400 border border-transparent hover:border-rose-100"
+                                )}
+                              >
+                                {day}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="space-y-3 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                        <label className="text-[10px] font-black text-gray-400 uppercase">Duração</label>
+                        
+                        <div className="space-y-3">
+                          <label className="flex items-center gap-3 cursor-pointer group">
+                            <input 
+                              type="radio" 
+                              checked={recurrenceEndType === 'count'}
+                              onChange={() => setRecurrenceEndType('count')}
+                              className="hidden"
+                            />
+                            <div className={cn(
+                              "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
+                              recurrenceEndType === 'count' ? "border-rose-500 bg-rose-500" : "border-gray-200"
+                            )}>
+                              {recurrenceEndType === 'count' && <div className="w-2 h-2 rounded-full bg-white" />}
+                            </div>
+                            <span className="text-[11px] font-bold text-gray-600 uppercase">Repetir por</span>
+                            <div className="flex items-center gap-2 bg-white rounded-lg border border-gray-100 px-2 py-1 ml-auto">
+                              <button 
+                                type="button"
+                                onClick={() => setRecurrenceCount(Math.max(1, recurrenceCount - 1))}
+                                className="w-6 h-6 flex items-center justify-center text-gray-400"
+                              >
+                                -
+                              </button>
+                              <span className="w-6 text-center text-xs font-black">{recurrenceCount}</span>
+                              <button 
+                                type="button"
+                                onClick={() => setRecurrenceCount(recurrenceCount + 1)}
+                                className="w-6 h-6 flex items-center justify-center text-gray-400"
+                              >
+                                +
+                              </button>
+                            </div>
+                            <span className="text-[11px] font-bold text-gray-400">agendamentos</span>
+                          </label>
+
+                          <label className="flex items-center gap-3 cursor-pointer group">
+                            <input 
+                              type="radio" 
+                              checked={recurrenceEndType === 'date'}
+                              onChange={() => setRecurrenceEndType('date')}
+                              className="hidden"
+                            />
+                            <div className={cn(
+                              "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
+                              recurrenceEndType === 'date' ? "border-rose-500 bg-rose-500" : "border-gray-200"
+                            )}>
+                              {recurrenceEndType === 'date' && <div className="w-2 h-2 rounded-full bg-white" />}
+                            </div>
+                            <span className="text-[11px] font-bold text-gray-600 uppercase">Até uma data</span>
+                            {recurrenceEndType === 'date' && (
+                              <input 
+                                type="date"
+                                value={format(recurrenceEndDate, 'yyyy-MM-dd')}
+                                onChange={(e) => setRecurrenceEndDate(parseISO(e.target.value))}
+                                className="ml-auto bg-white border border-gray-100 rounded-lg p-1 text-[10px] font-bold"
+                              />
+                            )}
+                          </label>
+
+                          <label className="flex items-center gap-3 cursor-pointer group">
+                            <input 
+                              type="radio" 
+                              checked={recurrenceEndType === 'never'}
+                              onChange={() => setRecurrenceEndType('never')}
+                              className="hidden"
+                            />
+                            <div className={cn(
+                              "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
+                              recurrenceEndType === 'never' ? "border-rose-500 bg-rose-500" : "border-gray-200"
+                            )}>
+                              {recurrenceEndType === 'never' && <div className="w-2 h-2 rounded-full bg-white" />}
+                            </div>
+                            <span className="text-[11px] font-bold text-gray-600 uppercase">Sem data final</span>
+                            <Info className="w-3 h-3 text-gray-300 ml-auto" />
+                          </label>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
               <div className="flex gap-3 pt-4">
                 <button 
                   type="button" 
@@ -5814,6 +6250,7 @@ export default function App() {
                 </button>
               </div>
             </form>
+            </div>
           </motion.div>
         </div>
       )}
@@ -6007,6 +6444,8 @@ export default function App() {
                   country: (formData.get('country') as string) || 'BR',
                   birthday: formData.get('birthday') as string,
                   observations: formData.get('observations') as string,
+                  label: formData.get('label') as string,
+                  labelColor: formData.get('labelColor') as string,
                   createdAt: new Date().toISOString(),
                   preferences: {
                     airConditioning: formData.get('airConditioning') as any,
@@ -6058,11 +6497,41 @@ export default function App() {
                     <input name="state" type="text" placeholder="Ex: SP" maxLength={2} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 uppercase" />
                   </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-400 uppercase">Observações</label>
-                  <textarea name="observations" rows={1} placeholder="Alergias, preferências, etc..." className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 resize-none" />
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Observações</label>
+                    <textarea name="observations" rows={1} placeholder="Alergias, preferências, etc..." className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 resize-none" />
+                  </div>
                 </div>
-              </div>
+
+                <div className={cn("space-y-4 animate-in fade-in slide-in-from-right-4 duration-300", clientStep !== 1 && "hidden")}>
+                  <div className="border-t border-gray-50 pt-4">
+                    <label className="text-xs font-bold text-gray-400 uppercase block mb-3">Etiqueta do Cliente</label>
+                    <div className="flex flex-col gap-3">
+                      <input 
+                        name="label" 
+                        type="text" 
+                        placeholder="Ex: Cliente Fixo, Bronze, VIP..." 
+                        className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 text-sm font-bold"
+                      />
+                      <div className="flex gap-2">
+                        {[
+                          { name: 'Rose', color: '#f43f5e' },
+                          { name: 'Azul', color: '#3b82f6' },
+                          { name: 'Verde', color: '#10b981' },
+                          { name: 'Aguardando', color: '#f59e0b' },
+                          { name: 'Roxo', color: '#8b5cf6' },
+                          { name: 'Cinza', color: '#6b7280' }
+                        ].map((c) => (
+                          <label key={c.color} className="relative cursor-pointer group">
+                            <input type="radio" name="labelColor" value={c.color} className="peer hidden" defaultChecked={c.name === 'Rose'} />
+                            <div className="w-8 h-8 rounded-full transition-all border-2 border-transparent peer-checked:border-rose-500 peer-checked:scale-110" style={{ backgroundColor: c.color }} />
+                            <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] font-bold text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">{c.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
               <div className={cn("space-y-4 animate-in fade-in slide-in-from-right-4 duration-300", clientStep !== 2 && "hidden")}>
                 <div className="flex items-center gap-2 mb-2 text-rose-600">
@@ -6173,6 +6642,8 @@ export default function App() {
                     state: formData.get('state') as string,
                     birthday: formData.get('birthday') as string,
                     observations: formData.get('observations') as string,
+                    label: formData.get('label') as string,
+                    labelColor: formData.get('labelColor') as string,
                   });
                   setEditingClient(null);
                 }}
@@ -6215,6 +6686,34 @@ export default function App() {
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-gray-400 uppercase">Observações</label>
                   <textarea name="observations" defaultValue={editingClient.observations} rows={1} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 resize-none" />
+                </div>
+                
+                <div className="border-t border-gray-50 pt-4">
+                  <label className="text-xs font-bold text-gray-400 uppercase block mb-3">Etiqueta do Cliente</label>
+                  <div className="flex flex-col gap-3">
+                    <input 
+                      name="label" 
+                      type="text" 
+                      defaultValue={editingClient.label}
+                      placeholder="Ex: Cliente Fixo, VIP..." 
+                      className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 text-sm font-bold"
+                    />
+                    <div className="flex gap-2">
+                      {[
+                        { name: 'Rose', color: '#f43f5e' },
+                        { name: 'Azul', color: '#3b82f6' },
+                        { name: 'Verde', color: '#10b981' },
+                        { name: 'Ambar', color: '#f59e0b' },
+                        { name: 'Roxo', color: '#8b5cf6' },
+                        { name: 'Cinza', color: '#6b7280' }
+                      ].map((c) => (
+                        <label key={c.color} className="relative cursor-pointer group">
+                          <input type="radio" name="labelColor" value={c.color} className="peer hidden" defaultChecked={editingClient.labelColor === c.color || (!editingClient.labelColor && c.name === 'Rose')} />
+                          <div className="w-8 h-8 rounded-full transition-all border-2 border-transparent peer-checked:border-rose-500 peer-checked:scale-110" style={{ backgroundColor: c.color }} />
+                        </label>
+                      ))}
+                    </div>
+                  </div>
                 </div>
                 <div className="flex gap-3 pt-4">
                   <button type="button" onClick={() => setEditingClient(null)} className="flex-1 py-3 font-bold text-gray-500">Cancelar</button>

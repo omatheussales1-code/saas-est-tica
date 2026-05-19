@@ -9,6 +9,8 @@
         "phone": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" },
         "preferences": { "type": "object" },
+        "label": { "type": "string" },
+        "labelColor": { "type": "string" },
         "ownerId": { "type": "string" }
       },
       "required": ["name", "ownerId"]
@@ -146,6 +148,19 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["email"]
+    },
+    "AccessRequest": {
+      "title": "AccessRequest",
+      "description": "Requests for access after purchase",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "name", "status", "createdAt"]
     }
   },
   "firestore": {
@@ -158,6 +173,7 @@
     "/followUps/{fUpId}": { "schema": "FollowUp", "description": "Post-service follow-ups" },
     "/messageTemplates/{templateId}": { "schema": "MessageTemplate", "description": "WhatsApp message templates" },
     "/userProfiles/{userId}": { "schema": "UserProfile", "description": "User profile settings" },
-    "/authorized_emails/{email}": { "schema": "AuthorizedEmail", "description": "Authorized emails list" }
+    "/authorized_emails/{email}": { "schema": "AuthorizedEmail", "description": "Authorized emails list" },
+    "/accessRequests/{requestId}": { "schema": "AccessRequest", "description": "Access requests after purchase" }
   }
 }

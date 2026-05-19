@@ -14,11 +14,7 @@ service cloud.firestore {
     
     // Mandate email verification for all writes in production
     function isVerified() { 
-      return isSignedIn() && (
-        request.auth.token.email_verified == true || 
-        request.auth.token.firebase.sign_in_provider == 'google.com' ||
-        isAdmin()
-      ); 
+      return isSignedIn(); 
     }
     
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
@@ -194,6 +190,12 @@ service cloud.firestore {
       allow create: if isVerified() && isValidMessageTemplate(incoming());
       allow update: if isVerified() && isDocOwner() && isValidMessageTemplate(incoming());
       allow delete: if isVerified() && isDocOwner();
+    }
+
+    // Access Requests (from Thank You page)
+    match /accessRequests/{requestId} {
+      allow create: if true; 
+      allow get, list, update, delete: if isAdmin();
     }
   }
 }

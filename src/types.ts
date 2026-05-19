@@ -24,6 +24,8 @@ export interface Client {
   country?: string;
   birthday?: string;
   observations?: string;
+  label?: string;
+  labelColor?: string;
   createdAt: string;
   photoBefore?: string;
   photoAfter?: string;
