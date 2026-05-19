@@ -4663,42 +4663,7 @@ export default function App() {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (error: any) {
       if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
-        const isDefaultAdmin = email === 'brefer@gmail.com' && password === 'brefer';
-        
-        if (isDefaultAdmin) {
-          try {
-            await signInWithEmailAndPassword(auth, email, password);
-          } catch (signInErr: any) {
-            await createUserWithEmailAndPassword(auth, email, password);
-          }
-        } else {
-          // Auto-registration flow for Kiwify customers
-          try {
-            const checkResponse = await fetch('/api/auth/check-email', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email })
-            });
-            const { authorized } = await checkResponse.json();
-            
-            if (authorized) {
-              // If email exists in authorized_emails but login failed, it might be a new user or wrong password
-              try {
-                await createUserWithEmailAndPassword(auth, email, password);
-              } catch (createErr: any) {
-                if (createErr.code === 'auth/email-already-in-use') {
-                  setAuthError('E-mail já cadastrado, mas a senha está incorreta.');
-                } else {
-                  setAuthError('Erro ao criar conta. Tente novamente mais tarde.');
-                }
-              }
-            } else {
-              setAuthError('Dados de acesso inválidos. Se você acabou de comprar via Kiwify, use o mesmo e-mail da compra ou aguarde alguns minutos.');
-            }
-          } catch (checkError) {
-            setAuthError('Usuário não encontrado ou senha incorreta.');
-          }
-        }
+        setAuthError('Usuário não encontrado ou senha incorreta. Se você é novo, aguarde a liberação do seu acesso.');
       } else if (error.code === 'auth/operation-not-allowed') {
         setAuthError('O login por e-mail não está ativado no Firebase Console.');
       } else {
@@ -5543,15 +5508,7 @@ export default function App() {
             OrbyFlow
           </h1>
           
-          <div className="bg-rose-50 p-5 rounded-2xl mb-8 border border-rose-100 text-left">
-            <h3 className="text-rose-900 font-black text-sm uppercase tracking-wider mb-1 flex items-center gap-2">
-              <span className="flex h-2 w-2 rounded-full bg-rose-500 animate-pulse"></span>
-              Primeiro Acesso?
-            </h3>
-            <p className="text-rose-700/80 text-[11px] font-bold leading-relaxed">
-              Se você acabou de adquirir sua licença, basta preencher seu e-mail de compra e criar sua senha agora mesmo para entrar.
-            </p>
-          </div>
+          <p className="text-gray-500 font-medium mb-10 px-4">O sistema inteligente para organizar sua agenda, clientes e financeiro.</p>
           
           <form onSubmit={handleEmailLogin} className="space-y-4 mb-6">
             <div className="text-left">
