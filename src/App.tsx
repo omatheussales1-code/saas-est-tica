@@ -3968,38 +3968,6 @@ const SettingsTab = ({
 
           <section className="space-y-4">
             <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-              <MessageCircle className="w-5 h-5 text-rose-500" /> Mensagens Rápidas (Fallback)
-            </h2>
-            <div className="bg-white p-8 rounded-[32px] shadow-sm border border-rose-50 space-y-6">
-              <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100 flex gap-3">
-                <Info className="w-5 h-5 text-amber-500 shrink-0" />
-                <p className="text-xs font-medium text-amber-800">
-                  <span className="font-bold">Dica:</span> Para uma gestão completa, use a aba <button onClick={onNavigateToMessages} className="font-bold underline decoration-amber-500/30 hover:text-amber-600 transition-colors">Mensagens Automáticas</button> para criar e definir modelos padrões personalizados. 
-                </p>
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-400 uppercase ml-4">Texto de Reserva (Confirmação)</label>
-                <textarea 
-                  value={profile.confirmationMessageTemplate || DEFAULT_CONFIRMATION_TEMPLATE} 
-                  onChange={e => setProfile(p => ({ ...p, confirmationMessageTemplate: e.target.value }))}
-                  placeholder="Mensagem de confirmação..."
-                  className="w-full p-4 rounded-2xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-rose-500 font-medium text-gray-700 text-sm leading-relaxed h-32 resize-none" 
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-400 uppercase ml-4">Texto de Lembrete</label>
-                <textarea 
-                  value={profile.reminderMessageTemplate || DEFAULT_REMINDER_TEMPLATE} 
-                  onChange={e => setProfile(p => ({ ...p, reminderMessageTemplate: e.target.value }))}
-                  placeholder="Mensagem de lembrete..."
-                  className="w-full p-4 rounded-2xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-rose-500 font-medium text-gray-700 text-sm leading-relaxed h-32 resize-none" 
-                />
-              </div>
-            </div>
-          </section>
-
-          <section className="space-y-4">
-            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
               <Palette className="w-5 h-5 text-rose-500" /> Cor do Sistema
             </h2>
             <div className="bg-white p-8 rounded-[32px] shadow-sm border border-rose-50 space-y-6">
@@ -4485,6 +4453,172 @@ const DEFAULT_CONFIRMATION_TEMPLATE = 'Olá, {cliente_nome}! ✨ Que alegria ter
 const DEFAULT_REMINDER_TEMPLATE = 'Oi, {cliente_nome}! 🌸 Passando para lembrar com todo carinho do nosso encontro amanhã, dia {data}, às {hora}.\n\nEstamos preparando seu momento de {procedimento} com muito amor e mal podemos esperar para te ver! ✨\n\nCaso precise de qualquer alteração no seu horário, nos avise por favor com um pouquinho de antecedência para liberarmos a vaga para outra cliente querida. Até amanhã! 💖';
 const DEFAULT_WELCOME_TEMPLATE = 'Olá, {cliente_nome} ✨ Seja muito bem-vinda! Ficamos radiantes com seu interesse em nossos cuidados. Preparamos tudo com muito carinho para que você tenha um momento de relaxamento e renovação único. Se tiver qualquer dúvida sobre o procedimento {procedimento}, estou aqui para te ajudar, viu? Um beijo e até breve! 🌸';
 
+interface ObrigadoPageProps {
+  addNotification: (message: string, type?: 'info' | 'warning' | 'error') => void;
+  setCurrentPage: (page: 'app' | 'obrigado') => void;
+}
+
+const ObrigadoPage = ({ addNotification, setCurrentPage }: ObrigadoPageProps) => {
+  const [reqName, setReqName] = useState('');
+  const [reqEmail, setReqEmail] = useState('');
+  const [reqPassword, setReqPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    
+    const emailParam = params.get('email') || params.get('customer_email');
+    // Fix: check if it's a literal template string from Kiwify (common mistake)
+    if (emailParam && !emailParam.includes('${')) setReqEmail(emailParam);
+    
+    const nameParam = params.get('name') || params.get('customer_name');
+    if (nameParam && !nameParam.includes('${')) setReqName(nameParam);
+  }, []);
+
+  const handleCreateAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setError(null);
+    
+    try {
+      const finalEmail = reqEmail.toLowerCase().trim();
+      const finalPassword = reqPassword.toLowerCase(); // Consistent with login force lowercase
+
+      // 1. Create the Auth User
+      const userCredential = await createUserWithEmailAndPassword(auth, finalEmail, finalPassword);
+      const newUser = userCredential.user;
+
+      // 2. Initialize User Profile
+      await setDoc(doc(db, 'userProfiles', newUser.uid), {
+        name: reqName || finalEmail.split('@')[0],
+        businessName: 'Minha Estética',
+        ownerId: newUser.uid,
+        email: finalEmail,
+        role: 'user',
+        plan: 'free',
+        accentColor: 'rose',
+        createdAt: new Date().toISOString(),
+        setupComplete: true
+      });
+
+      addNotification('Acesso ativado com sucesso! Faça login para entrar.', 'info');
+      
+      // 3. Sign out and redirect to login as requested
+      await signOut(auth);
+      
+      // Remove 'page' from URL safely
+      const url = new URL(window.location.href);
+      url.searchParams.delete('page');
+      url.searchParams.set('email', finalEmail); // Pre-fill login
+      window.history.pushState({}, '', url);
+      
+      setCurrentPage('app'); // Back to login view
+    } catch (err: any) {
+      console.error(err);
+      if (err.code === 'auth/email-already-in-use') {
+        setError('Este e-mail já possui uma conta cadastrada no OrbyFlow. Se você não lembra sua senha, use a opção "Esqueci a Senha" na tela de login.');
+      } else if (err.code === 'auth/weak-password') {
+        setError('A senha deve ter pelo menos 6 caracteres.');
+      } else {
+        setError('Erro ao criar conta: ' + (err.message || 'Verifique os dados ou tente novamente.'));
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#FFF9F9] p-4 text-center">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-white p-8 sm:p-10 rounded-[40px] shadow-2xl border border-rose-50 w-full max-w-xl text-center relative overflow-hidden"
+      >
+        <div className="absolute top-0 left-0 w-full h-2 bg-linear-to-r from-rose-500 to-rose-300" />
+        
+        <div className="w-20 h-20 bg-emerald-500 rounded-3xl flex items-center justify-center shadow-xl shadow-emerald-100 mx-auto mb-6">
+          <CheckCircle className="text-white w-10 h-10" />
+        </div>
+        
+        <h1 className="text-3xl font-black mb-2 uppercase tracking-tighter bg-linear-to-r from-emerald-600 to-emerald-400 bg-clip-text text-transparent">
+          Pagamento Aprovado!
+        </h1>
+        <p className="text-gray-500 font-bold mb-8 text-sm">Crie sua senha para acessar o OrbyFlow agora mesmo.</p>
+        
+        <form onSubmit={handleCreateAccount} className="space-y-4 text-left">
+          {error && (
+            <div className="bg-rose-50 text-rose-600 p-4 rounded-2xl text-xs font-bold border border-rose-100 animate-shake">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-2">Nome Completo</label>
+            <input 
+              type="text" 
+              required
+              value={reqName}
+              onChange={e => setReqName(e.target.value)}
+              placeholder="Seu nome"
+              className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 font-bold text-gray-700 outline-none focus:ring-2 focus:ring-rose-500 transition-all text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-2">E-mail de Acesso</label>
+            <input 
+              type="email" 
+              required
+              value={reqEmail}
+              onChange={e => setReqEmail(e.target.value)}
+              placeholder="exemplo@gmail.com"
+              className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 font-bold text-gray-700 outline-none focus:ring-2 focus:ring-rose-500 transition-all text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-2">Crie uma Senha</label>
+            <input 
+              type="password" 
+              required
+              min={6}
+              value={reqPassword}
+              onChange={e => setReqPassword(e.target.value)}
+              placeholder="Mínimo 6 caracteres"
+              className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 font-bold text-gray-700 outline-none focus:ring-2 focus:ring-rose-500 transition-all text-sm"
+            />
+          </div>
+
+          <button 
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full bg-rose-600 text-white p-5 rounded-3xl font-black uppercase tracking-wider text-sm shadow-xl shadow-rose-200 hover:bg-rose-700 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 mt-4"
+          >
+            {isSubmitting ? 'Gerando Acesso...' : 'Ativar Meu Acesso Agora'}
+            <ArrowRight className="w-5 h-5" />
+          </button>
+
+          <div className="text-center mt-6 pt-6 border-t border-rose-50 flex flex-col gap-4">
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Já ativou seu acesso? Ou esqueceu a senha?</p>
+            <button 
+              type="button"
+              onClick={() => setCurrentPage('app')}
+              className="text-rose-500 font-black text-xs uppercase tracking-widest hover:underline py-2"
+            >
+              Voltar para o Login
+            </button>
+          </div>
+        </form>
+        
+        <p className="mt-8 text-[10px] font-black text-gray-300 uppercase tracking-[0.2em]">
+          Bem-vinda ao OrbyFlow Systems
+        </p>
+      </motion.div>
+    </div>
+  );
+};
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [user, setUser] = useState<User | null>(IS_DEMO_INITIAL ? ({ uid: 'demo-user' } as any) : null);
@@ -4846,168 +4980,7 @@ export default function App() {
     }
   }, []);
 
-  const ObrigadoPage = () => {
-    const [reqName, setReqName] = useState('');
-    const [reqEmail, setReqEmail] = useState('');
-    const [reqPassword, setReqPassword] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
-    useEffect(() => {
-      const params = new URLSearchParams(window.location.search);
-      
-      const emailParam = params.get('email') || params.get('customer_email');
-      // Fix: check if it's a literal template string from Kiwify (common mistake)
-      if (emailParam && !emailParam.includes('${')) setReqEmail(emailParam);
-      
-      const nameParam = params.get('name') || params.get('customer_name');
-      if (nameParam && !nameParam.includes('${')) setReqName(nameParam);
-    }, []);
-
-    const handleCreateAccount = async (e: React.FormEvent) => {
-      e.preventDefault();
-      setIsSubmitting(true);
-      setError(null);
-      
-      try {
-        const finalEmail = reqEmail.toLowerCase().trim();
-        const finalPassword = reqPassword.toLowerCase(); // Consistent with login force lowercase
-
-        // 1. Create the Auth User
-        const userCredential = await createUserWithEmailAndPassword(auth, finalEmail, finalPassword);
-        const newUser = userCredential.user;
-
-        // 2. Initialize User Profile
-        await setDoc(doc(db, 'userProfiles', newUser.uid), {
-          name: reqName || finalEmail.split('@')[0],
-          businessName: 'Minha Estética',
-          ownerId: newUser.uid,
-          email: finalEmail,
-          role: 'user',
-          plan: 'free',
-          accentColor: 'rose',
-          createdAt: new Date().toISOString(),
-          setupComplete: true
-        });
-
-        addNotification('Acesso ativado com sucesso! Faça login para entrar.', 'info');
-        
-        // 3. Sign out and redirect to login as requested
-        await signOut(auth);
-        
-        // Remove 'page' from URL safely
-        const url = new URL(window.location.href);
-        url.searchParams.delete('page');
-        url.searchParams.set('email', finalEmail); // Pre-fill login
-        window.history.pushState({}, '', url);
-        
-        setCurrentPage('app'); // Back to login view
-      } catch (err: any) {
-        console.error(err);
-        if (err.code === 'auth/email-already-in-use') {
-          setError('Este e-mail já possui uma conta cadastrada no OrbyFlow. Se você não lembra sua senha, use a opção "Esqueci a Senha" na tela de login.');
-        } else if (err.code === 'auth/weak-password') {
-          setError('A senha deve ter pelo menos 6 caracteres.');
-        } else {
-          setError('Erro ao criar conta: ' + (err.message || 'Verifique os dados ou tente novamente.'));
-        }
-      } finally {
-        setIsSubmitting(false);
-      }
-    };
-
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#FFF9F9] p-4">
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="bg-white p-8 sm:p-10 rounded-[40px] shadow-2xl border border-rose-50 w-full max-w-xl text-center relative overflow-hidden"
-        >
-          <div className="absolute top-0 left-0 w-full h-2 bg-linear-to-r from-rose-500 to-rose-300" />
-          
-          <div className="w-20 h-20 bg-emerald-500 rounded-3xl flex items-center justify-center shadow-xl shadow-emerald-100 mx-auto mb-6">
-            <CheckCircle className="text-white w-10 h-10" />
-          </div>
-          
-          <h1 className="text-3xl font-black mb-2 uppercase tracking-tighter bg-linear-to-r from-emerald-600 to-emerald-400 bg-clip-text text-transparent">
-            Pagamento Aprovado!
-          </h1>
-          <p className="text-gray-500 font-bold mb-8 text-sm">Crie sua senha para acessar o OrbyFlow agora mesmo.</p>
-          
-          <form onSubmit={handleCreateAccount} className="space-y-4 text-left">
-            {error && (
-              <div className="bg-rose-50 text-rose-600 p-4 rounded-2xl text-xs font-bold border border-rose-100 animate-shake">
-                {error}
-              </div>
-            )}
-
-            <div>
-              <label className="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-2">Nome Completo</label>
-              <input 
-                type="text" 
-                required
-                value={reqName}
-                onChange={e => setReqName(e.target.value)}
-                placeholder="Seu nome"
-                className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 font-bold text-gray-700 outline-none focus:ring-2 focus:ring-rose-500 transition-all text-sm"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-2">E-mail de Acesso</label>
-              <input 
-                type="email" 
-                required
-                value={reqEmail}
-                onChange={e => setReqEmail(e.target.value)}
-                placeholder="exemplo@gmail.com"
-                className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 font-bold text-gray-700 outline-none focus:ring-2 focus:ring-rose-500 transition-all text-sm"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-2">Crie uma Senha</label>
-              <input 
-                type="password" 
-                required
-                min={6}
-                value={reqPassword}
-                onChange={e => setReqPassword(e.target.value)}
-                placeholder="Mínimo 6 caracteres"
-                className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 font-bold text-gray-700 outline-none focus:ring-2 focus:ring-rose-500 transition-all text-sm"
-              />
-            </div>
-
-            <button 
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full bg-rose-600 text-white p-5 rounded-3xl font-black uppercase tracking-wider text-sm shadow-xl shadow-rose-200 hover:bg-rose-700 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 mt-4"
-            >
-              {isSubmitting ? 'Gerando Acesso...' : 'Ativar Meu Acesso Agora'}
-              <ArrowRight className="w-5 h-5" />
-            </button>
-
-            <div className="text-center mt-6 pt-6 border-t border-rose-50 flex flex-col gap-4">
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Já ativou seu acesso? Ou esqueceu a senha?</p>
-              <button 
-                type="button"
-                onClick={() => setCurrentPage('app')}
-                className="text-rose-500 font-black text-xs uppercase tracking-widest hover:underline py-2"
-              >
-                Voltar para o Login
-              </button>
-            </div>
-          </form>
-          
-          <p className="mt-8 text-[10px] font-black text-gray-300 uppercase tracking-[0.2em]">
-            Bem-vinda ao OrbyFlow Systems
-          </p>
-        </motion.div>
-      </div>
-    );
-  };
-
-  const [editingClient, setEditingClient] = useState<Client | null>(null);
+const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
   const [editingProcedure, setEditingProcedure] = useState<Procedure | null>(null);
@@ -5836,7 +5809,7 @@ export default function App() {
   };
 
   if (currentPage === 'obrigado') {
-    return <ObrigadoPage />;
+    return <ObrigadoPage addNotification={addNotification} setCurrentPage={setCurrentPage} />;
   }
 
   // Smooth Loading Screen
