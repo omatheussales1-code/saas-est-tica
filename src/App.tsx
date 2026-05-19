@@ -4456,9 +4456,10 @@ const DEFAULT_WELCOME_TEMPLATE = 'Olá, {cliente_nome} ✨ Seja muito bem-vinda!
 interface ObrigadoPageProps {
   addNotification: (message: string, type?: 'info' | 'warning' | 'error') => void;
   setCurrentPage: (page: 'app' | 'obrigado') => void;
+  setIsAuthorized: (auth: boolean | null) => void;
 }
 
-const ObrigadoPage = ({ addNotification, setCurrentPage }: ObrigadoPageProps) => {
+const ObrigadoPage = ({ addNotification, setCurrentPage, setIsAuthorized }: ObrigadoPageProps) => {
   const [reqName, setReqName] = useState('');
   const [reqEmail, setReqEmail] = useState('');
   const [reqPassword, setReqPassword] = useState('');
@@ -4501,6 +4502,8 @@ const ObrigadoPage = ({ addNotification, setCurrentPage }: ObrigadoPageProps) =>
         });
       }
 
+      // Explicitly authorize session and notify
+      setIsAuthorized(true);
       addNotification('Acesso ativado com sucesso! Bem-vinda!', 'info');
       
       // Remove 'page' from URL safely so they aren't stuck on the obrigado page
@@ -4846,9 +4849,12 @@ export default function App() {
           setIsAuthorized(true);
         } else {
           try {
+            // Check if user is signing up on the thank-you / transaction-complete page
+            const isObrigadoUrl = window.location.search.includes('page=obrigado');
+            
             const authRef = doc(db, 'authorized_emails', lowerEmail);
             const authSnap = await getDoc(authRef);
-            let hasAccess = authSnap.exists();
+            let hasAccess = authSnap.exists() || isObrigadoUrl;
             if (!hasAccess) {
               const profileRef = doc(db, 'userProfiles', u.uid);
               const profileSnap = await getDoc(profileRef);
@@ -4857,7 +4863,8 @@ export default function App() {
             setIsAuthorized(hasAccess);
           } catch (e) {
             console.error('Error checking authorization:', e);
-            setIsAuthorized(false);
+            const isObrigadoUrl = window.location.search.includes('page=obrigado');
+            setIsAuthorized(isObrigadoUrl ? true : false);
           }
         }
       } else {
@@ -5901,7 +5908,7 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
   };
 
   if (currentPage === 'obrigado') {
-    return <ObrigadoPage addNotification={addNotification} setCurrentPage={setCurrentPage} />;
+    return <ObrigadoPage addNotification={addNotification} setCurrentPage={setCurrentPage} setIsAuthorized={setIsAuthorized} />;
   }
 
   // Smooth Loading Screen
