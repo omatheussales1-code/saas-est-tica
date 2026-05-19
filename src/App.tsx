@@ -1421,7 +1421,9 @@ const Agenda = ({
   onOpenNewAppointment,
   onEditAppointment,
   onDeleteAppointment,
+  onEditClient,
   cLabel,
+  csLabel,
   userProfile,
   onSendWhatsApp
 }: { 
@@ -1435,12 +1437,15 @@ const Agenda = ({
   onOpenNewAppointment: (date: Date) => void,
   onEditAppointment: (app: Appointment) => void,
   onDeleteAppointment: (id: string) => void,
+  onEditClient: (client: Client) => void,
   cLabel: string,
+  csLabel: string,
   userProfile: UserProfile | null,
   onSendWhatsApp: (app: Appointment, type: 'confirmation' | 'reminder') => void
 }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [clientSearch, setClientSearch] = useState('');
   
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(monthStart);
@@ -1456,6 +1461,11 @@ const Agenda = ({
     return appointments.filter(a => a.date && isSameDay(parseISO(a.date), date));
   };
 
+  const filteredSidebarClients = clients.filter(c => 
+    (c.name || '').toLowerCase().includes(clientSearch.toLowerCase()) ||
+    (c.label || '').toLowerCase().includes(clientSearch.toLowerCase())
+  ).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
   return (
     <div className="space-y-6 h-full flex flex-col">
       <div className="flex justify-between items-center">
@@ -1470,7 +1480,62 @@ const Agenda = ({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0">
-        <div className="lg:col-span-8 bg-white p-6 rounded-3xl shadow-sm border border-rose-50 flex flex-col">
+        {/* Lateral Esquerda: Clientes e Etiquetas */}
+        <div className="hidden lg:flex lg:col-span-3 bg-white rounded-3xl shadow-sm border border-rose-50 flex-col overflow-hidden">
+          <div className="p-5 border-b border-rose-50 bg-rose-50/20">
+            <h3 className="font-black text-gray-900 text-[10px] uppercase tracking-widest mb-3 flex items-center gap-2">
+              <Users className="w-3 h-3 text-rose-500" />
+              Suas {csLabel}
+            </h3>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+              <input 
+                type="text"
+                placeholder="Filtrar por nome ou etiqueta..."
+                value={clientSearch}
+                onChange={(e) => setClientSearch(e.target.value)}
+                className="w-full bg-white pl-8 pr-3 py-2 rounded-xl border border-rose-100 text-[10px] font-bold outline-none focus:ring-1 focus:ring-rose-300"
+              />
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto p-3 space-y-1.5 scrollbar-hide">
+            {filteredSidebarClients.map(c => (
+              <div 
+                key={c.id} 
+                onClick={() => onEditClient(c)}
+                className="flex items-center gap-3 p-2.5 hover:bg-rose-50 rounded-2xl transition-all cursor-pointer group relative"
+              >
+                <div 
+                  className="w-1 h-8 rounded-full shrink-0 group-hover:scale-y-110 transition-transform" 
+                  style={{ backgroundColor: c.labelColor || '#f43f5e' }} 
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-xs text-gray-700 truncate group-hover:text-rose-600 transition-colors uppercase tracking-tight">{c.name}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span 
+                      className="text-[8px] font-black uppercase tracking-widest"
+                      style={{ color: c.labelColor || '#f43f5e' }}
+                    >
+                      {c.label || 'Sem Etiqueta'}
+                    </span>
+                  </div>
+                </div>
+                <div className="absolute right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                   <Pencil className="w-3 h-3 text-gray-300" />
+                </div>
+              </div>
+            ))}
+            {filteredSidebarClients.length === 0 && (
+              <div className="py-10 text-center px-4">
+                <Users className="w-6 h-6 text-rose-100 mx-auto mb-2" />
+                <p className="text-[10px] font-bold text-gray-400 uppercase">Nenhuma {cLabel.toLowerCase()} encontrada.</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Centro: Calendário */}
+        <div className="lg:col-span-6 bg-white p-6 rounded-3xl shadow-sm border border-rose-50 flex flex-col">
           <div className="flex items-center justify-between mb-8">
             <h2 className="text-xl font-black text-gray-900 capitalize">
               {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
@@ -1542,10 +1607,10 @@ const Agenda = ({
                               <span className="text-[10px] font-medium text-gray-500 truncate">
                                 {client?.name?.split(' ')[0] || cLabel}
                               </span>
-                              {client?.label && (
+                              {client?.labelColor && (
                                 <div 
                                   className="w-1 h-1 rounded-full shrink-0" 
-                                  style={{ backgroundColor: client.labelColor || '#f43f5e' }} 
+                                  style={{ backgroundColor: client.labelColor }} 
                                 />
                               )}
                             </>
@@ -1560,13 +1625,14 @@ const Agenda = ({
           </div>
         </div>
 
-        <div className="lg:col-span-4 bg-white rounded-3xl shadow-sm border border-rose-50 flex flex-col overflow-hidden">
+        {/* Lateral Direita: Detalhes do Dia */}
+        <div className="lg:col-span-3 bg-white rounded-3xl shadow-sm border border-rose-50 flex flex-col overflow-hidden">
           <div className="p-6 border-b border-gray-50 bg-rose-50/30">
-            <h3 className="font-black text-gray-900 mb-1">Atendimentos do Dia</h3>
-            <p className="text-sm text-rose-600 font-bold">{format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}</p>
+            <h3 className="font-black text-gray-900 mb-1 text-sm uppercase tracking-widest">Agenda do Dia</h3>
+            <p className="text-xs text-rose-600 font-bold uppercase tracking-widest">{format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}</p>
           </div>
           
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {dayAppointments.length > 0 ? (
               dayAppointments.map((app, index) => {
                 const client = clients.find(c => c.id === app.clientId);
@@ -1581,7 +1647,7 @@ const Agenda = ({
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.05 }}
                     className={cn(
-                      "p-5 rounded-[28px] border transition-all duration-300 group relative",
+                      "p-5 rounded-[28px] border transition-all duration-300 group relative overflow-hidden",
                       isLate 
                         ? "bg-red-50 border-red-100 shadow-lg shadow-red-100/30" 
                         : isRealized
@@ -1589,46 +1655,44 @@ const Agenda = ({
                         : "bg-white border-rose-50 hover:border-rose-200 hover:shadow-xl hover:shadow-rose-100/20"
                     )}
                   >
+                    {/* Faixa Colorida da Etiqueta */}
+                    <div 
+                      className="absolute left-0 top-0 bottom-0 w-1.5 opacity-60 group-hover:opacity-100 transition-opacity"
+                      style={{ backgroundColor: client?.labelColor || '#f43f5e' }}
+                    />
+
                     {/* Action Bar Floating */}
                     <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-all transform translate-y-1 group-hover:translate-y-0">
                       <button 
                         onClick={() => onEditAppointment(app)}
-                        className="p-2 text-gray-400 hover:text-blue-500 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-blue-100 transition-all"
+                        className="p-2 text-gray-400 hover:text-blue-500 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-blue-100 transition-all font-bold"
                       >
-                        <Pencil className="w-4 h-4" />
+                        <Pencil className="w-3.5 h-3.5" />
                       </button>
                       <button 
                         onClick={() => onDeleteAppointment(app.id)}
-                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-red-100 transition-all"
+                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-red-100 transition-all font-bold"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
 
-                    <div className="flex items-center gap-4 mb-4">
+                    <div className="flex items-center gap-3 mb-4 pl-1">
                       <div className={cn(
-                        "w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg shadow-sm",
+                        "w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shadow-sm",
                         isLate ? "bg-red-500 text-white" : "bg-rose-100 text-rose-600"
                       )}>
                         {client?.name?.charAt(0) || '?'}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="font-black text-gray-900 text-base flex items-center gap-2 truncate">
-                          {client?.name || 'Cliente Excluída'}
-                          {isRealized && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
-                          {client?.label && (
-                            <span 
-                              className="px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest text-white shadow-sm"
-                              style={{ backgroundColor: client.labelColor || '#f43f5e' }}
-                            >
-                              {client.label}
-                            </span>
-                          )}
+                        <p className="font-black text-gray-900 text-xs flex items-center gap-1.5 truncate uppercase tracking-tight">
+                          {client?.name || `${cLabel} Excluída`}
+                          {isRealized && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />}
                         </p>
-                        <div className="flex items-center gap-2 mt-0.5">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
                           <div className="flex items-center gap-1 text-rose-500">
-                            <Clock className="w-3 h-3" />
-                            <span className="text-[10px] font-black uppercase tracking-wider">
+                            <Clock className="w-2.5 h-2.5" />
+                            <span className="text-[9px] font-black uppercase tracking-wider">
                               {(() => {
                                 const start = parseISO(app.date);
                                 const end = addMinutes(start, proc?.duration || 60);
@@ -1636,42 +1700,46 @@ const Agenda = ({
                               })()}
                             </span>
                           </div>
-                          <span className="text-gray-300">•</span>
-                          <span className="text-[10px] font-bold text-gray-400 truncate uppercase tracking-widest">{proc?.name || 'Serviço'}</span>
+                          {client?.label && (
+                            <span 
+                              className="text-[8px] font-black uppercase tracking-widest"
+                              style={{ color: client.labelColor || '#f43f5e' }}
+                            >
+                              • {client.label}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
 
-                    <div className="space-y-3 pt-4 border-t border-gray-50">
+                    <div className="space-y-2 pt-4 border-t border-gray-50 pl-1">
                       <div className="flex gap-2">
                         <button
                           onClick={() => onSendWhatsApp(app, 'confirmation')}
-                          className="flex-1 bg-blue-50 text-blue-600 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-2 border border-blue-100 hover:bg-blue-100 transition-all"
-                          title="Enviar confirmação de agendamento"
+                          className="flex-1 bg-blue-50 text-blue-600 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 border border-blue-100 hover:bg-blue-100 transition-all"
                         >
-                          <MessageCircle className="w-3.5 h-3.5" />
+                          <MessageCircle className="w-3 h-3" />
                           Confirmar
                         </button>
                         <button
                           onClick={() => onSendWhatsApp(app, 'reminder')}
-                          className="flex-1 bg-amber-50 text-amber-600 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-2 border border-amber-100 hover:bg-amber-100 transition-all"
-                          title="Enviar lembrete (Dia anterior)"
+                          className="flex-1 bg-amber-50 text-amber-600 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 border border-amber-100 hover:bg-amber-100 transition-all"
                         >
-                          <BellRing className="w-3.5 h-3.5" />
+                          <BellRing className="w-3 h-3" />
                           Lembrete
                         </button>
                       </div>
 
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Activity className="w-3 h-3 text-gray-300" />
-                          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Controle de Status</span>
+                      <div className="flex items-center justify-between py-1 px-1">
+                        <div className="flex items-center gap-1">
+                          <Activity className="w-2.5 h-2.5 text-gray-300" />
+                          <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Status</span>
                         </div>
                         <select 
                           value={app.status}
                           onChange={(e) => onUpdateStatus(app.id, e.target.value as AppointmentStatus)}
                           className={cn(
-                            "text-[10px] font-black uppercase tracking-widest bg-white/50 px-3 py-1.5 rounded-lg border border-transparent hover:border-gray-100 outline-none cursor-pointer transition-all",
+                            "text-[9px] font-black uppercase tracking-widest bg-transparent p-1 rounded transition-all outline-none",
                             statusColors[app.status]
                           )}
                         >
@@ -1681,57 +1749,34 @@ const Agenda = ({
                         </select>
                       </div>
                       
-                      <div className="pt-2 grid grid-cols-1 gap-2">
+                      <div className="pt-2">
                         {app.status !== 'realizado' ? (
                           <button
                             onClick={() => onMarkAsFinished(app.id)}
-                            className="w-full bg-rose-500 hover:bg-rose-600 text-white py-3.5 rounded-[20px] text-[10px] font-black uppercase tracking-[0.15em] shadow-lg shadow-rose-100 transition-all flex items-center justify-center gap-2 hover:-translate-y-1 active:translate-y-0"
+                            className="w-full bg-rose-500 hover:bg-rose-600 text-white py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg shadow-rose-100 transition-all flex items-center justify-center gap-2"
                           >
-                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <CheckCircle2 className="w-3 h-3" />
                             Finalizar Atendimento
                           </button>
                         ) : !app.isPaid ? (
-                          <div className="space-y-2">
-                            {app.paidAmount && app.paidAmount > 0 && (
-                              <div className="flex justify-between items-center px-4 py-2 bg-amber-50 rounded-xl border border-amber-100">
-                                <div className="flex flex-col">
-                                  <span className="text-[8px] font-bold text-amber-400 uppercase">Já Pago</span>
-                                  <span className="text-[10px] font-black text-amber-600">{formatCurrency(app.paidAmount)}</span>
-                                </div>
-                                <div className="flex flex-col text-right">
-                                  <span className="text-[8px] font-bold text-rose-400 uppercase">Restante</span>
-                                  <span className="text-[10px] font-black text-rose-600">{formatCurrency(app.price - app.paidAmount)}</span>
-                                </div>
-                              </div>
-                            )}
-                            <button
-                              onClick={() => onMarkAsPaid(app.id)}
-                              className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-3.5 rounded-[20px] text-[10px] font-black uppercase tracking-[0.15em] shadow-lg shadow-emerald-100 transition-all flex items-center justify-center gap-2 hover:-translate-y-1 active:translate-y-0"
-                            >
-                              <DollarSign className="w-3.5 h-3.5" />
-                              {app.paidAmount && app.paidAmount > 0 ? 'Completar Pagamento' : 'Cobrar Agora'}
-                            </button>
-                          </div>
+                          <button
+                            onClick={() => onMarkAsPaid(app.id)}
+                            className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg shadow-emerald-100 transition-all flex items-center justify-center gap-2"
+                          >
+                            <DollarSign className="w-3 h-3" />
+                            Cobrar Agora
+                          </button>
                         ) : (
-                          <div className="flex gap-2">
-                            <div className="flex-1 bg-emerald-50 text-emerald-600 py-3 rounded-[20px] text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 border border-emerald-100/50">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              Finalizado e Pago
-                            </div>
-                            <button
-                              onClick={() => onUndoMarkAsPaid(app.id)}
-                              className="px-4 bg-gray-50 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-[20px] transition-all border border-gray-100"
-                              title="Estornar"
-                            >
-                              <RotateCcw className="w-4 h-4" />
-                            </button>
+                          <div className="bg-emerald-50 text-emerald-600 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2 border border-emerald-100/50">
+                            <CheckCircle2 className="w-3 h-3" />
+                            Finalizado e Pago
                           </div>
                         )}
 
                         {app.status === 'realizado' && !app.isPaid && (
-                          <div className="flex items-center justify-center gap-2 px-4 py-2 bg-amber-50 rounded-xl border border-amber-100">
-                            <span className="animate-pulse w-1.5 h-1.5 bg-amber-500 rounded-full" />
-                            <span className="text-[9px] font-black text-amber-600 uppercase tracking-wider">Aguardando Pagamento</span>
+                          <div className="mt-2 flex items-center justify-center gap-1.5 py-1.5 bg-amber-50 rounded-lg border border-amber-100">
+                             <div className="w-1 h-1 bg-amber-500 rounded-full animate-pulse" />
+                             <span className="text-[8px] font-black text-amber-600 uppercase tracking-widest">Aguardando Pagamento</span>
                           </div>
                         )}
                       </div>
@@ -1741,11 +1786,11 @@ const Agenda = ({
               })
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-center py-20 px-8">
-                <div className="w-20 h-20 bg-rose-50 rounded-[32px] flex items-center justify-center mb-6">
-                  <CalendarIcon className="w-8 h-8 text-rose-200" />
+                <div className="w-16 h-16 bg-rose-50 rounded-2xl flex items-center justify-center mb-4">
+                  <CalendarIcon className="w-6 h-6 text-rose-200" />
                 </div>
-                <h4 className="text-gray-900 font-black text-sm uppercase tracking-widest mb-2">Dia Tranquilo</h4>
-                <p className="text-gray-400 text-xs font-medium leading-relaxed">Nenhum agendamento encontrado para esta data.</p>
+                <h4 className="text-gray-900 font-black text-[10px] uppercase tracking-widest mb-1">Dia Tranquilo</h4>
+                <p className="text-gray-400 text-[9px] font-bold uppercase">Nenhum agendamento para hoje.</p>
               </div>
             )}
           </div>
@@ -5649,7 +5694,9 @@ export default function App() {
           }}
           onEditAppointment={setEditingAppointment}
           onDeleteAppointment={handleDeleteAppointment}
+          onEditClient={setEditingClient}
           cLabel={cLabel}
+          csLabel={csLabel}
           userProfile={userProfile}
           onSendWhatsApp={handleSendWhatsApp}
         />
