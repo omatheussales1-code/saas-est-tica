@@ -6054,7 +6054,7 @@ export default function App() {
       <NotificationCenter alerts={alerts} />
       {/* Modals (Placeholders for reconstruction) */}
       {isNewAppModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+        <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
           <motion.div 
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -6072,7 +6072,7 @@ export default function App() {
 
             <div className="p-8 pt-6 overflow-y-auto custom-scrollbar">
               <form 
-                onSubmit={(e) => {
+                onSubmit={async (e) => {
                 e.preventDefault();
                 const formData = new FormData(e.currentTarget);
                 const dateStr = formData.get('date') as string;
@@ -6096,6 +6096,16 @@ export default function App() {
                 if (!procedureId || !dateStr || !timeStr) {
                   addNotification('Por favor, preencha todos os campos do agendamento.', 'error');
                   return;
+                }
+
+                // Update Client Label if provided
+                const newLabel = formData.get('clientLabel') as string;
+                const newLabelColor = formData.get('clientLabelColor') as string;
+                if (newLabel || newLabelColor) {
+                  const client = clients.find(c => c.id === clientId);
+                  if (client && (client.label !== newLabel || client.labelColor !== newLabelColor)) {
+                    await handleUpdateClient(clientId, { label: newLabel, labelColor: newLabelColor });
+                  }
                 }
 
                 const baseDate = parseISO(`${dateStr}T${timeStr}:00`);
@@ -6211,8 +6221,19 @@ export default function App() {
                       const val = e.target.value;
                       const selected = clients.find(c => (c.name || '').toLowerCase() === val.toLowerCase());
                       const hiddenInput = document.getElementById('selected-client-id') as HTMLInputElement;
+                      const labelInput = document.getElementById('client-label-input') as HTMLInputElement;
+                      const labelColorInputs = document.getElementsByName('clientLabelColor') as NodeListOf<HTMLInputElement>;
+                      
                       if (hiddenInput) {
                         hiddenInput.value = selected ? selected.id : '';
+                      }
+                      if (selected && labelInput) {
+                        labelInput.value = selected.label || '';
+                      }
+                      if (selected && selected.labelColor) {
+                        labelColorInputs.forEach(input => {
+                          if (input.value === selected.labelColor) input.checked = true;
+                        });
                       }
                     }}
                     onBlur={(e) => {
@@ -6222,6 +6243,15 @@ export default function App() {
                          if (match) {
                            (document.getElementById('selected-client-id') as HTMLInputElement).value = match.id;
                            e.target.value = match.name;
+                           
+                           const labelInput = document.getElementById('client-label-input') as HTMLInputElement;
+                           const labelColorInputs = document.getElementsByName('clientLabelColor') as NodeListOf<HTMLInputElement>;
+                           if (labelInput) labelInput.value = match.label || '';
+                           if (match.labelColor) {
+                             labelColorInputs.forEach(input => {
+                               if (input.value === match.labelColor) input.checked = true;
+                             });
+                           }
                          }
                       }
                     }}
@@ -6259,7 +6289,7 @@ export default function App() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-400 uppercase">Serviço</label>
+                <label className="text-xs font-bold text-gray-400 uppercase">Procedimento</label>
                 <select 
                   name="procedureId" 
                   required 
@@ -6270,6 +6300,35 @@ export default function App() {
                     <option key={p.id} value={p.id}>{p.name} - {formatCurrency(p.price)}</option>
                   ))}
                 </select>
+              </div>
+
+              <div className="pt-2 border-t border-gray-50">
+                <label className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-3 block">Etiqueta & Personalização (Opcional)</label>
+                <div className="space-y-3">
+                  <input 
+                    id="client-label-input"
+                    name="clientLabel" 
+                    type="text" 
+                    placeholder="Ex: VIP, Fiel, Bronze..." 
+                    className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 text-xs font-bold uppercase tracking-tight"
+                  />
+                  <div className="flex gap-2 justify-between px-1">
+                    {[
+                      { name: 'Rose', color: '#f43f5e' },
+                      { name: 'Azul', color: '#3b82f6' },
+                      { name: 'Verde', color: '#10b981' },
+                      { name: 'Aguardando', color: '#f59e0b' },
+                      { name: 'Roxo', color: '#8b5cf6' },
+                      { name: 'Cinza', color: '#6b7280' }
+                    ].map((c) => (
+                      <label key={c.color} className="relative cursor-pointer group">
+                        <input type="radio" name="clientLabelColor" value={c.color} className="peer hidden" />
+                        <div className="w-8 h-8 rounded-full transition-all border-2 border-transparent peer-checked:border-rose-500 peer-checked:scale-110 shadow-sm" style={{ backgroundColor: c.color }} />
+                        <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] font-bold text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">{c.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -6643,7 +6702,7 @@ export default function App() {
         </div>
       )}
       {isNewClientModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <motion.div 
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -6853,7 +6912,7 @@ export default function App() {
       {/* Edit Client Modal */}
       <AnimatePresence>
         {editingClient && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
             <motion.div 
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -6960,7 +7019,7 @@ export default function App() {
       {/* Edit Appointment Modal */}
       <AnimatePresence>
         {editingAppointment && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
             <motion.div 
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -7202,7 +7261,7 @@ export default function App() {
 
     <div className="flex flex-col w-full h-screen bg-[#fafafa] overflow-hidden">
       {/* Top Navigation Header */}
-      <header className="h-16 lg:h-24 flex-shrink-0 bg-white border-b border-rose-50 flex items-center justify-between px-4 lg:px-10 z-[160] shadow-sm">
+      <header className="h-16 lg:h-24 flex-shrink-0 bg-white border-b border-rose-50 flex items-center justify-between px-4 lg:px-10 z-[50] shadow-sm">
         <div className="flex items-center gap-3 lg:gap-4 overflow-hidden">
           <div className="w-10 h-10 lg:w-12 lg:h-12 bg-rose-600 rounded-xl lg:rounded-2xl flex items-center justify-center shadow-lg shadow-rose-200 flex-shrink-0 cursor-pointer hover:rotate-6 transition-transform" onClick={() => setActiveTab('dashboard')}>
             <ShieldCheck className="text-white w-5 h-5 lg:w-7 lg:h-7" />
@@ -7323,7 +7382,7 @@ export default function App() {
               )}
             </AnimatePresence>
 
-        <div className="flex-1 overflow-y-auto p-4 lg:p-10">
+        <div className="flex-1 overflow-y-auto p-6 lg:p-14 lg:pt-16">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
