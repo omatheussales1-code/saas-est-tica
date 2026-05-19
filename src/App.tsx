@@ -4476,6 +4476,47 @@ const ObrigadoPage = ({ addNotification, setCurrentPage }: ObrigadoPageProps) =>
     if (nameParam && !nameParam.includes('${')) setReqName(nameParam);
   }, []);
 
+  const handleGoogleSignup = async () => {
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const userCredential = await signInWithPopup(auth, googleProvider);
+      const newUser = userCredential.user;
+      const finalEmail = newUser.email?.toLowerCase()?.trim() || '';
+
+      const profileRef = doc(db, 'userProfiles', newUser.uid);
+      const profileSnap = await getDoc(profileRef);
+      
+      if (!profileSnap.exists()) {
+        await setDoc(profileRef, {
+          name: reqName || newUser.displayName || finalEmail.split('@')[0],
+          businessName: 'Minha Estética',
+          ownerId: newUser.uid,
+          email: finalEmail,
+          role: 'user',
+          plan: 'free',
+          accentColor: 'rose',
+          createdAt: new Date().toISOString(),
+          setupComplete: true
+        });
+      }
+
+      addNotification('Acesso ativado com sucesso! Bem-vinda!', 'info');
+      
+      // Remove 'page' from URL safely so they aren't stuck on the obrigado page
+      const url = new URL(window.location.href);
+      url.searchParams.delete('page');
+      window.history.pushState({}, '', url);
+
+      setCurrentPage('app'); // Go inside the system directly
+    } catch (err: any) {
+      console.error(err);
+      setError('Erro ao ativar acesso com Google: ' + (err.message || 'Verifique seus dados ou tente novamente.'));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleCreateAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -4544,8 +4585,47 @@ const ObrigadoPage = ({ addNotification, setCurrentPage }: ObrigadoPageProps) =>
         <h1 className="text-3xl font-black mb-2 uppercase tracking-tighter bg-linear-to-r from-emerald-600 to-emerald-400 bg-clip-text text-transparent">
           Pagamento Aprovado!
         </h1>
-        <p className="text-gray-500 font-bold mb-8 text-sm">Crie sua senha para acessar o OrbyFlow agora mesmo.</p>
+        <p className="text-gray-500 font-bold mb-8 text-sm">Crie sua senha ou ative seu acesso usando o Gmail.</p>
         
+        {/* Google Activation Option */}
+        <div className="mb-6">
+          <button
+            type="button"
+            disabled={isSubmitting}
+            onClick={handleGoogleSignup}
+            className="w-full bg-white border border-gray-200 p-5 rounded-3xl font-black flex items-center justify-center gap-3 shadow-md hover:bg-gray-50 transition-all active:scale-95 text-gray-700 text-sm uppercase tracking-wider disabled:opacity-50"
+          >
+            <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+              <path
+                fill="#4285F4"
+                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+              />
+              <path
+                fill="#34A853"
+                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
+              />
+              <path
+                fill="#EA4335"
+                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+              />
+            </svg>
+            Ativar Acesso com Google (Recomendado)
+          </button>
+        </div>
+
+        <div className="relative my-6">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-100"></div>
+          </div>
+          <div className="relative flex justify-center text-[10px] uppercase font-black tracking-widest">
+            <span className="bg-white px-4 text-gray-400">Ou use e-mail e senha</span>
+          </div>
+        </div>
+
         <form onSubmit={handleCreateAccount} className="space-y-4 text-left">
           {error && (
             <div className="bg-rose-50 text-rose-600 p-4 rounded-2xl text-xs font-bold border border-rose-100 animate-shake">
@@ -4661,7 +4741,12 @@ export default function App() {
   const [justCreatedAppointment, setJustCreatedAppointment] = useState<{app: Appointment, client: Client} | null>(null);
 
   // --- DEMO MODE LOGIC ---
-  const isDemo = useMemo(() => IS_DEMO_INITIAL, []);
+  const isDemo = useMemo(() => {
+    if (user && user.uid !== 'demo-user') {
+      return false;
+    }
+    return IS_DEMO_INITIAL;
+  }, [user]);
 
   // Initialize data for Demo Mode
   useEffect(() => {
@@ -4756,13 +4841,20 @@ export default function App() {
     const unsubscribeAuth = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
-        if (u.email === 'brefer@gmail.com' || u.email === 'teus.rma@gmail.com') {
+        const lowerEmail = u.email?.toLowerCase()?.trim() || '';
+        if (lowerEmail === 'brefer@gmail.com' || lowerEmail === 'teus.rma@gmail.com') {
           setIsAuthorized(true);
         } else {
           try {
-            const authRef = doc(db, 'authorized_emails', u.email?.toLowerCase()?.trim() || '');
+            const authRef = doc(db, 'authorized_emails', lowerEmail);
             const authSnap = await getDoc(authRef);
-            setIsAuthorized(authSnap.exists());
+            let hasAccess = authSnap.exists();
+            if (!hasAccess) {
+              const profileRef = doc(db, 'userProfiles', u.uid);
+              const profileSnap = await getDoc(profileRef);
+              hasAccess = profileSnap.exists();
+            }
+            setIsAuthorized(hasAccess);
           } catch (e) {
             console.error('Error checking authorization:', e);
             setIsAuthorized(false);
@@ -4774,7 +4866,7 @@ export default function App() {
       setIsAuthReady(true);
     });
     return () => unsubscribeAuth();
-  }, []);
+  }, [isDemo]);
 
   // Firebase Firestore Sync
   React.useEffect(() => {
@@ -4862,7 +4954,7 @@ export default function App() {
     ];
 
     return () => unsubscribers.forEach(u => u());
-  }, [user]);
+  }, [user, isAuthorized]);
 
   const signOutUser = async () => {
     try {
