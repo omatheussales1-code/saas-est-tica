@@ -136,6 +136,7 @@ import {
 
 const LANDING_PAGE_URL = 'https://iridescent-gecko-731eb9.netlify.app';
 const UPGRADE_URL = 'https://funny-jalebi-005836.netlify.app/#depoimentos';
+const RAISE_WEBSITE_URL = 'https://dynamic-mermaid-e77dae.netlify.app';
 
 const COLOR_PRESETS = {
   rose: {
@@ -2561,7 +2562,7 @@ const LeadsTab = ({
           
           <div className="flex flex-col sm:flex-row gap-5 justify-center items-center">
             <button 
-              onClick={() => window.open(UPGRADE_URL, '_blank')}
+              onClick={() => window.open(RAISE_WEBSITE_URL, '_blank')}
               className="w-full sm:w-auto bg-white text-[#050b1a] px-10 py-5 rounded-2xl font-black text-sm uppercase tracking-widest transition-all hover:bg-blue-50 active:scale-95 flex items-center justify-center gap-3 shadow-2xl"
             >
               Quero Melhorar Meu Instagram
@@ -2628,7 +2629,7 @@ const LeadsTab = ({
               O seu talento merece um posicionamento que faça as pessoas desejarem o seu serviço imediatamente, sem questionar o preço.
             </p>
             <button 
-              onClick={() => window.open(UPGRADE_URL, '_blank')}
+              onClick={() => window.open(RAISE_WEBSITE_URL, '_blank')}
               className="bg-white text-[#050b1a] px-16 py-6 rounded-2xl font-black text-sm uppercase tracking-widest hover:scale-105 transition-all shadow-2xl active:scale-95 flex items-center gap-4 mx-auto"
             >
               VISITAR MEU SITE OFICIAL
@@ -2647,7 +2648,7 @@ const LeadsTab = ({
         
         <div className="flex flex-col sm:flex-row gap-5 justify-center">
           <button 
-            onClick={() => window.open(UPGRADE_URL, '_blank')}
+            onClick={() => window.open(RAISE_WEBSITE_URL, '_blank')}
             className="bg-[#050b1a] text-white px-14 py-7 rounded-[28px] font-black text-sm uppercase tracking-widest hover:scale-105 transition-all shadow-2xl active:scale-95 inline-flex items-center gap-4 group"
           >
             Quero Melhorar Meu Instagram
@@ -4447,11 +4448,129 @@ const checkIsDemo = () => {
   }
 };
 
-const IS_DEMO_INITIAL = checkIsDemo();
+const stripUserProfile = (profile: any): any => {
+  if (!profile) return {};
+  const clean: any = {};
+  
+  if (profile.id !== undefined) clean.id = String(profile.id || '');
+  if (profile.name !== undefined) clean.name = String(profile.name || '');
+  if (profile.businessName !== undefined) clean.businessName = String(profile.businessName || '');
+  if (profile.specialty !== undefined) clean.specialty = String(profile.specialty || '');
+  if (profile.phone !== undefined) clean.phone = String(profile.phone || '');
+  if (profile.address !== undefined) clean.address = String(profile.address || '');
+  if (profile.instagram !== undefined) clean.instagram = String(profile.instagram || '');
+  
+  if (profile.workingHours && typeof profile.workingHours === 'object') {
+    clean.workingHours = {
+      start: String(profile.workingHours.start || '08:00'),
+      end: String(profile.workingHours.end || '18:00')
+    };
+  }
+  
+  if (Array.isArray(profile.workingDays)) {
+    clean.workingDays = profile.workingDays.map((d: any) => Number(d));
+  }
+  
+  if (profile.budgetValidityDays !== undefined) clean.budgetValidityDays = Number(profile.budgetValidityDays || 7);
+  if (profile.whatsappPrefix !== undefined) clean.whatsappPrefix = String(profile.whatsappPrefix || '');
+  if (profile.confirmationMessageTemplate !== undefined) clean.confirmationMessageTemplate = String(profile.confirmationMessageTemplate || '');
+  if (profile.reminderMessageTemplate !== undefined) clean.reminderMessageTemplate = String(profile.reminderMessageTemplate || '');
+  if (profile.welcomeMessageTemplate !== undefined) clean.welcomeMessageTemplate = String(profile.welcomeMessageTemplate || '');
+  if (profile.clientLabel !== undefined) clean.clientLabel = String(profile.clientLabel || 'Cliente');
+  if (profile.ownerId !== undefined) clean.ownerId = String(profile.ownerId || '');
+  if (profile.plan !== undefined) clean.plan = String(profile.plan || 'free');
+  if (profile.accentColor !== undefined) clean.accentColor = String(profile.accentColor || 'rose');
+  if (profile.createdAt !== undefined) clean.createdAt = String(profile.createdAt || '');
+  if (profile.setupComplete !== undefined) clean.setupComplete = Boolean(profile.setupComplete);
+
+  return clean;
+};
+
+const safeJsonStringify = (obj: any): string => {
+  const seen = new WeakSet();
+  return JSON.stringify(obj, (key, value) => {
+    if (value && typeof value === 'object') {
+      if (seen.has(value)) {
+        return undefined;
+      }
+      seen.add(value);
+      const protoName = value.constructor?.name || '';
+      if (
+        protoName.includes('Firestore') ||
+        protoName.includes('DocumentReference') ||
+        protoName.includes('CollectionReference') ||
+        protoName.includes('Query') ||
+        protoName.includes('Transaction') ||
+        protoName.includes('WriteBatch') ||
+        typeof value.withConverter === 'function' ||
+        key === 'db' ||
+        key === '_db' ||
+        key === 'firestore'
+      ) {
+        return undefined;
+      }
+    }
+    return value;
+  });
+};
 
 const DEFAULT_CONFIRMATION_TEMPLATE = 'Olá, {cliente_nome}! ✨ Que alegria ter você conosco! Seu momento de cuidado para {procedimento} está confirmadíssimo no dia {data} às {hora}. 🌸\n\nPreparamos tudo com muito carinho para que você tenha uma experiência de relaxamento e renovação única aqui no {nome_espaco}.\n\nSe precisar desmarcar ou tiver qualquer dúvida, é só me chamar, tá bom? Estamos ansiosas para te receber! Um beijo! 💖\n\n📍 Endereço: {endereco}';
 const DEFAULT_REMINDER_TEMPLATE = 'Oi, {cliente_nome}! 🌸 Passando para lembrar com todo carinho do nosso encontro amanhã, dia {data}, às {hora}.\n\nEstamos preparando seu momento de {procedimento} com muito amor e mal podemos esperar para te ver! ✨\n\nCaso precise de qualquer alteração no seu horário, nos avise por favor com um pouquinho de antecedência para liberarmos a vaga para outra cliente querida. Até amanhã! 💖';
 const DEFAULT_WELCOME_TEMPLATE = 'Olá, {cliente_nome} ✨ Seja muito bem-vinda! Ficamos radiantes com seu interesse em nossos cuidados. Preparamos tudo com muito carinho para que você tenha um momento de relaxamento e renovação único. Se tiver qualquer dúvida sobre o procedimento {procedimento}, estou aqui para te ajudar, viu? Um beijo e até breve! 🌸';
+
+const getDemoUserProfile = () => {
+  const defaultDemoProfile = {
+    id: 'demo-user',
+    name: 'Usuária Demo (Lookalike)',
+    businessName: 'Clínica de Estética Especializada',
+    specialty: 'Estética Avançada',
+    phone: '(11) 99999-9999',
+    address: 'Rua da Estética, 123',
+    instagram: '@marketing_estetico',
+    workingHours: { start: '08:00', end: '19:00' },
+    workingDays: [1, 2, 3, 4, 5, 6],
+    budgetValidityDays: 15,
+    clientLabel: 'Paciente' as const,
+    confirmationMessageTemplate: DEFAULT_CONFIRMATION_TEMPLATE,
+    reminderMessageTemplate: DEFAULT_REMINDER_TEMPLATE,
+    welcomeMessageTemplate: DEFAULT_WELCOME_TEMPLATE,
+    whatsappPrefix: '55',
+    ownerId: 'demo-user',
+    email: 'demo@demo.com',
+    plan: 'pro' as const,
+    accentColor: 'rose',
+    createdAt: new Date().toISOString()
+  };
+
+  try {
+    const cached = localStorage.getItem('last_saved_user_profile');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      return {
+        ...defaultDemoProfile,
+        businessName: parsed.businessName || defaultDemoProfile.businessName,
+        specialty: parsed.specialty || defaultDemoProfile.specialty,
+        phone: parsed.phone || defaultDemoProfile.phone,
+        address: parsed.address || defaultDemoProfile.address,
+        instagram: parsed.instagram || defaultDemoProfile.instagram,
+        workingHours: parsed.workingHours || defaultDemoProfile.workingHours,
+        workingDays: parsed.workingDays || defaultDemoProfile.workingDays,
+        budgetValidityDays: parsed.budgetValidityDays || defaultDemoProfile.budgetValidityDays,
+        clientLabel: parsed.clientLabel || defaultDemoProfile.clientLabel,
+        accentColor: parsed.accentColor || defaultDemoProfile.accentColor,
+        confirmationMessageTemplate: parsed.confirmationMessageTemplate || defaultDemoProfile.confirmationMessageTemplate,
+        reminderMessageTemplate: parsed.reminderMessageTemplate || defaultDemoProfile.reminderMessageTemplate,
+        welcomeMessageTemplate: parsed.welcomeMessageTemplate || defaultDemoProfile.welcomeMessageTemplate,
+        whatsappPrefix: parsed.whatsappPrefix || defaultDemoProfile.whatsappPrefix,
+      };
+    }
+  } catch (e) {
+    console.error('[DemoCheck] Error parsing cached profile for demo:', e);
+  }
+  return defaultDemoProfile;
+};
+
+const IS_DEMO_INITIAL = checkIsDemo();
 
 interface ObrigadoPageProps {
   addNotification: (message: string, type?: 'info' | 'warning' | 'error') => void;
@@ -4735,26 +4854,7 @@ export default function App() {
   const [budgets, setBudgets] = useState<Budget[]>(IS_DEMO_INITIAL ? MOCK_BUDGETS : []);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [messageTemplates, setMessageTemplates] = useState<MessageTemplate[]>([]);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(IS_DEMO_INITIAL ? {
-    id: 'demo-user',
-    name: 'Usuária Demo (Lookalike)',
-    businessName: 'Clínica de Estética Especializada',
-    specialty: 'Estética Avançada',
-    phone: '(11) 99999-9999',
-    address: 'Rua da Estética, 123',
-    instagram: '@marketing_estetico',
-    workingHours: { start: '08:00', end: '19:00' },
-    workingDays: [1, 2, 3, 4, 5, 6],
-    budgetValidityDays: 15,
-    clientLabel: 'Paciente',
-    confirmationMessageTemplate: DEFAULT_CONFIRMATION_TEMPLATE,
-    reminderMessageTemplate: DEFAULT_REMINDER_TEMPLATE,
-    ownerId: 'demo-user',
-    email: 'demo@demo.com',
-    plan: 'pro',
-    accentColor: 'rose',
-    createdAt: new Date().toISOString()
-  } : null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(IS_DEMO_INITIAL ? getDemoUserProfile() as any : null);
   const [isInitialLoading, setIsInitialLoading] = useState(!IS_DEMO_INITIAL);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [justCreatedAppointment, setJustCreatedAppointment] = useState<{app: Appointment, client: Client} | null>(null);
@@ -4788,23 +4888,7 @@ export default function App() {
         emailVerified: true 
       } as any);
       
-      setUserProfile({
-        id: 'demo-user',
-        name: 'Usuária Demo (Lookalike)',
-        businessName: 'Clínica de Estética Especializada',
-        specialty: 'Estética Avançada',
-        phone: '(11) 99999-9999',
-        address: 'Rua da Estética, 123',
-        instagram: '@marketing_estetico',
-        workingHours: { start: '08:00', end: '19:00' },
-        workingDays: [1, 2, 3, 4, 5, 6],
-        budgetValidityDays: 15,
-        clientLabel: 'Paciente',
-        confirmationMessageTemplate: DEFAULT_CONFIRMATION_TEMPLATE,
-        reminderMessageTemplate: DEFAULT_REMINDER_TEMPLATE,
-        ownerId: 'demo-user',
-        email: 'demo@demo.com'
-      });
+      setUserProfile(getDemoUserProfile() as any);
       
       setIsInitialLoading(false);
       setIsAuthReady(true);
@@ -4950,7 +5034,13 @@ export default function App() {
       }, (e) => handleFirestoreError(e, OperationType.LIST, 'messageTemplates')),
       onSnapshot(doc(db, 'userProfiles', user.uid), (s) => {
         if (s.exists()) {
-          setUserProfile({ id: s.id, ...s.data() } as UserProfile);
+          const profileData = { id: s.id, ...s.data() } as UserProfile;
+          setUserProfile(profileData);
+          try {
+            localStorage.setItem('last_saved_user_profile', safeJsonStringify(stripUserProfile(profileData)));
+          } catch (e) {
+            console.error('Error saving user profile to local cache:', e);
+          }
         } else {
           // Initialize default profile
           const defaultProfile: UserProfile = {
@@ -4970,6 +5060,11 @@ export default function App() {
             createdAt: new Date().toISOString()
           };
           setDoc(doc(db, 'userProfiles', user.uid), defaultProfile).catch(e => handleFirestoreError(e, OperationType.WRITE, 'userProfile-init'));
+          try {
+            localStorage.setItem('last_saved_user_profile', safeJsonStringify(stripUserProfile(defaultProfile)));
+          } catch (e) {
+            console.error('Error saving default user profile to local cache:', e);
+          }
         }
         // After loading profile and setting up listeners, we can stop loading
         setTimeout(() => setIsInitialLoading(false), 800);
@@ -5708,12 +5803,26 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
   const handleUpdateProfile = async (updates: Partial<UserProfile>) => {
     if (isDemo) {
       setUserProfile(prev => prev ? { ...prev, ...updates } : null);
+      try {
+        const currentLocal = localStorage.getItem('last_saved_user_profile');
+        const currentParsed = currentLocal ? JSON.parse(currentLocal) : {};
+        localStorage.setItem('last_saved_user_profile', safeJsonStringify(stripUserProfile({ ...currentParsed, ...updates })));
+      } catch (err) {
+        console.error('Error caching demo profile updates:', err);
+      }
       addNotification('Configurações salvas! (Modo Demo)', 'info');
       return;
     }
     if (!user) return;
     try {
       await setDoc(doc(db, 'userProfiles', user.uid), updates, { merge: true });
+      try {
+        const currentLocal = localStorage.getItem('last_saved_user_profile');
+        const currentParsed = currentLocal ? JSON.parse(currentLocal) : {};
+        localStorage.setItem('last_saved_user_profile', safeJsonStringify(stripUserProfile({ ...currentParsed, ...updates })));
+      } catch (err) {
+        console.error('Error caching profile updates:', err);
+      }
       addNotification('Configurações salvas!', 'info');
     } catch (e) { handleFirestoreError(e, OperationType.UPDATE, 'userProfile'); }
   };
