@@ -135,7 +135,7 @@ import {
 // --- Constants & Types ---
 
 const LANDING_PAGE_URL = 'https://iridescent-gecko-731eb9.netlify.app';
-const UPGRADE_URL = 'https://funny-jalebi-005836.netlify.app/#depoimentos';
+const UPGRADE_URL = 'https://dynamic-mermaid-e77dae.netlify.app';
 const RAISE_WEBSITE_URL = 'https://dynamic-mermaid-e77dae.netlify.app';
 
 const COLOR_PRESETS = {
