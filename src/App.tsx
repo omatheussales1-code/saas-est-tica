@@ -250,11 +250,11 @@ const FollowUpTriggerModal = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md z-[200] flex items-center justify-center p-4 overflow-y-auto">
       <motion.div 
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-white rounded-[40px] shadow-2xl w-full max-w-lg overflow-hidden border border-rose-50"
+        className="bg-white rounded-[40px] shadow-2xl w-full max-w-lg overflow-y-auto max-h-[90vh] border border-rose-50 my-auto"
       >
         {/* Header de Sucesso */}
         <div className="bg-rose-500 p-8 text-center relative overflow-hidden">
@@ -471,12 +471,12 @@ const NotificationCenter = ({ alerts }: { alerts: { id: string, message: string,
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }: { isOpen: boolean, onClose: () => void, onConfirm: () => void, title: string, message: string }) => (
   <AnimatePresence>
     {isOpen && (
-      <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
         <motion.div 
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.9 }}
-          className="bg-white p-6 rounded-3xl w-full max-w-sm shadow-2xl border border-rose-50"
+          className="bg-white p-6 rounded-3xl w-full max-w-sm shadow-2xl border border-rose-50 max-h-[90vh] overflow-y-auto my-auto"
         >
           <h2 className="text-xl font-bold text-gray-900 mb-2">{title}</h2>
           <p className="text-gray-500 mb-6">{message}</p>
@@ -532,77 +532,77 @@ const PartialPaymentModal = ({
   const remainingTotal = appointment.price - alreadyPaid;
 
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
       <motion.div 
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="bg-white p-8 rounded-[40px] w-full max-w-md shadow-2xl border border-rose-50"
+        className="bg-white p-5 sm:p-6 rounded-[32px] w-full max-w-md shadow-2xl border border-rose-50 max-h-[90vh] overflow-y-auto scrollbar-none my-auto"
       >
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-black text-gray-900 uppercase tracking-tight">Registrar Pagamento</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-black text-gray-900 uppercase tracking-tight">Registrar Pagamento</h2>
+          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-full transition-colors">
             <X className="w-5 h-5 text-gray-400" />
           </button>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+            <div className="p-3 bg-gray-50 rounded-2xl border border-gray-100">
               <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Valor Total</p>
               <p className="text-sm font-black text-gray-700">{formatCurrency(appointment.price)}</p>
             </div>
-            <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 text-right">
+            <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-100 text-right">
               <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Já Pago</p>
               <p className="text-sm font-black text-emerald-600">{formatCurrency(alreadyPaid)}</p>
             </div>
           </div>
 
-          <div className="flex items-center justify-between p-5 bg-rose-50 rounded-3xl border-2 border-rose-100 shadow-inner">
+          <div className="flex items-center justify-between p-4 bg-rose-50 rounded-2xl border-2 border-rose-100 shadow-inner">
             <div>
-              <p className="text-[10px] font-black text-rose-400 uppercase tracking-[0.2em] mb-1">SALDO RESTANTE</p>
-              <p className="text-2xl font-black text-rose-600 tracking-tight">{formatCurrency(remainingTotal)}</p>
+              <p className="text-[10px] font-black text-rose-400 uppercase tracking-[0.2em] mb-0.5">SALDO RESTANTE</p>
+              <p className="text-xl font-black text-rose-600 tracking-tight">{formatCurrency(remainingTotal)}</p>
             </div>
-            <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm">
-              <DollarSign className="w-6 h-6 text-rose-500" />
+            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
+              <DollarSign className="w-5 h-5 text-rose-500" />
             </div>
           </div>
 
-          <div className="pt-2">
-            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 ml-1">Valor a Receber Agora</label>
+          <div className="pt-1">
+            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Valor a Receber Agora</label>
             <div className="relative group">
-              <span className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 font-black text-lg">R$</span>
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-black text-base">R$</span>
               <input 
                 type="number" 
                 step="0.01"
                 value={amount}
                 onChange={e => setAmount(Number(e.target.value))}
-                className="w-full bg-gray-50 border-2 border-transparent rounded-[28px] p-6 pl-14 font-black text-2xl text-rose-600 outline-none focus:border-rose-200 focus:bg-white transition-all shadow-sm"
+                className="w-full bg-gray-50 border-2 border-transparent rounded-2xl p-3.5 pl-11 font-black text-xl text-rose-600 outline-none focus:border-rose-200 focus:bg-white transition-all shadow-sm"
               />
             </div>
           </div>
 
           <div 
             className={cn(
-              "flex items-center gap-4 p-5 rounded-[28px] cursor-pointer transition-all border-2",
+              "flex items-center gap-3 p-4 rounded-2xl cursor-pointer transition-all border-2",
               isPartial ? "bg-amber-50 border-amber-200" : "bg-gray-50 border-transparent hover:bg-gray-100"
             )}
             onClick={() => setIsPartial(!isPartial)}
           >
             <div className={cn(
-              "w-7 h-7 rounded-xl border-2 flex items-center justify-center transition-all shadow-sm",
+              "w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all shadow-sm shrink-0",
               isPartial ? "bg-amber-500 border-amber-500" : "bg-white border-gray-200"
             )}>
-              {isPartial && <CheckCircle2 className="w-4 h-4 text-white" />}
+              {isPartial && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
             </div>
-            <div className="flex-1">
-              <p className="text-sm font-black text-gray-900 leading-none mb-1">Pagamento Parcial</p>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-black text-gray-900 leading-none mb-1">Pagamento Parcial</p>
+              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-tight truncate">
                 {amount === remainingTotal ? 'Marque se não for pagar tudo agora' : `Restará ${formatCurrency(remainingTotal - amount)} para depois`}
               </p>
             </div>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-1.5">
             <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Método</label>
             <div className="grid grid-cols-4 gap-2">
               {[
@@ -615,8 +615,8 @@ const PartialPaymentModal = ({
                   key={opt.id}
                   onClick={() => setMethod(opt.id)}
                   className={cn(
-                    "py-3 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all",
-                    method === opt.id ? "bg-rose-500 text-white border-rose-500 shadow-lg shadow-rose-100" : "bg-white border-gray-100 text-gray-400 hover:bg-gray-50"
+                    "py-2.5 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all",
+                    method === opt.id ? "bg-rose-500 text-white border-rose-500 shadow-md shadow-rose-100" : "bg-white border-gray-100 text-gray-400 hover:bg-gray-50"
                   )}
                 >
                   {opt.label}
@@ -627,7 +627,7 @@ const PartialPaymentModal = ({
 
           <button 
             onClick={() => onConfirm(amount, method, isPartial)}
-            className="w-full bg-rose-500 text-white p-6 rounded-[32px] font-black text-lg uppercase tracking-[0.1em] shadow-2xl shadow-rose-200 transition-all hover:-translate-y-1 active:translate-y-0"
+            className="w-full bg-rose-500 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-wider shadow-lg shadow-rose-100 transition-all hover:bg-rose-600 active:scale-98"
           >
             {isPartial ? 'Confirmar Parcial' : 'Confirmar Pagamento'}
           </button>
@@ -709,16 +709,14 @@ const PagamentosTab = ({
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-rose-50/30">
-                <th className="px-8 py-6 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Data</th>
-                <th className="px-8 py-6 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Cliente</th>
-                <th className="px-8 py-6 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Procedimento</th>
-                <th className="px-8 py-6 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Valor Total</th>
-                <th className="px-8 py-6 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Pago</th>
-                <th className="px-8 py-6 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Restante</th>
-                <th className="px-8 py-6 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Status</th>
-                <th className="px-8 py-6 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Sessão</th>
-                <th className="px-8 py-6 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Faltam</th>
-                <th className="px-8 py-6 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100 text-right">Ações</th>
+                <th className="px-4 py-4 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Data</th>
+                <th className="px-4 py-4 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Cliente</th>
+                <th className="px-4 py-4 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Procedimento / Sessão</th>
+                <th className="px-4 py-4 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Valor Total</th>
+                <th className="px-4 py-4 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Pago</th>
+                <th className="px-4 py-4 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Restante</th>
+                <th className="px-4 py-4 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Status</th>
+                <th className="px-4 py-4 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100 text-right">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -731,39 +729,49 @@ const PagamentosTab = ({
 
                 return (
                   <tr key={app.id} className="group hover:bg-rose-50/20 transition-colors">
-                    <td className="px-8 py-6 border-b border-gray-50">
+                    <td className="px-4 py-4 border-b border-gray-50">
                       <div className="flex flex-col">
                         <span className="text-sm font-bold text-gray-900">{app.date ? format(parseISO(app.date), "dd/MM/yyyy") : '-'}</span>
                         <span className="text-[10px] font-medium text-gray-400 uppercase">{app.date ? format(parseISO(app.date), "HH:mm") : '--:--'}</span>
                       </div>
                     </td>
-                    <td className="px-8 py-6 border-b border-gray-50">
+                    <td className="px-4 py-4 border-b border-gray-50">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-rose-100 rounded-full flex items-center justify-center text-[10px] font-black text-rose-600">
+                        <div className="w-8 h-8 bg-rose-100 rounded-full flex items-center justify-center text-[10px] font-black text-rose-600 shrink-0">
                           {client?.name.substring(0, 2).toUpperCase()}
                         </div>
-                        <span className="text-sm font-bold text-gray-900">{client?.name}</span>
+                        <span className="text-sm font-bold text-gray-900 truncate max-w-[150px]" title={client?.name}>{client?.name}</span>
                       </div>
                     </td>
-                    <td className="px-8 py-6 border-b border-gray-50">
-                      <span className="text-xs font-bold text-gray-600">{proc?.name}</span>
+                    <td className="px-4 py-4 border-b border-gray-50">
+                      <div className="flex flex-col">
+                        <span className="text-xs font-bold text-gray-600">{proc?.name || 'Venda Direta / Outro'}</span>
+                        <span className="text-[10px] font-bold text-gray-400">
+                          Sessão {app.sessionNumber || 1} de {app.totalSessions || 1}
+                          {((app.totalSessions || 1) - (app.sessionNumber || 1) > 0) ? (
+                            <span className="text-rose-400 ml-1">({(app.totalSessions || 1) - (app.sessionNumber || 1)} restando)</span>
+                          ) : (
+                            <span className="text-emerald-500 ml-1">(Concluído)</span>
+                          )}
+                        </span>
+                      </div>
                     </td>
-                    <td className="px-8 py-6 border-b border-gray-50">
+                    <td className="px-4 py-4 border-b border-gray-50">
                       <span className="text-sm font-black text-gray-900">{formatCurrency(app.price)}</span>
                     </td>
-                    <td className="px-8 py-6 border-b border-gray-50">
+                    <td className="px-4 py-4 border-b border-gray-50">
                       <span className={cn(
                         "text-sm font-black",
                         paid > 0 ? "text-emerald-600" : "text-gray-300"
                       )}>{formatCurrency(paid)}</span>
                     </td>
-                    <td className="px-8 py-6 border-b border-gray-50">
+                    <td className="px-4 py-4 border-b border-gray-50">
                       <span className={cn(
                         "text-sm font-black text-rose-600",
                         remaining <= 0 && "text-gray-200"
                       )}>{formatCurrency(Math.max(0, remaining))}</span>
                     </td>
-                    <td className="px-8 py-6 border-b border-gray-50">
+                    <td className="px-4 py-4 border-b border-gray-50">
                       <span className={cn(
                         "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
                         app.isPaid ? "bg-emerald-100 text-emerald-600" :
@@ -772,28 +780,12 @@ const PagamentosTab = ({
                         {app.isPaid ? 'Pago' : isPartial ? 'Parcial' : 'Pendente'}
                       </span>
                     </td>
-                    <td className="px-8 py-6 border-b border-gray-50 text-center">
-                      <div className="flex items-center gap-1">
-                        <span className="text-[10px] font-black text-gray-900 bg-gray-50 px-2 py-1 rounded-lg">
-                          {app.sessionNumber || 1}
-                        </span>
-                        <span className="text-[8px] font-bold text-gray-300">de</span>
-                        <span className="text-[10px] font-black text-gray-400 bg-gray-50 px-2 py-1 rounded-lg">
-                          {app.totalSessions || 1}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-8 py-6 border-b border-gray-50">
-                      <span className="text-[10px] font-black text-rose-500 bg-rose-50 px-2 py-1 rounded-lg">
-                        {Math.max(0, (app.totalSessions || 1) - (app.sessionNumber || 1))}
-                      </span>
-                    </td>
-                    <td className="px-8 py-6 border-b border-gray-50 text-right">
-                      <div className="flex items-center justify-end gap-2">
+                    <td className="px-4 py-4 border-b border-gray-50 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
                         {!app.isPaid && (
                           <button
                             onClick={() => onSendWhatsApp(app, 'payment')}
-                            className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all"
+                            className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all"
                             title="Cobrar via WhatsApp"
                           >
                             <MessageCircle className="w-5 h-5" />
@@ -801,14 +793,14 @@ const PagamentosTab = ({
                         )}
                         <button
                           onClick={() => onEditAppointment(app)}
-                          className="p-2 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+                          className="p-1.5 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
                           title="Editar Registro"
                         >
                           <Pencil className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => onDeleteAppointment(app.id)}
-                          className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                          className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
                           title="Excluir Registro"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -816,14 +808,14 @@ const PagamentosTab = ({
                         {!app.isPaid ? (
                           <button
                             onClick={() => onMarkAsPaid(app.id)}
-                            className="px-4 py-2 bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-100 hover:-translate-y-0.5 transition-all"
+                            className="px-3 py-1.5 bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-100 hover:-translate-y-0.5 transition-all outline-none"
                           >
                             {isPartial ? 'Completar' : 'Receber'}
                           </button>
                         ) : (
                           <button
                             onClick={() => onUndoMarkAsPaid(app.id)}
-                            className="p-2 text-gray-300 hover:text-rose-500 transition-colors"
+                            className="p-1.5 text-gray-300 hover:text-rose-500 transition-colors"
                             title="Estornar Pagamento"
                           >
                             <RefreshCcw className="w-4 h-4" />
@@ -1481,62 +1473,8 @@ const Agenda = ({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0">
-        {/* Lateral Esquerda: Clientes e Etiquetas */}
-        <div className="hidden lg:flex lg:col-span-3 bg-white rounded-3xl shadow-sm border border-rose-50 flex-col overflow-hidden">
-          <div className="p-5 border-b border-rose-50 bg-rose-50/20">
-            <h3 className="font-black text-gray-900 text-[10px] uppercase tracking-widest mb-3 flex items-center gap-2">
-              <Users className="w-3 h-3 text-rose-500" />
-              Suas {csLabel}
-            </h3>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
-              <input 
-                type="text"
-                placeholder="Filtrar por nome ou etiqueta..."
-                value={clientSearch}
-                onChange={(e) => setClientSearch(e.target.value)}
-                className="w-full bg-white pl-8 pr-3 py-2 rounded-xl border border-rose-100 text-[10px] font-bold outline-none focus:ring-1 focus:ring-rose-300"
-              />
-            </div>
-          </div>
-          <div className="flex-1 overflow-y-auto p-3 space-y-1.5 scrollbar-hide">
-            {filteredSidebarClients.map(c => (
-              <div 
-                key={c.id} 
-                onClick={() => onEditClient(c)}
-                className="flex items-center gap-3 p-2.5 hover:bg-rose-50 rounded-2xl transition-all cursor-pointer group relative"
-              >
-                <div 
-                  className="w-1 h-8 rounded-full shrink-0 group-hover:scale-y-110 transition-transform" 
-                  style={{ backgroundColor: c.labelColor || '#f43f5e' }} 
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="font-bold text-xs text-gray-700 truncate group-hover:text-rose-600 transition-colors uppercase tracking-tight">{c.name}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span 
-                      className="text-[8px] font-black uppercase tracking-widest"
-                      style={{ color: c.labelColor || '#f43f5e' }}
-                    >
-                      {c.label || 'Sem Etiqueta'}
-                    </span>
-                  </div>
-                </div>
-                <div className="absolute right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                   <Pencil className="w-3 h-3 text-gray-300" />
-                </div>
-              </div>
-            ))}
-            {filteredSidebarClients.length === 0 && (
-              <div className="py-10 text-center px-4">
-                <Users className="w-6 h-6 text-rose-100 mx-auto mb-2" />
-                <p className="text-[10px] font-bold text-gray-400 uppercase">Nenhuma {cLabel.toLowerCase()} encontrada.</p>
-              </div>
-            )}
-          </div>
-        </div>
-
         {/* Centro: Calendário */}
-        <div className="lg:col-span-6 bg-white p-6 rounded-3xl shadow-sm border border-rose-50 flex flex-col">
+        <div className="lg:col-span-9 bg-white p-6 rounded-3xl shadow-sm border border-rose-50 flex flex-col">
           <div className="flex items-center justify-between mb-8">
             <h2 className="text-xl font-black text-gray-900 capitalize">
               {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
@@ -2456,12 +2394,12 @@ const BudgetsTab = ({
 
       <AnimatePresence>
         {isNewBudgetModalOpen && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
             <motion.div 
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-white p-6 rounded-3xl w-full max-w-md shadow-2xl border border-rose-50"
+              className="bg-white p-6 rounded-3xl w-full max-w-md shadow-2xl border border-rose-50 max-h-[90vh] overflow-y-auto my-auto"
             >
               <h2 className="text-xl font-bold mb-6">Gerar Novo Orçamento</h2>
               <div className="space-y-4">
@@ -3663,12 +3601,12 @@ const ServicesTab = ({
 
       <AnimatePresence>
         {isAddingProc && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md overflow-y-auto">
             <motion.div 
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-white p-10 rounded-[40px] w-full max-w-md shadow-2xl relative border border-rose-50"
+              className="bg-white p-6 sm:p-10 rounded-[40px] w-full max-w-md shadow-2xl relative border border-rose-50 max-h-[90vh] overflow-y-auto my-auto"
             >
               <h2 className="text-3xl font-black text-gray-900 mb-8">Novo Serviço</h2>
               <div className="space-y-6">
@@ -6858,11 +6796,11 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
       )}
 
       {isNewFollowUpModalOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm overflow-y-auto">
           <motion.div 
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="bg-white rounded-[40px] w-full max-w-lg shadow-2xl overflow-hidden border border-rose-50"
+            className="bg-white rounded-[40px] w-full max-w-lg shadow-2xl border border-rose-50 max-h-[90vh] overflow-y-auto my-auto"
           >
             <div className="p-8 pb-4 flex justify-between items-start">
               <div>
@@ -6956,11 +6894,11 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
         </div>
       )}
       {isNewClientModalOpen && (
-        <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
           <motion.div 
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl"
+            className="bg-white p-6 sm:p-8 rounded-3xl w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto my-auto"
           >
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-black text-gray-900">Cadastrar Cliente</h2>
@@ -7166,12 +7104,12 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
       {/* Edit Client Modal */}
       <AnimatePresence>
         {editingClient && (
-          <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
             <motion.div 
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl"
+              className="bg-white p-6 sm:p-8 rounded-3xl w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto my-auto"
             >
               <h2 className="text-2xl font-black text-gray-900 mb-6">Editar Cliente</h2>
               <form 
@@ -7278,26 +7216,42 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl"
+              className="bg-white p-8 rounded-3xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto"
             >
-              <h2 className="text-2xl font-black text-gray-900 mb-6">Editar Agendamento</h2>
+              <h2 className="text-2xl font-black text-gray-900 mb-6">Editar Registro / Pagamento</h2>
               <form 
                 onSubmit={(e) => {
                   e.preventDefault();
                   const formData = new FormData(e.currentTarget);
                   const date = formData.get('date') as string;
                   const time = formData.get('time') as string;
+                  const price = parseFloat(formData.get('price') as string) || 0;
+                  const paidAmount = parseFloat(formData.get('paidAmount') as string) || 0;
+                  const isPaid = formData.get('isPaid') === 'true' || paidAmount >= price;
+                  
                   handleUpdateAppointment(editingAppointment.id, {
+                    clientId: formData.get('clientId') as string,
                     date: `${date}T${time}:00`,
                     procedureId: formData.get('procedureId') as string,
                     status: formData.get('status') as AppointmentStatus,
                     sessionNumber: parseInt(formData.get('sessionNumber') as string) || 1,
-                    totalSessions: parseInt(formData.get('totalSessions') as string) || 1
+                    totalSessions: parseInt(formData.get('totalSessions') as string) || 1,
+                    price: price,
+                    paidAmount: paidAmount,
+                    isPaid: isPaid,
+                    paymentMethod: formData.get('paymentMethod') as any
                   });
                   setEditingAppointment(null);
                 }}
                 className="space-y-4"
               >
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase">Cliente</label>
+                  <select name="clientId" required defaultValue={editingAppointment?.clientId} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 font-bold">
+                    {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-gray-400 uppercase">Data</label>
@@ -7308,13 +7262,28 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
                     <input name="time" type="time" required defaultValue={editingAppointment?.date?.split('T')[1]?.substring(0, 5) || ''} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 font-bold" />
                   </div>
                 </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-400 uppercase">Serviço</label>
+                    <label className="text-xs font-bold text-gray-400 uppercase">Serviço / Procedimento</label>
                     <select name="procedureId" required defaultValue={editingAppointment.procedureId} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 font-bold">
                       {procedures.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Status do Agendamento</label>
+                    <select name="status" required defaultValue={editingAppointment.status} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 font-bold">
+                      <option value="pendente">Aguardando</option>
+                      <option value="confirmado">Confirmado</option>
+                      <option value="realizado">Realizado</option>
+                      <option value="faltou">Faltou (Follow-up)</option>
+                      <option value="desmarcado">Desmarcado</option>
+                      <option value="atrasado">Atrasado</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-gray-400 uppercase">Sessão Atual</label>
                     <input 
@@ -7336,17 +7305,61 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
                     />
                   </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-400 uppercase">Status</label>
-                  <select name="status" required defaultValue={editingAppointment.status} className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 font-bold">
-                    <option value="pendente">Aguardando</option>
-                    <option value="confirmado">Confirmado</option>
-                    <option value="realizado">Realizado</option>
-                    <option value="faltou">Faltou (Follow-up)</option>
-                    <option value="desmarcado">Desmarcado</option>
-                    <option value="atrasado">Atrasado</option>
-                  </select>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Valor Total (R$)</label>
+                    <input 
+                      name="price" 
+                      type="number" 
+                      step="0.01" 
+                      required 
+                      defaultValue={editingAppointment.price || 0} 
+                      className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 font-bold text-gray-900" 
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Valor Pago (R$)</label>
+                    <input 
+                      name="paidAmount" 
+                      type="number" 
+                      step="0.01" 
+                      required 
+                      defaultValue={editingAppointment.paidAmount || 0} 
+                      className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 font-bold text-gray-900" 
+                    />
+                  </div>
                 </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Status do Pagamento</label>
+                    <select 
+                      name="isPaid" 
+                      required 
+                      defaultValue={editingAppointment.isPaid ? 'true' : 'false'} 
+                      className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 font-bold"
+                    >
+                      <option value="false">Pendente / Parcial</option>
+                      <option value="true">Pago</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Forma de Pagamento</label>
+                    <select 
+                      name="paymentMethod" 
+                      required 
+                      defaultValue={editingAppointment.paymentMethod || 'pix'} 
+                      className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 font-bold"
+                    >
+                      <option value="pix">Pix</option>
+                      <option value="cartao">Cartão</option>
+                      <option value="dinheiro">Dinheiro</option>
+                      <option value="outro">Outro</option>
+                    </select>
+                  </div>
+                </div>
+
                 <div className="flex gap-3 pt-4">
                   <button type="button" onClick={() => setEditingAppointment(null)} className="flex-1 py-3 font-bold text-gray-500 hover:bg-gray-50 rounded-xl transition-all">Cancelar</button>
                   <button type="submit" className="flex-1 bg-rose-500 text-white py-3 rounded-xl font-bold shadow-lg shadow-rose-100 transition-all active:scale-95">Salvar</button>
@@ -7360,12 +7373,12 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
       {/* Edit Financial Entry Modal */}
       <AnimatePresence>
         {editingFinancialEntry && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
             <motion.div 
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl"
+              className="bg-white p-6 sm:p-8 rounded-3xl w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto my-auto"
             >
               <h2 className="text-2xl font-black text-gray-900 mb-6">Editar Lançamento</h2>
               <form 
@@ -7411,12 +7424,12 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
       {/* Edit Procedure Modal */}
       <AnimatePresence>
         {editingProcedure && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
             <motion.div 
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-white p-10 rounded-[40px] w-full max-w-md shadow-2xl relative border border-rose-50"
+              className="bg-white p-6 sm:p-10 rounded-[40px] w-full max-w-md shadow-2xl relative border border-rose-50 max-h-[90vh] overflow-y-auto my-auto"
             >
               <h2 className="text-3xl font-black text-gray-900 mb-8">Editar Serviço</h2>
               <form 
@@ -7458,12 +7471,12 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
       {/* Edit FollowUp Modal */}
       <AnimatePresence>
         {editingFollowUp && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
             <motion.div 
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-white p-8 rounded-[40px] w-full max-w-md shadow-2xl relative border border-rose-50"
+              className="bg-white p-6 sm:p-8 rounded-[40px] w-full max-w-md shadow-2xl relative border border-rose-50 max-h-[90vh] overflow-y-auto my-auto"
             >
               <h2 className="text-2xl font-black text-gray-900 mb-6">Editar Follow-up</h2>
               <form 
