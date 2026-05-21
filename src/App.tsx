@@ -30,6 +30,7 @@ import {
   Download,
   Pencil,
   Zap,
+  Upload,
   Rocket,
   ArrowRight,
   RotateCcw,
@@ -135,8 +136,8 @@ import {
 // --- Constants & Types ---
 
 const LANDING_PAGE_URL = 'https://iridescent-gecko-731eb9.netlify.app';
-const UPGRADE_URL = 'https://dynamic-mermaid-e77dae.netlify.app';
-const RAISE_WEBSITE_URL = 'https://dynamic-mermaid-e77dae.netlify.app';
+const UPGRADE_URL = 'https://raiseestruturadigital.site';
+const RAISE_WEBSITE_URL = 'https://raiseestruturadigital.site';
 
 const COLOR_PRESETS = {
   rose: {
@@ -1739,6 +1740,550 @@ const Agenda = ({
   );
 };
 
+interface ImportClientsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onImport: (importedClients: Omit<Client, 'id'>[]) => Promise<void>;
+  existingClients: Client[];
+  cLabel: string;
+  csLabel: string;
+}
+
+const ImportClientsModal = ({
+  isOpen,
+  onClose,
+  onImport,
+  existingClients,
+  cLabel,
+  csLabel
+}: ImportClientsModalProps) => {
+  const [activeTab, setActiveTab] = useState<'file' | 'text'>('file');
+  const [pastedText, setPastedText] = useState('');
+  const [parsedClients, setParsedClients] = useState<Omit<Client, 'id'>[]>([]);
+  
+  const [fileData, setFileData] = useState<any[]>([]);
+  const [fileHeaders, setFileHeaders] = useState<string[]>([]);
+  const [selectedMapping, setSelectedMapping] = useState<Record<string, string>>({
+    name: '',
+    phone: '',
+    email: '',
+    city: '',
+    state: '',
+    observations: ''
+  });
+  const [isFileLoaded, setIsFileLoaded] = useState(false);
+  const [ignoreDuplicates, setIgnoreDuplicates] = useState(true);
+  
+  const [isImporting, setIsImporting] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Parse pasted text in real-time
+  useEffect(() => {
+    if (activeTab === 'text') {
+      const text = pastedText.trim();
+      if (!text) {
+        setParsedClients([]);
+        return;
+      }
+      
+      const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+      const result: Omit<Client, 'id'>[] = [];
+      
+      lines.forEach(line => {
+        let parts: string[] = [];
+        if (line.includes('\t')) {
+          parts = line.split('\t');
+        } else if (line.includes(';')) {
+          parts = line.split(';');
+        } else if (line.includes(',')) {
+          parts = line.split(',');
+        }
+        
+        let name = '';
+        let phone = '';
+        let email = '';
+        let city = '';
+        let observations = '';
+        
+        if (parts.length >= 2) {
+          name = parts[0].trim();
+          for (let i = 1; i < parts.length; i++) {
+            const part = parts[i].trim();
+            if (part.includes('@')) {
+              email = part;
+            } else if (/[0-9]/.test(part) && part.replace(/\D/g, '').length >= 8) {
+              phone = part;
+            } else if (city === '') {
+              city = part;
+            } else {
+              if (observations) observations += ' | ' + part;
+              else observations = part;
+            }
+          }
+        } else {
+          // Attempt smart parse for a single line listing e.g. "Name (11) 99999-9999" or "Name 11999999999"
+          const phoneRegex = /(?:\+?55\s?)?(?:\(?\d{2}\)?\s?)?\d{4,5}[-\s]?\d{4}/g;
+          const matchPhone = line.match(phoneRegex);
+          const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}/g;
+          const matchEmail = line.match(emailRegex);
+          
+          if (matchPhone && matchPhone.length > 0) {
+            phone = matchPhone[0];
+            let cleanedLine = line.replace(phone, '');
+            if (matchEmail && matchEmail.length > 0) {
+              email = matchEmail[0];
+              cleanedLine = cleanedLine.replace(email, '');
+            }
+            name = cleanedLine.replace(/[;,\-\(\)]/g, ' ').replace(/\s+/g, ' ').trim();
+          } else {
+            if (matchEmail && matchEmail.length > 0) {
+              email = matchEmail[0];
+              name = line.replace(email, '').replace(/[;,\-\(\)]/g, ' ').replace(/\s+/g, ' ').trim();
+            } else {
+              name = line;
+            }
+          }
+        }
+        
+        if (name) {
+          result.push({
+            name: name,
+            phone: phone ? phone.replace(/\D/g, '') : '',
+            email: email,
+            city: city,
+            observations: observations || 'Importado via colagem',
+            createdAt: new Date().toISOString()
+          });
+        }
+      });
+      
+      setParsedClients(result);
+    }
+  }, [pastedText, activeTab]);
+
+  const handleFileUpload = (file: File) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = new Uint8Array(event.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        
+        if (json.length === 0) return;
+        
+        const headers = (json[0] as string[]).map(h => String(h || '').trim()).filter(Boolean);
+        const rows = json.slice(1) as any[][];
+        
+        const formattedRows = rows.map(row => {
+          const obj: any = {};
+          headers.forEach((header, index) => {
+            obj[header] = row[index];
+          });
+          return obj;
+        }).filter(row => Object.values(row).some(v => v !== undefined && v !== null && v !== ''));
+        
+        setFileHeaders(headers);
+        setFileData(formattedRows);
+        
+        const mapping: Record<string, string> = {
+          name: '',
+          phone: '',
+          email: '',
+          city: '',
+          state: '',
+          observations: ''
+        };
+        
+        headers.forEach(h => {
+          const lower = h.toLowerCase();
+          if (lower.includes('nome') || lower.includes('name') || lower.includes('cliente')) {
+            if (!mapping.name) mapping.name = h;
+          } else if (lower.includes('tel') || lower.includes('cel') || lower.includes('whats') || lower.includes('fone') || lower.includes('phone') || lower.includes('número') || lower.includes('numero')) {
+            if (!mapping.phone) mapping.phone = h;
+          } else if (lower.includes('mail')) {
+            if (!mapping.email) mapping.email = h;
+          } else if (lower.includes('cidade') || lower.includes('city') || lower.includes('munic')) {
+            if (!mapping.city) mapping.city = h;
+          } else if (lower.includes('estado') || lower.includes('uf') || lower.includes('state')) {
+            if (!mapping.state) mapping.state = h;
+          } else if (lower.includes('obs') || lower.includes('nota') || lower.includes('desc') || lower.includes('observ')) {
+            if (!mapping.observations) mapping.observations = h;
+          }
+        });
+        
+        setSelectedMapping(mapping);
+        setIsFileLoaded(true);
+      } catch (err) {
+        console.error("Erro ao importar planilha:", err);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileUpload(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      handleFileUpload(e.target.files[0]);
+    }
+  };
+
+  const cleanPhone = (phoneStr: string) => {
+    return phoneStr.replace(/\D/g, '');
+  };
+
+  const getMappedClients = (): Omit<Client, 'id'>[] => {
+    if (activeTab === 'text') {
+      return parsedClients;
+    }
+    
+    return fileData.map(row => {
+      const nameVal = selectedMapping.name ? row[selectedMapping.name] : '';
+      const phoneVal = selectedMapping.phone ? row[selectedMapping.phone] : '';
+      const emailVal = selectedMapping.email ? row[selectedMapping.email] : '';
+      const cityVal = selectedMapping.city ? row[selectedMapping.city] : '';
+      const stateVal = selectedMapping.state ? row[selectedMapping.state] : '';
+      const obsVal = selectedMapping.observations ? row[selectedMapping.observations] : '';
+      
+      const nameStr = nameVal ? String(nameVal).trim() : '';
+      if (!nameStr) return null;
+      
+      return {
+        name: nameStr,
+        phone: phoneVal ? cleanPhone(String(phoneVal)) : '',
+        email: emailVal ? String(emailVal).trim() : '',
+        city: cityVal ? String(cityVal).trim() : '',
+        state: stateVal ? String(stateVal).trim() : '',
+        observations: obsVal ? String(obsVal).trim() : 'Importado via planilha',
+        createdAt: new Date().toISOString()
+      };
+    }).filter((c): c is Omit<Client, 'id'> => c !== null);
+  };
+
+  const handleConfirmImport = async () => {
+    const rawClients = getMappedClients();
+    if (rawClients.length === 0) return;
+    
+    let finalClients = rawClients;
+    if (ignoreDuplicates) {
+      finalClients = rawClients.filter(c => {
+        const phoneMatch = c.phone && existingClients.some(existing => 
+          existing.phone && cleanPhone(existing.phone) === cleanPhone(c.phone)
+        );
+        const nameMatch = c.name && existingClients.some(existing => 
+          existing.name.toLowerCase().trim() === c.name.toLowerCase().trim()
+        );
+        return !phoneMatch && !nameMatch;
+      });
+    }
+
+    if (finalClients.length === 0) {
+      onClose();
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      await onImport(finalClients);
+      setPastedText('');
+      setParsedClients([]);
+      setFileData([]);
+      setFileHeaders([]);
+      setIsFileLoaded(false);
+      onClose();
+    } catch (err) {
+      console.error("Erro ao executar importação:", err);
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  const currentParsed = getMappedClients();
+  const totalDuplicates = currentParsed.filter(c => {
+    const phoneMatch = c.phone && existingClients.some(existing => 
+      existing.phone && cleanPhone(existing.phone) === cleanPhone(c.phone)
+    );
+    const nameMatch = c.name && existingClients.some(existing => 
+      existing.name.toLowerCase().trim() === c.name.toLowerCase().trim()
+    );
+    return phoneMatch || nameMatch;
+  }).length;
+
+  const finalCount = ignoreDuplicates ? currentParsed.length - totalDuplicates : currentParsed.length;
+
+  return (
+    <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-white p-6 rounded-[32px] w-full max-w-2xl shadow-2xl border border-rose-50 max-h-[90vh] overflow-y-auto my-auto flex flex-col"
+      >
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h2 className="text-xl font-black text-gray-900 uppercase tracking-tight">Importar Lista de Clientes</h2>
+            <p className="text-xs text-gray-400 font-bold mt-1">Carregue uma planilha ou cole textos para povoar seu CRM rapidamente</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors shrink-0">
+            <X className="w-5 h-5 text-gray-400" />
+          </button>
+        </div>
+
+        {/* Tab Selection */}
+        <div className="grid grid-cols-2 p-1.5 bg-gray-50 rounded-2xl mb-6">
+          <button 
+            type="button"
+            onClick={() => { setActiveTab('file'); }}
+            className={`py-3 rounded-xl font-bold text-sm transition-all ${activeTab === 'file' ? 'bg-white shadow-sm text-rose-500' : 'text-gray-400 hover:text-gray-600'}`}
+          >
+            📂 Planilha (Excel/CSV)
+          </button>
+          <button 
+            type="button"
+            onClick={() => { setActiveTab('text'); }}
+            className={`py-3 rounded-xl font-bold text-sm transition-all ${activeTab === 'text' ? 'bg-white shadow-sm text-rose-500' : 'text-gray-400 hover:text-gray-600'}`}
+          >
+            ✏️ Colar Texto (Rápido)
+          </button>
+        </div>
+
+        {/* Tab 1: Excel/CSV File upload */}
+        {activeTab === 'file' && !isFileLoaded && (
+          <div 
+            onDragEnter={handleDrag}
+            onDragOver={handleDrag}
+            onDragLeave={handleDrag}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+            className={`border-2 border-dashed rounded-3xl p-10 text-center cursor-pointer transition-all ${dragActive ? 'border-rose-400 bg-rose-50/30' : 'border-gray-200 hover:border-rose-200 bg-gray-50/50'}`}
+          >
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleFileInput} 
+              accept=".xlsx,.xls,.csv" 
+              className="hidden" 
+            />
+            <div className="w-14 h-14 bg-rose-100 rounded-2xl flex items-center justify-center text-rose-500 mx-auto mb-4">
+              <Upload className="w-7 h-7" />
+            </div>
+            <p className="font-bold text-gray-900 text-lg">Arraste seu arquivo aqui</p>
+            <p className="text-sm text-gray-500 mt-1">Ou clique para procurar em seu computador</p>
+            <div className="mt-4 inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-gray-100 rounded-full text-[10px] font-black text-gray-400 uppercase tracking-wider">
+              Formatos aceitos: xlsx, xls, csv
+            </div>
+          </div>
+        )}
+
+        {/* Excel Loaded Mapping View */}
+        {activeTab === 'file' && isFileLoaded && (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center p-3 bg-rose-50 rounded-2xl border border-rose-100">
+              <span className="text-xs font-black text-rose-600 uppercase tracking-widest pl-1">Planilha carregada ({fileData.length} linhas)</span>
+              <button 
+                type="button"
+                onClick={() => { setIsFileLoaded(false); setFileData([]); setFileHeaders([]); }}
+                className="text-xs font-bold text-rose-500 hover:underline"
+              >
+                Trocar arquivo
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-3xl">
+              <div>
+                <h4 className="text-xs font-black text-gray-900 uppercase tracking-widest mb-3">Mapear Colunas</h4>
+                <p className="text-[10px] text-gray-500 font-semibold mb-3">Selecione quais colunas do seu Excel correspondem aos dados da cliente:</p>
+                
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Nome Completo (Obrigatório)</label>
+                    <select 
+                      value={selectedMapping.name} 
+                      onChange={e => setSelectedMapping(m => ({ ...m, name: e.target.value }))}
+                      className="w-full p-2.5 rounded-xl border border-gray-100 text-sm font-semibold bg-white outline-none focus:border-rose-300"
+                    >
+                      <option value="">-- Ignorar ou Não Encontrado --</option>
+                      {fileHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">WhatsApp / Telefone</label>
+                    <select 
+                      value={selectedMapping.phone} 
+                      onChange={e => setSelectedMapping(m => ({ ...m, phone: e.target.value }))}
+                      className="w-full p-2.5 rounded-xl border border-gray-100 text-sm font-semibold bg-white outline-none focus:border-rose-300"
+                    >
+                      <option value="">-- Ignorar ou Não Encontrado --</option>
+                      {fileHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">E-mail</label>
+                    <select 
+                      value={selectedMapping.email} 
+                      onChange={e => setSelectedMapping(m => ({ ...m, email: e.target.value }))}
+                      className="w-full p-2.5 rounded-xl border border-gray-100 text-sm font-semibold bg-white outline-none focus:border-rose-300"
+                    >
+                      <option value="">-- Ignorar --</option>
+                      {fileHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Cidade</label>
+                    <select 
+                      value={selectedMapping.city} 
+                      onChange={e => setSelectedMapping(m => ({ ...m, city: e.target.value }))}
+                      className="w-full p-2.5 rounded-xl border border-gray-100 text-sm font-semibold bg-white outline-none focus:border-rose-300"
+                    >
+                      <option value="">-- Ignorar --</option>
+                      {fileHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Observações Gerais</label>
+                    <select 
+                      value={selectedMapping.observations} 
+                      onChange={e => setSelectedMapping(m => ({ ...m, observations: e.target.value }))}
+                      className="w-full p-2.5 rounded-xl border border-gray-100 text-sm font-semibold bg-white outline-none focus:border-rose-300"
+                    >
+                      <option value="">-- Ignorar --</option>
+                      {fileHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-black text-gray-900 uppercase tracking-widest mb-3">Pré-visualização</h4>
+                <div className="space-y-2 border border-gray-100 bg-white p-3 rounded-2xl max-h-[300px] overflow-y-auto">
+                  {currentParsed.slice(0, 5).map((u, i) => (
+                    <div key={i} className="pb-2 border-b border-gray-50 last:border-b-0 text-xs">
+                      <p className="font-extrabold text-gray-800">{u.name || '[Sem Nome]'}</p>
+                      {u.phone && <span className="font-medium text-gray-500 mr-2 block">📞 {u.phone}</span>}
+                      {u.email && <span className="font-medium text-gray-500 block">✉️ {u.email}</span>}
+                      {u.city && <span className="font-medium text-gray-400 block">📍 {u.city}</span>}
+                    </div>
+                  ))}
+                  {currentParsed.length === 0 && (
+                    <p className="text-xs text-gray-400 font-bold text-center py-10">Mapeie ao menos a coluna de Nome para ver o preview</p>
+                  )}
+                  {currentParsed.length > 5 && (
+                    <p className="text-[10px] font-black text-gray-400 text-center uppercase tracking-widest pt-2 border-t border-gray-50">E mais {currentParsed.length - 5} contatos...</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 2: Text pasting list */}
+        {activeTab === 'text' && (
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs font-black text-gray-400 uppercase block mb-2 font-black tracking-wider">Cole sua lista de clientes abaixo</label>
+              <p className="text-[10px] text-gray-400 font-bold mb-3 uppercase tracking-wider">
+                COLE LINHAS CONTENDO TEXTO DESORGANIZADO OU DE OUTROS SISTEMAS. ANALISAREMOS OS NOMES E CONTATOS AUTOMATICAMENTE!
+              </p>
+              <textarea 
+                value={pastedText}
+                onChange={e => setPastedText(e.target.value)}
+                placeholder="Exemplo:&#10;Lucia Silva, (11) 98765-4321, lucia@gmail.com&#10;Claudia Regina Santana; 19999887766; claudia@uol.com.br&#10;Renata Antunes 21977778888"
+                className="w-full h-44 p-4 rounded-2xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 font-mono text-xs text-gray-700 resize-none"
+              />
+            </div>
+
+            {currentParsed.length > 0 && (
+              <div>
+                <h4 className="text-xs font-black text-gray-900 uppercase tracking-widest mb-3">Linhas Identificadas ({currentParsed.length})</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 bg-gray-50 rounded-2xl">
+                  {currentParsed.map((client, i) => (
+                    <div key={i} className="p-2.5 bg-white rounded-xl border border-gray-100 flex flex-col text-xs">
+                      <span className="font-extrabold text-gray-800">{client.name}</span>
+                      <div className="flex flex-wrap gap-x-2 text-[10px] text-gray-400 font-bold mt-1">
+                        {client.phone && <span>📞 {client.phone}</span>}
+                        {client.email && <span>✉️ {client.email}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* General Options & Actions */}
+        {currentParsed.length > 0 && (
+          <div className="mt-6 pt-5 border-t border-gray-100 space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 bg-gray-50 rounded-2xl gap-3">
+              <div 
+                className="flex items-center gap-3 cursor-pointer select-none"
+                onClick={() => setIgnoreDuplicates(!ignoreDuplicates)}
+              >
+                <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all shrink-0 ${ignoreDuplicates ? 'bg-rose-500 border-rose-500 text-white' : 'bg-white border-gray-200'}`}>
+                  {ignoreDuplicates && <CheckCircle2 className="w-4 h-4 text-white" />}
+                </div>
+                <div>
+                  <p className="text-xs font-black text-gray-800 leading-none mb-1">Ignorar Contatos Duplicados</p>
+                  <p className="text-[10px] text-gray-400 font-bold">Evita cadastrar nomes ou números de telefone que já existem ({totalDuplicates} duplicados detectados)</p>
+                </div>
+              </div>
+              <div className="text-right w-full sm:w-auto shrink-0">
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">A ser importado</span>
+                <span className="text-lg font-black text-rose-500">{finalCount} de {currentParsed.length}</span>
+              </div>
+            </div>
+
+            <button 
+              type="button"
+              onClick={handleConfirmImport}
+              disabled={isImporting || finalCount === 0}
+              className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest text-white transition-all shadow-lg flex items-center justify-center gap-2 ${finalCount === 0 ? 'bg-gray-200 shadow-none cursor-not-allowed text-gray-400' : 'bg-rose-500 hover:bg-rose-600 shadow-rose-100 hover:scale-98'}`}
+            >
+              {isImporting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Importando clientes...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-4 h-4" />
+                  Confirmar Importação ({finalCount})
+                </>
+              )}
+            </button>
+          </div>
+        )}
+      </motion.div>
+    </div>
+  );
+};
+
 const ClientsTab = ({ 
   clients, 
   appointments, 
@@ -1747,7 +2292,11 @@ const ClientsTab = ({
   onEditClient,
   onDeleteClient,
   cLabel,
-  csLabel
+  csLabel,
+  onImportClients,
+  lastImportedCount = 0,
+  onUndoImport,
+  onClearUndo
 }: { 
   clients: Client[], 
   appointments: Appointment[], 
@@ -1756,10 +2305,15 @@ const ClientsTab = ({
   onEditClient: (client: Client) => void,
   onDeleteClient: (id: string) => void,
   cLabel: string,
-  csLabel: string
+  csLabel: string,
+  onImportClients: (importedClients: Omit<Client, 'id'>[]) => Promise<void>,
+  lastImportedCount?: number,
+  onUndoImport?: () => void,
+  onClearUndo?: () => void
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   
   const filteredClients = clients.filter(c => 
     (c.name || '').toLowerCase().includes((searchTerm || '').toLowerCase()) || 
@@ -1911,6 +2465,7 @@ const ClientsTab = ({
         </div>
         <div className="flex flex-wrap gap-2 w-full md:w-auto">
           <button 
+            type="button"
             onClick={exportClientsCSV}
             className="flex-1 md:flex-none border-2 border-rose-100 text-rose-500 hover:bg-rose-50 px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all font-bold text-sm"
           >
@@ -1918,6 +2473,15 @@ const ClientsTab = ({
             CRM Completo
           </button>
           <button 
+            type="button"
+            onClick={() => setIsImportModalOpen(true)}
+            className="flex-1 md:flex-none border-2 border-dashed border-rose-200 text-rose-600 hover:bg-rose-50 px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all font-bold text-sm"
+          >
+            <Upload className="w-4 h-4" />
+            Importar Lista
+          </button>
+          <button 
+            type="button"
             onClick={onOpenNewClient}
             className="flex-1 md:flex-none bg-rose-500 hover:bg-rose-600 text-white px-6 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-rose-200 font-bold"
           >
@@ -1926,6 +2490,45 @@ const ClientsTab = ({
           </button>
         </div>
       </div>
+
+      {lastImportedCount > 0 && onUndoImport && onClearUndo && (
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-amber-50 border border-amber-200/60 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-amber-100/80 rounded-xl flex items-center justify-center text-amber-600 shrink-0">
+              <RotateCcw className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-sm font-black text-gray-800 leading-tight">
+                Importação Recente: {lastImportedCount} {cLabel.toLowerCase()}s adicionadas!
+              </p>
+              <p className="text-xs text-gray-500 font-bold mt-1">
+                Se você importou a lista por engano ou deseja corrigir, pode reverter agora.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2 w-full sm:w-auto shrink-0 justify-end">
+            <button 
+              type="button"
+              onClick={onClearUndo}
+              className="px-3.5 py-2 text-xs font-black text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-all uppercase tracking-wider"
+            >
+              Dispensar
+            </button>
+            <button 
+              type="button"
+              onClick={onUndoImport}
+              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-amber-100 flex items-center gap-1.5"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Desfazer Importação
+            </button>
+          </div>
+        </motion.div>
+      )}
 
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-rose-50 flex items-center gap-3">
         <Search className="w-5 h-5 text-gray-400" />
@@ -1996,6 +2599,15 @@ const ClientsTab = ({
           <p className="text-gray-400 font-bold">Nenhuma cliente encontrada.</p>
         </div>
       )}
+
+      <ImportClientsModal 
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onImport={onImportClients}
+        existingClients={clients}
+        cLabel={cLabel}
+        csLabel={csLabel}
+      />
     </div>
   );
 };
@@ -4761,6 +5373,7 @@ export default function App() {
   const [paymentAppId, setPaymentAppId] = useState<string | null>(null);
 
   const [clients, setClients] = useState<Client[]>(IS_DEMO_INITIAL ? MOCK_CLIENTS : []);
+  const [lastImportedClientIds, setLastImportedClientIds] = useState<string[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>(IS_DEMO_INITIAL ? MOCK_APPOINTMENTS : []);
   const [procedures, setProcedures] = useState<Procedure[]>(IS_DEMO_INITIAL ? MOCK_PROCEDURES : []);
   const [financialEntries, setFinancialEntries] = useState<FinancialEntry[]>(IS_DEMO_INITIAL ? MOCK_FINANCIAL : []);
@@ -5386,6 +5999,83 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
     } catch (e) { handleFirestoreError(e, OperationType.CREATE, 'clients'); }
   };
 
+  const handleImportClients = async (importedClients: Omit<Client, 'id'>[]) => {
+    if (isDemo) {
+      const newClients: Client[] = importedClients.map(c => ({
+        ...c,
+        id: Math.random().toString(36).substr(2, 9),
+        createdAt: c.createdAt || new Date().toISOString()
+      }));
+      setClients(prev => [...prev, ...newClients]);
+      setLastImportedClientIds(newClients.map(c => c.id));
+      addNotification(`${newClients.length} ${cLabel.toLowerCase()}s importadas com sucesso! (Modo Demo)`, 'info');
+      return;
+    }
+    if (!user) return;
+    try {
+      const dbCollection = collection(db, 'clients');
+      // For performance and limits safety, import in concurrent batches of size 30
+      const chunks: Omit<Client, 'id'>[][] = [];
+      for (let i = 0; i < importedClients.length; i += 30) {
+        chunks.push(importedClients.slice(i, i + 30));
+      }
+      
+      const importedIds: string[] = [];
+      for (const chunk of chunks) {
+        const batchIds = await Promise.all(chunk.map(async (c) => {
+          const { id, ...data } = c as any;
+          const docRef = await addDoc(dbCollection, {
+            ...data,
+            ownerId: user.uid,
+            createdAt: c.createdAt || new Date().toISOString()
+          });
+          return docRef.id;
+        }));
+        importedIds.push(...batchIds);
+      }
+      setLastImportedClientIds(importedIds);
+      addNotification(`${importedClients.length} ${cLabel.toLowerCase()}s importadas com sucesso!`, 'info');
+    } catch (e) {
+      handleFirestoreError(e, OperationType.CREATE, 'clients');
+      throw e;
+    }
+  };
+
+  const handleUndoImport = async () => {
+    if (lastImportedClientIds.length === 0) return;
+    
+    showConfirm(
+      'Desfazer Importação',
+      `Tem certeza que deseja remover as ${lastImportedClientIds.length} ${cLabel.toLowerCase()}s importadas na última sessão?`,
+      async () => {
+        if (isDemo) {
+          setClients(prev => prev.filter(c => !lastImportedClientIds.includes(c.id)));
+          addNotification(`${lastImportedClientIds.length} ${cLabel.toLowerCase()}s removidas de sua lista. (Modo Demo)`, 'warning');
+          setLastImportedClientIds([]);
+          return;
+        }
+        
+        try {
+          const chunks: string[][] = [];
+          for (let i = 0; i < lastImportedClientIds.length; i += 30) {
+            chunks.push(lastImportedClientIds.slice(i, i + 30));
+          }
+          
+          for (const chunk of chunks) {
+            await Promise.all(chunk.map(async (id) => {
+              await deleteDoc(doc(db, 'clients', id));
+            }));
+          }
+          
+          addNotification(`${lastImportedClientIds.length} ${cLabel.toLowerCase()}s importadas foram removidas.`, 'warning');
+          setLastImportedClientIds([]);
+        } catch (e) {
+          handleFirestoreError(e, OperationType.DELETE, 'clients/undo_batch');
+        }
+      }
+    );
+  };
+
   const handleUpdateClient = async (id: string, updates: Partial<Client>) => {
     if (isDemo) {
       setClients(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
@@ -5857,6 +6547,10 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
           onDeleteClient={handleDeleteClient}
           cLabel={cLabel}
           csLabel={csLabel}
+          onImportClients={handleImportClients}
+          lastImportedCount={lastImportedClientIds.length}
+          onUndoImport={handleUndoImport}
+          onClearUndo={() => setLastImportedClientIds([])}
         />
       );
       case 'prospeccao': return (
