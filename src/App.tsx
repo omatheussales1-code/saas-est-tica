@@ -3934,30 +3934,6 @@ const SettingsTab = ({
               </div>
             </div>
           </section>
-
-          <section className="space-y-4">
-            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-              <Activity className="w-5 h-5 text-rose-500" /> Sistema
-            </h2>
-            <div className="bg-white p-8 rounded-[32px] shadow-sm border border-rose-50 space-y-4">
-              <p className="text-sm text-gray-500 font-medium">
-                Precisa de dados fictícios para testar as ferramentas do sistema?
-              </p>
-              <button 
-                onClick={onResetMocks}
-                disabled={isDemo}
-                className={cn(
-                  "w-full py-4 rounded-2xl font-bold transition-all flex items-center justify-center gap-2",
-                  isDemo 
-                    ? "bg-gray-100 text-gray-400 cursor-not-allowed" 
-                    : "bg-gray-900 text-white hover:bg-black"
-                )}
-              >
-                <Activity className="w-4 h-4 text-rose-500" /> 
-                {isDemo ? 'Indisponível no Modo Demo' : 'Restaurar Dados de Exemplo'}
-              </button>
-            </div>
-          </section>
         </div>
       </div>
 
