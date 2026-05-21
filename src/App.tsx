@@ -45,7 +45,8 @@ import {
   User as UserIcon,
   X,
   CreditCard,
-  RefreshCcw
+  RefreshCcw,
+  Mail
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { 
@@ -136,7 +137,7 @@ import {
 // --- Constants & Types ---
 
 const LANDING_PAGE_URL = 'https://iridescent-gecko-731eb9.netlify.app';
-const UPGRADE_URL = 'https://raiseestruturadigital.site';
+const UPGRADE_URL = 'https://orbyflow.site/#depoimentos';
 const RAISE_WEBSITE_URL = 'https://raiseestruturadigital.site';
 
 const COLOR_PRESETS = {
@@ -5729,17 +5730,41 @@ export default function App() {
     }
   };
 
-  const handleResetPassword = async () => {
-    const email = emailInput.toLowerCase().trim();
+  const [isResetPasswordModalOpen, setIsResetPasswordModalOpen] = useState(false);
+  const [resetEmailInput, setResetEmailInput] = useState('');
+  const [isResetSending, setIsResetSending] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+
+  const handleOpenResetModal = () => {
+    setResetEmailInput(emailInput || '');
+    setResetError(null);
+    setIsResetPasswordModalOpen(true);
+  };
+
+  const handleResetPasswordWithEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const email = resetEmailInput.toLowerCase().trim();
     if (!email) {
-      setAuthError('Digite seu e-mail acima para recuperar a senha.');
+      setResetError('Por favor, digite o seu e-mail.');
       return;
     }
+    setIsResetSending(true);
+    setResetError(null);
     try {
       await sendPasswordResetEmail(auth, email);
-      addNotification('E-mail de recuperação enviado! Verifique sua caixa de entrada.', 'info');
+      addNotification('E-mail de recuperação enviado com sucesso! Verifique sua caixa de entrada e spam.', 'info');
+      setIsResetPasswordModalOpen(false);
+      setResetEmailInput('');
     } catch (error: any) {
-      setAuthError('Erro ao enviar e-mail de recuperação: ' + error.message);
+      let friendlyError = error.message;
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+        friendlyError = 'Este e-mail não está cadastrado ou liberado no sistema.';
+      } else if (error.code === 'auth/invalid-email') {
+        friendlyError = 'Por favor, insira um e-mail válido.';
+      }
+      setResetError('Erro ao enviar e-mail: ' + friendlyError);
+    } finally {
+      setIsResetSending(false);
     }
   };
 
@@ -6701,7 +6726,47 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
           
           <p className="text-gray-500 font-medium mb-10 px-4">O sistema inteligente para organizar sua agenda, clientes e financeiro.</p>
           
-          <form onSubmit={handleEmailLogin} className="space-y-4 mb-6">
+          <button 
+            type="button"
+            disabled={isGoogleLoggingIn}
+            onClick={handleGoogleLogin}
+            className="w-full bg-white border border-gray-100 hover:border-rose-200 hover:bg-gray-50 p-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-sm active:scale-95 disabled:opacity-50 mb-6"
+          >
+            {isGoogleLoggingIn ? (
+              <RefreshCcw className="w-5 h-5 animate-spin text-rose-500" />
+            ) : (
+              <svg className="w-5 h-5" viewBox="0 0 24 24">
+                <path
+                  fill="#4285F4"
+                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                />
+              </svg>
+            )}
+            {isGoogleLoggingIn ? 'Iniciando Google...' : 'Entrar com Google'}
+          </button>
+
+          <div className="relative mb-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-100"></div>
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white px-4 text-gray-400 font-bold tracking-widest">Ou acesse com e-mail</span>
+            </div>
+          </div>
+
+          <form onSubmit={handleEmailLogin} className="space-y-4">
             <div className="text-left">
               <label className="block text-xs font-bold text-gray-400 uppercase mb-2 ml-4">E-mail</label>
               <input 
@@ -6729,7 +6794,7 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
                 <p className="text-rose-600 text-xs font-bold">{authError}</p>
                 <button 
                   type="button"
-                  onClick={handleResetPassword}
+                  onClick={handleOpenResetModal}
                   className="mt-2 text-[10px] text-rose-400 hover:text-rose-600 underline uppercase font-black"
                 >
                   Esqueci minha senha
@@ -6757,7 +6822,7 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
               </label>
               <button 
                 type="button"
-                onClick={handleResetPassword}
+                onClick={handleOpenResetModal}
                 className="text-[10px] font-black text-rose-400 uppercase tracking-widest hover:text-rose-600 transition-colors"
               >
                 Esqueci a senha
@@ -6766,86 +6831,83 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
 
             <button 
               type="submit"
-              className="w-full bg-rose-500 text-white p-4 rounded-2xl font-bold shadow-lg shadow-rose-200 active:scale-95 transition-all text-sm uppercase tracking-widest"
+              className="w-full bg-rose-500 text-white p-4 rounded-2xl font-bold shadow-lg shadow-rose-200 active:scale-95 transition-all text-sm uppercase tracking-widest animate-pulse-subtle"
             >
               Entrar no Sistema
             </button>
-
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-100"></div>
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-4 text-gray-400 font-bold tracking-widest">Ou</span>
-              </div>
-            </div>
-
-            <button 
-              type="button"
-              disabled={isGoogleLoggingIn}
-              onClick={handleGoogleLogin}
-              className="w-full bg-white border border-gray-100 p-4 rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-gray-50 transition-all shadow-sm active:scale-95 disabled:opacity-50"
-            >
-              {isGoogleLoggingIn ? (
-                <RefreshCcw className="w-5 h-5 animate-spin text-rose-500" />
-              ) : (
-                <svg className="w-5 h-5" viewBox="0 0 24 24">
-                  <path
-                    fill="#4285F4"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                  />
-                </svg>
-              )}
-              {isGoogleLoggingIn ? 'Iniciando Google...' : 'Entrar com Google'}
-            </button>
-            <button 
-              type="button"
-              onClick={() => {
-                // Set persistence and reload
-                localStorage.setItem('demo_mode_active', 'true');
-                const baseUrl = window.location.origin + window.location.pathname;
-                window.location.href = baseUrl + '?demo=true';
-              }}
-              className="w-full bg-blue-50 text-blue-600 p-4 rounded-2xl font-bold border border-blue-100 hover:bg-blue-100 transition-all mt-2"
-            >
-              Acessar Versão Demo (Teste)
-            </button>
           </form>
-
-          <div className="relative flex items-center justify-center mb-6">
-            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-100"></div></div>
-            <span className="relative bg-white px-4 text-xs font-bold text-gray-300 uppercase">ou use</span>
-          </div>
-
-          <button 
-            disabled={isGoogleLoggingIn}
-            onClick={handleGoogleLogin}
-            className="w-full bg-white border-2 border-gray-100 hover:border-rose-200 p-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all active:scale-95 group disabled:opacity-50"
-          >
-            {isGoogleLoggingIn ? (
-              <RefreshCcw className="w-5 h-5 animate-spin text-rose-500" />
-            ) : (
-              <img src="https://www.google.com/favicon.ico" className="w-5 h-5 group-hover:grayscale-0 grayscale transition-all" alt="Google" referrerPolicy="no-referrer" />
-            )}
-            {isGoogleLoggingIn ? 'Iniciando Google...' : 'Entrar com Google'}
-          </button>
           
           <p className="mt-8 text-xs text-gray-400 font-medium">
             Seus dados são salvos de forma segura e privada.
           </p>
         </motion.div>
+
+        {isResetPasswordModalOpen && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-gray-950/60 backdrop-blur-subtle">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              className="bg-white p-8 rounded-[36px] shadow-2xl border border-rose-50 w-full max-w-sm relative text-center"
+            >
+              <button 
+                type="button"
+                onClick={() => setIsResetPasswordModalOpen(false)}
+                className="absolute top-6 right-6 text-gray-400 hover:text-gray-600 hover:bg-gray-100 p-2 rounded-full transition-colors"
+                id="close-reset-modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="w-16 h-16 bg-rose-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-rose-500 shadow-sm">
+                <Mail className="w-7 h-7" />
+              </div>
+
+              <h3 className="text-xl font-black text-gray-900 mb-2">Recuperar Senha</h3>
+              <p className="text-xs text-gray-500 font-bold mb-6 leading-relaxed px-2">
+                Digite o seu e-mail cadastrado. Um link seguro para redefinição de senha será enviado na hora.
+              </p>
+
+              <form onSubmit={handleResetPasswordWithEmail} className="space-y-4">
+                <div className="text-left">
+                  <label className="block text-xs font-bold text-gray-400 uppercase mb-2 ml-4">E-mail Cadastrado</label>
+                  <input 
+                    type="email" 
+                    value={resetEmailInput}
+                    onChange={e => setResetEmailInput(e.target.value)}
+                    placeholder="seuemail@exemplo.com"
+                    className="w-full bg-gray-50 border-none rounded-2xl p-4 font-bold text-gray-700 outline-none focus:ring-2 focus:ring-rose-500 transition-all text-sm"
+                    required
+                  />
+                </div>
+
+                {resetError && (
+                  <div className="bg-rose-50 p-4 rounded-2xl border border-rose-100 text-left">
+                    <p className="text-rose-600 text-xs font-bold leading-normal">{resetError}</p>
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                  <button 
+                    type="button"
+                    onClick={() => setIsResetPasswordModalOpen(false)}
+                    className="w-1/2 bg-gray-100 hover:bg-gray-200 text-gray-500 font-bold py-4 rounded-2xl text-xs uppercase tracking-wider transition-all"
+                  >
+                    Voltar
+                  </button>
+                  <button 
+                    type="submit"
+                    disabled={isResetSending}
+                    className="w-1/2 bg-rose-500 hover:bg-rose-600 text-white font-bold py-4 rounded-2xl text-xs uppercase tracking-wider shadow-lg shadow-rose-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {isResetSending ? (
+                      <RefreshCcw className="w-4 h-4 animate-spin" />
+                    ) : 'Enviar Link'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
       </div>
     );
   }
