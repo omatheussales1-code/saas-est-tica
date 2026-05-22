@@ -11,47 +11,57 @@ const __dirname = path.dirname(__filename);
 
 const firebaseConfig = JSON.parse(fs.readFileSync('./firebase-applet-config.json', 'utf-8'));
 
-// Initialize Firebase Admin
-let adminApp;
-try {
+// Initialize Firebase Admin lazily to prevent crashing on server boot
+let dbInstance: admin.firestore.Firestore | null = null;
+
+function getDb(): admin.firestore.Firestore {
+  if (dbInstance) return dbInstance;
+
+  const firebaseConfig = JSON.parse(fs.readFileSync('./firebase-applet-config.json', 'utf-8'));
+
   if (!admin.apps.length) {
     const serviceAccountVar = process.env.FIREBASE_SERVICE_ACCOUNT;
     
-    if (serviceAccountVar) {
-      console.log('Initializing Firebase Admin with Service Account from ENV');
-      const serviceAccount = JSON.parse(serviceAccountVar);
-      adminApp = admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        projectId: firebaseConfig.projectId
-      });
-    } else if (fs.existsSync('./firebase-service-account.json')) {
-      console.log('Initializing Firebase Admin with Service Account from File');
-      const serviceAccount = JSON.parse(fs.readFileSync('./firebase-service-account.json', 'utf-8'));
-      adminApp = admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        projectId: firebaseConfig.projectId
-      });
-    } else {
-      console.log('Initializing Firebase Admin with default project ID');
-      adminApp = admin.initializeApp({
-        projectId: firebaseConfig.projectId
-      });
+    try {
+      if (serviceAccountVar && serviceAccountVar.trim() !== '' && serviceAccountVar !== 'Secret value') {
+        console.log('Initializing Firebase Admin with Service Account from ENV');
+        const serviceAccount = JSON.parse(serviceAccountVar);
+        admin.initializeApp({
+          credential: admin.credential.cert(serviceAccount),
+          projectId: firebaseConfig.projectId
+        });
+      } else if (fs.existsSync('./firebase-service-account.json')) {
+        console.log('Initializing Firebase Admin with Service Account from File');
+        const serviceAccount = JSON.parse(fs.readFileSync('./firebase-service-account.json', 'utf-8'));
+        admin.initializeApp({
+          credential: admin.credential.cert(serviceAccount),
+          projectId: firebaseConfig.projectId
+        });
+      } else {
+        console.log('Initializing Firebase Admin with default project ID');
+        admin.initializeApp({
+          projectId: firebaseConfig.projectId
+        });
+      }
+    } catch (error: any) {
+      console.error('Failed to parse or initialize Firebase Admin with config:', error);
+      console.error('Please verify that the FIREBASE_SERVICE_ACCOUNT environment variable is a valid JSON string (NOT "Secret value" or a simple text token).');
+      throw new Error(`Firebase Admin failed to initialize: ${error.message}. Please configure FIREBASE_SERVICE_ACCOUNT with a valid JSON credential from the Firebase Console.`);
     }
   }
-} catch (error) {
-  console.error('Failed to initialize Firebase Admin:', error);
-}
 
-const db = admin.firestore();
-// If firestoreDatabaseId is specified, we might need to target it specifically.
-// Note: firebase-admin v11.3.0+ supports databaseId in firestore()
-const firestore = firebaseConfig.firestoreDatabaseId 
-  ? db.collection('dummy').firestore.databaseId === firebaseConfig.firestoreDatabaseId 
-    ? db 
-    : (db as any).databaseId 
-      ? db 
-      : admin.firestore() // fallback
-  : db;
+  const baseDb = admin.firestore();
+  
+  dbInstance = firebaseConfig.firestoreDatabaseId 
+    ? (baseDb.collection('dummy').firestore as any).databaseId === firebaseConfig.firestoreDatabaseId 
+      ? baseDb 
+      : (baseDb as any).databaseId 
+        ? baseDb 
+        : admin.firestore() // fallback
+    : baseDb;
+
+  return dbInstance;
+}
 
 const app = express();
 
@@ -63,7 +73,7 @@ app.post('/api/auth/check-email', async (req, res) => {
   if (!email) return res.status(400).json({ status: 'error', message: 'Email required' });
 
   try {
-    const docRef = db.collection('authorized_emails').doc(email.toLowerCase().trim());
+    const docRef = getDb().collection('authorized_emails').doc(email.toLowerCase().trim());
     const docSnap = await docRef.get();
     
     res.json({ authorized: docSnap.exists });
@@ -107,7 +117,7 @@ app.post('/api/webhook/kiwify', async (req, res) => {
       if (customer_email) {
         const email = customer_email.toLowerCase().trim();
         
-        await db.collection('authorized_emails').doc(email).set({
+        await getDb().collection('authorized_emails').doc(email).set({
           email,
           name: customer_name || '',
           status: order_status,
