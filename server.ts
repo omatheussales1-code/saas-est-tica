@@ -124,25 +124,24 @@ app.post('/api/webhook/kiwify', async (req, res) => {
       return res.status(401).json({ status: 'error', message: 'Unauthorized: Missing x-kiwify-signature header' });
     }
 
-    const hmac = crypto.createHmac('sha1', webhookSecret);
+    const trimmedSecret = webhookSecret.trim();
     const rawBody = (req as any).rawBody;
+    const bodyStr = rawBody ? rawBody.toString('utf-8') : JSON.stringify(req.body);
 
-    let digest: string;
-    if (rawBody) {
-      digest = hmac.update(rawBody).digest('hex');
-    } else {
-      console.warn('Webhook Warning: rawBody not available, falling back to JSON.stringify for hashing.');
-      digest = hmac.update(JSON.stringify(req.body)).digest('hex');
-    }
+    const digestSha1 = crypto.createHmac('sha1', trimmedSecret).update(bodyStr).digest('hex');
+    const digestSha256 = crypto.createHmac('sha256', trimmedSecret).update(bodyStr).digest('hex');
 
-    if (signature !== digest) {
-      console.error('Webhook Error: Invalid signature. Received:', signature, 'Computed:', digest);
+    const cleanSig = signature.toString().trim().toLowerCase();
+    const isValid = cleanSig === digestSha1.toLowerCase() || cleanSig === digestSha256.toLowerCase();
+
+    if (!isValid) {
+      console.error('Webhook Error: Invalid signature. Received:', cleanSig, 'Computed SHA1:', digestSha1, 'Computed SHA256:', digestSha256);
       return res.status(401).json({ 
         status: 'error', 
         message: 'Invalid signature',
         received: signature,
-        computed: digest,
-        instructions: 'Verify if the KIWIFY_WEBHOOK_SECRET configured matches the Secret Token from Kiwify Dashboard.'
+        computed: { sha1: digestSha1, sha256: digestSha256 },
+        instructions: 'Verify if the KIWIFY_WEBHOOK_SECRET configured matches the Secret Token from Kiwify Dashboard. If you want to bypass signature checking for testing, temporarily unset or remove the KIWIFY_WEBHOOK_SECRET environment variable.'
       });
     }
     console.log('Kiwify signature verified successfully.');
@@ -150,93 +149,100 @@ app.post('/api/webhook/kiwify', async (req, res) => {
     console.warn('Webhook Warning: KIWIFY_WEBHOOK_SECRET not set. Skipping signature verification.');
   }
 
-  const order_status = req.body.order_status;
-  const customer_email = req.body.customer_email || req.body.customer?.email;
-  const customer_name = req.body.customer_name || req.body.customer?.name;
-  const product_id = req.body.product_id;
-  const product_name = req.body.product_name || req.body.product?.name;
-  const subscription_id = req.body.subscription_id;
-  const payment_method = req.body.payment_method;
+  // Support comprehensive fallbacks for Kiwify fields
+  const event = (req.body.event || '').toString();
+  const order_status = (req.body.order_status || req.body.status || '').toString();
+  const customer_email = (req.body.customer_email || req.body.customer?.email || req.body.email || '').toString().toLowerCase().trim();
+  const customer_name = (req.body.customer_name || req.body.customer?.name || req.body.name || '').toString();
+  const product_id = (req.body.product_id || req.body.product?.id || req.body.product_uuid || '').toString();
+  const product_name = (req.body.product_name || req.body.product?.name || '').toString();
+  const subscription_id = (req.body.subscription_id || req.body.subscription?.id || '').toString();
+  const payment_method = (req.body.payment_method || '').toString();
   
   // subscription status from Kiwify (active, overdue, canceled, etc.)
-  const subscription_status = req.body.subscription?.status;
+  const subscription_status = (req.body.subscription?.status || req.body.subscription_status || '').toString();
 
   if (!customer_email) {
     console.error('Webhook Error: Customer email is missing from body:', JSON.stringify(req.body));
     return res.status(400).json({ status: 'error', message: 'Customer email is missing' });
   }
 
-  const email = customer_email.toLowerCase().trim();
+  // 1. Grant/Renew Access Statuses (Approved or Paid or Active)
+  const isPaid = 
+    order_status === 'paid' || 
+    order_status === 'approved' || 
+    event === 'order_approved' || 
+    event === 'order_paid' ||
+    subscription_status === 'active';
 
-  // 1. Grant/Renew Access Statuses
-  const isPaid = order_status === 'paid' || order_status === 'approved';
-  const isSubscriptionActive = subscription_status === 'active';
-
-  // 2. Block/Revoke Access Statuses
+  // 2. Block/Revoke Access Statuses (Refunded, Canceled, Overdue, Chargedback, etc.)
   const isRefundedOrCanceled = 
     order_status === 'refunded' || 
     order_status === 'chargedback' || 
     order_status === 'canceled' || 
     order_status === 'chargeback' ||
+    event === 'order_refunded' ||
+    event === 'order_chargedback' ||
+    event === 'subscription_canceled' ||
     subscription_status === 'canceled' ||
     subscription_status === 'overdue' ||
     subscription_status === 'refunded' ||
     subscription_status === 'chargedback';
 
-  if (isPaid || isSubscriptionActive) {
+  if (isPaid) {
     try {
       const db = getDb();
-      await db.collection('authorized_emails').doc(email).set({
-        email,
-        name: customer_name || '',
+      await db.collection('authorized_emails').doc(customer_email).set({
+        email: customer_email,
+        name: customer_name,
         status: 'approved',
-        originalStatus: order_status || 'approved',
-        productId: product_id || '',
-        productName: product_name || '',
-        subscriptionId: subscription_id || '',
-        paymentMethod: payment_method || '',
+        originalStatus: order_status || event || 'approved',
+        productId: product_id,
+        productName: product_name,
+        subscriptionId: subscription_id,
+        paymentMethod: payment_method,
         blocked: false,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         source: 'kiwify'
       });
 
-      console.log(`Access granted/renewed to: ${email} for product: ${product_name}`);
+      console.log(`Access granted/renewed to: ${customer_email} for product: ${product_name}`);
       return res.status(200).json({ status: 'success', message: 'Access granted/renewed successfully' });
     } catch (error: any) {
       console.error('Error saving active authorization to Firestore:', error);
       return res.status(500).json({ 
         status: 'error', 
         message: `Error writing to Firestore: ${error.message}`,
-        details: 'Verify that FIREBASE_SERVICE_ACCOUNT is correctly set as a valid JSON string on the hosting dashboard (e.g., Vercel).'
+        details: 'Verify that FIREBASE_SERVICE_ACCOUNT is correctly set as a valid JSON string.'
       });
     }
   } else if (isRefundedOrCanceled) {
     try {
       const db = getDb();
       // Set to blocked/canceled in Firestore to instantly deny access on both front-end and back-end checks
-      await db.collection('authorized_emails').doc(email).set({
-        email,
-        name: customer_name || '',
+      await db.collection('authorized_emails').doc(customer_email).set({
+        email: customer_email,
+        name: customer_name,
         status: 'canceled', // Explicit canceled status to block access immediately
-        originalStatus: order_status || 'canceled',
-        subscriptionStatus: subscription_status || '',
-        productId: product_id || '',
-        productName: product_name || '',
-        subscriptionId: subscription_id || '',
-        paymentMethod: payment_method || '',
+        originalStatus: order_status || event || 'canceled',
+        subscriptionStatus: subscription_status,
+        productId: product_id,
+        productName: product_name,
+        subscriptionId: subscription_id,
+        paymentMethod: payment_method,
         blocked: true,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         source: 'kiwify'
       });
 
-      console.log(`Access revoked/blocked for: ${email} (Order status: ${order_status}, Subscription status: ${subscription_status})`);
+      console.log(`Access revoked/blocked for: ${customer_email} (Order status: ${order_status}, Subscription status: ${subscription_status})`);
       return res.status(200).json({ status: 'success', message: 'Access revoked/blocked successfully' });
     } catch (error: any) {
       console.error('Error updating blocked status to Firestore:', error);
       return res.status(500).json({ 
         status: 'error', 
         message: `Error writing to Firestore: ${error.message}`,
-        details: 'Verify that FIREBASE_SERVICE_ACCOUNT is correctly set as a valid JSON string on the hosting dashboard (e.g., Vercel).'
+        details: 'Verify that FIREBASE_SERVICE_ACCOUNT is correctly set as a valid JSON string.'
       });
     }
   }
