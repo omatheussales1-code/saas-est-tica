@@ -4272,13 +4272,15 @@ const SettingsTab = ({
   onUpdateProfile,
   onResetMocks,
   isDemo,
-  onNavigateToMessages
+  onNavigateToMessages,
+  activePlan
 }: { 
   userProfile: UserProfile | null,
   onUpdateProfile: (updates: Partial<UserProfile>) => void,
   onResetMocks: () => void,
   isDemo?: boolean,
-  onNavigateToMessages: () => void
+  onNavigateToMessages: () => void,
+  activePlan?: string | null
 }) => {
   const [profile, setProfile] = useState<Partial<UserProfile>>(userProfile || {});
 
@@ -4333,6 +4335,42 @@ const SettingsTab = ({
         </button>
       </div>
       
+      {/* Informações da Assinatura e Integração com Kiwify */}
+      <div className="bg-gradient-to-tr from-rose-50/50 to-rose-100/20 p-8 rounded-[32px] border border-rose-100/50 flex flex-col md:flex-row gap-6 justify-between items-start md:items-center">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Status da Assinatura • Integrado com Kiwify</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <h3 className="text-xl font-black text-gray-900 tracking-tight">
+              {activePlan === 'Administrador' ? (
+                <span>Acesso Administrador 👑 <span className="text-rose-500 font-bold text-sm">(Ilimitado)</span></span>
+              ) : activePlan?.toLowerCase()?.includes('anual') ? (
+                <span>OrbyFlow - Plano Anual ✨ <span className="text-rose-600 font-bold text-sm">(Ativo)</span></span>
+              ) : isDemo ? (
+                <span>OrbyFlow - Modo de Demonstração <span className="text-rose-500 font-medium text-sm">(Demo)</span></span>
+              ) : (
+                <span>OrbyFlow - Plano Mensal ⚡ <span className="text-emerald-600 font-bold text-sm">(Ativo)</span></span>
+              )}
+            </h3>
+          </div>
+          <p className="text-xs font-semibold text-gray-500 max-w-3xl leading-relaxed">
+            Sua conta OrbyFlow é atualizada de forma segura e automatizada por meio de Webhooks da Kiwify. 
+            Em caso de expiração do plano, cancelamento, reembolso ou cobranças pendentes, as frentes de validação do sistema bloquearão o acesso imediatamente de forma automatizada.
+          </p>
+        </div>
+        <div className="bg-white/80 backdrop-blur-sm border border-rose-100 p-4 rounded-2xl flex items-center gap-3">
+          <div className="bg-rose-500/10 p-2.5 rounded-xl">
+            <span className="text-rose-500 text-lg font-black">KW</span>
+          </div>
+          <div className="text-left">
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Faturamento</p>
+            <p className="text-xs font-bold text-gray-700 mt-1">Garantido por Kiwify</p>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="space-y-8">
           <section className="space-y-4">
@@ -5373,6 +5411,7 @@ export default function App() {
   const [user, setUser] = useState<User | null>(IS_DEMO_INITIAL ? ({ uid: 'demo-user' } as any) : null);
   const [isAuthReady, setIsAuthReady] = useState(IS_DEMO_INITIAL);
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(IS_DEMO_INITIAL ? true : null);
+  const [activePlan, setActivePlan] = useState<string | null>(IS_DEMO_INITIAL ? 'orbyflow' : null);
   const [isGoogleLoggingIn, setIsGoogleLoggingIn] = useState(false);
   const [isRecheckingAccess, setIsRecheckingAccess] = useState(false);
   
@@ -5481,6 +5520,7 @@ export default function App() {
         const lowerEmail = u.email?.toLowerCase()?.trim() || '';
         if (lowerEmail === 'brefer@gmail.com' || lowerEmail === 'teus.rma@gmail.com') {
           setIsAuthorized(true);
+          setActivePlan('Administrador');
         } else {
           try {
             // Check if user is signing up on the thank-you / transaction-complete page
@@ -5489,6 +5529,7 @@ export default function App() {
             const authRef = doc(db, 'authorized_emails', lowerEmail);
             const authSnap = await getDoc(authRef);
             let hasAccess = false;
+            let planName: string | null = null;
 
             if (authSnap.exists()) {
               const authData = authSnap.data();
@@ -5497,9 +5538,11 @@ export default function App() {
               
               if (authStatus !== 'canceled' && authStatus !== 'refunded' && authStatus !== 'chargedback' && authStatus !== 'blocked' && !isBlocked) {
                 hasAccess = true;
+                planName = authData?.productName || 'orbyflow';
               }
             } else if (isObrigadoUrl) {
               hasAccess = true;
+              planName = 'orbyflow';
             }
 
             // Fallback checking of userProfiles should ONLY be allowed if the email is not explicitly blocked/canceled in Firestore
@@ -5507,16 +5550,22 @@ export default function App() {
               const profileRef = doc(db, 'userProfiles', u.uid);
               const profileSnap = await getDoc(profileRef);
               hasAccess = profileSnap.exists();
+              if (hasAccess) {
+                planName = 'orbyflow';
+              }
             }
             setIsAuthorized(hasAccess);
+            setActivePlan(hasAccess ? (planName || 'orbyflow') : null);
           } catch (e) {
             console.error('Error checking authorization:', e);
             const isObrigadoUrl = window.location.search.includes('page=obrigado');
             setIsAuthorized(isObrigadoUrl ? true : false);
+            setActivePlan(isObrigadoUrl ? 'orbyflow' : null);
           }
         }
       } else {
         setIsAuthorized(null);
+        setActivePlan(null);
       }
       setIsAuthReady(true);
     });
@@ -5676,6 +5725,11 @@ export default function App() {
       
       if (hasAccess) {
         setIsAuthorized(true);
+        if (authSnap.exists()) {
+          setActivePlan(authSnap.data()?.productName || 'orbyflow');
+        } else {
+          setActivePlan('orbyflow');
+        }
         addNotification('Acesso liberado com sucesso! Bem-vinda!', 'info');
       } else {
         addNotification('Seu acesso ainda está sendo processado. Se já comprou, aguarde de 1 a 2 minutos ou contate o suporte.', 'warning');
@@ -6712,6 +6766,7 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
           onResetMocks={handleResetMocks}
           isDemo={isDemo}
           onNavigateToMessages={() => setActiveTab('mensagens')}
+          activePlan={activePlan}
         />
       );
       default: return (
