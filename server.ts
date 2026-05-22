@@ -111,30 +111,85 @@ app.post('/api/webhook/kiwify', async (req, res) => {
   const order_status = req.body.order_status;
   const customer_email = req.body.customer_email || req.body.customer?.email;
   const customer_name = req.body.customer_name || req.body.customer?.name;
+  const product_id = req.body.product_id;
+  const product_name = req.body.product_name || req.body.product?.name;
+  const subscription_id = req.body.subscription_id;
+  const payment_method = req.body.payment_method;
+  
+  // subscription status from Kiwify (active, overdue, canceled, etc.)
+  const subscription_status = req.body.subscription?.status;
 
-  if (order_status === 'paid' || order_status === 'approved') {
+  if (!customer_email) {
+    console.error('Webhook Error: Customer email is missing from body:', JSON.stringify(req.body));
+    return res.status(400).json({ status: 'error', message: 'Customer email is missing' });
+  }
+
+  const email = customer_email.toLowerCase().trim();
+
+  // 1. Grant/Renew Access Statuses
+  const isPaid = order_status === 'paid' || order_status === 'approved';
+  const isSubscriptionActive = subscription_status === 'active';
+
+  // 2. Block/Revoke Access Statuses
+  const isRefundedOrCanceled = 
+    order_status === 'refunded' || 
+    order_status === 'chargedback' || 
+    order_status === 'canceled' || 
+    order_status === 'chargeback' ||
+    subscription_status === 'canceled' ||
+    subscription_status === 'overdue' ||
+    subscription_status === 'refunded' ||
+    subscription_status === 'chargedback';
+
+  if (isPaid || isSubscriptionActive) {
     try {
-      if (customer_email) {
-        const email = customer_email.toLowerCase().trim();
-        
-        await getDb().collection('authorized_emails').doc(email).set({
-          email,
-          name: customer_name || '',
-          status: order_status,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          source: 'kiwify'
-        });
+      await getDb().collection('authorized_emails').doc(email).set({
+        email,
+        name: customer_name || '',
+        status: 'approved',
+        originalStatus: order_status || 'approved',
+        productId: product_id || '',
+        productName: product_name || '',
+        subscriptionId: subscription_id || '',
+        paymentMethod: payment_method || '',
+        blocked: false,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        source: 'kiwify'
+      });
 
-        console.log(`Access granted to: ${email}`);
-        return res.status(200).json({ status: 'success', message: 'Access granted' });
-      }
+      console.log(`Access granted/renewed to: ${email} for product: ${product_name}`);
+      return res.status(200).json({ status: 'success', message: 'Access granted/renewed successfully' });
     } catch (error) {
-      console.error('Error saving to Firestore:', error);
+      console.error('Error saving active authorization to Firestore:', error);
+      return res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+    }
+  } else if (isRefundedOrCanceled) {
+    try {
+      // Set to blocked/canceled in Firestore to instantly deny access on both front-end and back-end checks
+      await getDb().collection('authorized_emails').doc(email).set({
+        email,
+        name: customer_name || '',
+        status: 'canceled', // Explicit canceled status to block access immediately
+        originalStatus: order_status || 'canceled',
+        subscriptionStatus: subscription_status || '',
+        productId: product_id || '',
+        productName: product_name || '',
+        subscriptionId: subscription_id || '',
+        paymentMethod: payment_method || '',
+        blocked: true,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        source: 'kiwify'
+      });
+
+      console.log(`Access revoked/blocked for: ${email} (Order status: ${order_status}, Subscription status: ${subscription_status})`);
+      return res.status(200).json({ status: 'success', message: 'Access revoked/blocked successfully' });
+    } catch (error) {
+      console.error('Error updating blocked status to Firestore:', error);
       return res.status(500).json({ status: 'error', message: 'Internal Server Error' });
     }
   }
 
-  res.status(200).json({ status: 'ignored', message: 'Order status not handled or missing email' });
+  res.status(200).json({ status: 'ignored', message: 'Order status received but no grant or revoke action required' });
 });
 
 async function setupApp() {

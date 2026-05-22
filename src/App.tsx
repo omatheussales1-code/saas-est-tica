@@ -5488,8 +5488,22 @@ export default function App() {
             
             const authRef = doc(db, 'authorized_emails', lowerEmail);
             const authSnap = await getDoc(authRef);
-            let hasAccess = authSnap.exists() || isObrigadoUrl;
-            if (!hasAccess) {
+            let hasAccess = false;
+
+            if (authSnap.exists()) {
+              const authData = authSnap.data();
+              const authStatus = authData?.status;
+              const isBlocked = authData?.blocked === true;
+              
+              if (authStatus !== 'canceled' && authStatus !== 'refunded' && authStatus !== 'chargedback' && authStatus !== 'blocked' && !isBlocked) {
+                hasAccess = true;
+              }
+            } else if (isObrigadoUrl) {
+              hasAccess = true;
+            }
+
+            // Fallback checking of userProfiles should ONLY be allowed if the email is not explicitly blocked/canceled in Firestore
+            if (!hasAccess && !authSnap.exists()) {
               const profileRef = doc(db, 'userProfiles', u.uid);
               const profileSnap = await getDoc(profileRef);
               hasAccess = profileSnap.exists();
@@ -5641,8 +5655,20 @@ export default function App() {
     try {
       const authRef = doc(db, 'authorized_emails', lowerEmail);
       const authSnap = await getDoc(authRef);
-      let hasAccess = authSnap.exists();
-      if (!hasAccess) {
+      let hasAccess = false;
+
+      if (authSnap.exists()) {
+        const authData = authSnap.data();
+        const authStatus = authData?.status;
+        const isBlocked = authData?.blocked === true;
+        
+        if (authStatus !== 'canceled' && authStatus !== 'refunded' && authStatus !== 'chargedback' && authStatus !== 'blocked' && !isBlocked) {
+          hasAccess = true;
+        }
+      }
+
+      // Fallback allowed only if they aren't explicitly blocked/canceled in Firestore
+      if (!hasAccess && !authSnap.exists()) {
         const profileRef = doc(db, 'userProfiles', user.uid);
         const profileSnap = await getDoc(profileRef);
         hasAccess = profileSnap.exists();
