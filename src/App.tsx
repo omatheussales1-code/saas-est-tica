@@ -5222,7 +5222,7 @@ const ObrigadoPage = ({ addNotification, setCurrentPage, setIsAuthorized }: Obri
     
     try {
       const finalEmail = reqEmail.toLowerCase().trim();
-      const finalPassword = reqPassword.toLowerCase(); // Consistent with login force lowercase
+      const finalPassword = reqPassword;
 
       // 1. Create the Auth User
       const userCredential = await createUserWithEmailAndPassword(auth, finalEmail, finalPassword);
@@ -5791,7 +5791,7 @@ export default function App() {
     e.preventDefault();
     setAuthError(null);
     const email = emailInput.toLowerCase().trim();
-    const password = passwordInput.toLowerCase(); 
+    const password = passwordInput; 
     
     if (password.length < 6) {
       setAuthError('A senha deve ter pelo menos 6 caracteres.');

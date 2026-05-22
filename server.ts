@@ -9,7 +9,22 @@ import crypto from 'crypto';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const firebaseConfig = JSON.parse(fs.readFileSync('./firebase-applet-config.json', 'utf-8'));
+function readConfigFile(filename: string): string {
+  const paths = [
+    path.join(process.cwd(), filename),
+    path.join(__dirname, filename),
+    path.join(__dirname, '..', filename),
+    `./${filename}`
+  ];
+  for (const p of paths) {
+    if (fs.existsSync(p)) {
+      return fs.readFileSync(p, 'utf-8');
+    }
+  }
+  throw new Error(`File not found: ${filename}`);
+}
+
+const firebaseConfig = JSON.parse(readConfigFile('firebase-applet-config.json'));
 
 // Initialize Firebase Admin lazily to prevent crashing on server boot
 let dbInstance: admin.firestore.Firestore | null = null;
@@ -17,7 +32,7 @@ let dbInstance: admin.firestore.Firestore | null = null;
 function getDb(): admin.firestore.Firestore {
   if (dbInstance) return dbInstance;
 
-  const firebaseConfig = JSON.parse(fs.readFileSync('./firebase-applet-config.json', 'utf-8'));
+  const firebaseConfig = JSON.parse(readConfigFile('firebase-applet-config.json'));
 
   if (!admin.apps.length) {
     const serviceAccountVar = process.env.FIREBASE_SERVICE_ACCOUNT;
@@ -30,18 +45,28 @@ function getDb(): admin.firestore.Firestore {
           credential: admin.credential.cert(serviceAccount),
           projectId: firebaseConfig.projectId
         });
-      } else if (fs.existsSync('./firebase-service-account.json')) {
-        console.log('Initializing Firebase Admin with Service Account from File');
-        const serviceAccount = JSON.parse(fs.readFileSync('./firebase-service-account.json', 'utf-8'));
-        admin.initializeApp({
-          credential: admin.credential.cert(serviceAccount),
-          projectId: firebaseConfig.projectId
-        });
       } else {
-        console.log('Initializing Firebase Admin with default project ID');
-        admin.initializeApp({
-          projectId: firebaseConfig.projectId
-        });
+        // Try to load from service account file using robust reader
+        let loadedFromFile = false;
+        try {
+          const serviceAccountContent = readConfigFile('firebase-service-account.json');
+          console.log('Initializing Firebase Admin with Service Account from File');
+          const serviceAccount = JSON.parse(serviceAccountContent);
+          admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount),
+            projectId: firebaseConfig.projectId
+          });
+          loadedFromFile = true;
+        } catch (e) {
+          // File not found is fine, fallback to default
+        }
+
+        if (!loadedFromFile) {
+          console.log('Initializing Firebase Admin with default project ID');
+          admin.initializeApp({
+            projectId: firebaseConfig.projectId
+          });
+        }
       }
     } catch (error: any) {
       console.error('Failed to parse or initialize Firebase Admin with config:', error);
@@ -50,15 +75,13 @@ function getDb(): admin.firestore.Firestore {
     }
   }
 
-  const baseDb = admin.firestore();
-  
-  dbInstance = firebaseConfig.firestoreDatabaseId 
-    ? (baseDb.collection('dummy').firestore as any).databaseId === firebaseConfig.firestoreDatabaseId 
-      ? baseDb 
-      : (baseDb as any).databaseId 
-        ? baseDb 
-        : admin.firestore() // fallback
-    : baseDb;
+  // Properly initialize Firestore with the custom database ID if provided
+  if (firebaseConfig.firestoreDatabaseId) {
+    console.log(`Using custom Firestore Database ID: ${firebaseConfig.firestoreDatabaseId}`);
+    dbInstance = (admin as any).firestore(firebaseConfig.firestoreDatabaseId);
+  } else {
+    dbInstance = admin.firestore();
+  }
 
   return dbInstance;
 }
