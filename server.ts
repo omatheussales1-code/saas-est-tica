@@ -65,7 +65,11 @@ function getDb(): admin.firestore.Firestore {
 
 const app = express();
 
-app.use(express.json());
+app.use(express.json({
+  verify: (req: any, res, buf) => {
+    req.rawBody = buf;
+  }
+}));
 
 // Auth check for client-side auto-registration
 app.post('/api/auth/check-email', async (req, res) => {
@@ -94,16 +98,31 @@ app.post('/api/webhook/kiwify', async (req, res) => {
   if (webhookSecret) {
     if (!signature) {
       console.error('Webhook Error: Missing x-kiwify-signature header');
-      return res.status(401).json({ status: 'error', message: 'Unauthorized' });
+      return res.status(401).json({ status: 'error', message: 'Unauthorized: Missing x-kiwify-signature header' });
     }
 
     const hmac = crypto.createHmac('sha1', webhookSecret);
-    const digest = hmac.update(JSON.stringify(req.body)).digest('hex');
+    const rawBody = (req as any).rawBody;
+
+    let digest: string;
+    if (rawBody) {
+      digest = hmac.update(rawBody).digest('hex');
+    } else {
+      console.warn('Webhook Warning: rawBody not available, falling back to JSON.stringify for hashing.');
+      digest = hmac.update(JSON.stringify(req.body)).digest('hex');
+    }
 
     if (signature !== digest) {
-      console.error('Webhook Error: Invalid signature');
-      return res.status(401).json({ status: 'error', message: 'Invalid signature' });
+      console.error('Webhook Error: Invalid signature. Received:', signature, 'Computed:', digest);
+      return res.status(401).json({ 
+        status: 'error', 
+        message: 'Invalid signature',
+        received: signature,
+        computed: digest,
+        instructions: 'Verify if the KIWIFY_WEBHOOK_SECRET configured matches the Secret Token from Kiwify Dashboard.'
+      });
     }
+    console.log('Kiwify signature verified successfully.');
   } else {
     console.warn('Webhook Warning: KIWIFY_WEBHOOK_SECRET not set. Skipping signature verification.');
   }
@@ -143,7 +162,8 @@ app.post('/api/webhook/kiwify', async (req, res) => {
 
   if (isPaid || isSubscriptionActive) {
     try {
-      await getDb().collection('authorized_emails').doc(email).set({
+      const db = getDb();
+      await db.collection('authorized_emails').doc(email).set({
         email,
         name: customer_name || '',
         status: 'approved',
@@ -159,14 +179,19 @@ app.post('/api/webhook/kiwify', async (req, res) => {
 
       console.log(`Access granted/renewed to: ${email} for product: ${product_name}`);
       return res.status(200).json({ status: 'success', message: 'Access granted/renewed successfully' });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving active authorization to Firestore:', error);
-      return res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+      return res.status(500).json({ 
+        status: 'error', 
+        message: `Error writing to Firestore: ${error.message}`,
+        details: 'Verify that FIREBASE_SERVICE_ACCOUNT is correctly set as a valid JSON string on the hosting dashboard (e.g., Vercel).'
+      });
     }
   } else if (isRefundedOrCanceled) {
     try {
+      const db = getDb();
       // Set to blocked/canceled in Firestore to instantly deny access on both front-end and back-end checks
-      await getDb().collection('authorized_emails').doc(email).set({
+      await db.collection('authorized_emails').doc(email).set({
         email,
         name: customer_name || '',
         status: 'canceled', // Explicit canceled status to block access immediately
@@ -183,9 +208,13 @@ app.post('/api/webhook/kiwify', async (req, res) => {
 
       console.log(`Access revoked/blocked for: ${email} (Order status: ${order_status}, Subscription status: ${subscription_status})`);
       return res.status(200).json({ status: 'success', message: 'Access revoked/blocked successfully' });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating blocked status to Firestore:', error);
-      return res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+      return res.status(500).json({ 
+        status: 'error', 
+        message: `Error writing to Firestore: ${error.message}`,
+        details: 'Verify that FIREBASE_SERVICE_ACCOUNT is correctly set as a valid JSON string on the hosting dashboard (e.g., Vercel).'
+      });
     }
   }
 
