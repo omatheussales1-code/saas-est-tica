@@ -5148,12 +5148,16 @@ const ObrigadoPage = ({ addNotification, setCurrentPage, setIsAuthorized }: Obri
         });
       }
 
-      // Salvar na coleção authorized_emails para dar acesso permanente
-      await setDoc(doc(db, 'authorized_emails', finalEmail), {
-        email: finalEmail,
-        createdAt: new Date().toISOString(),
-        createdBy: 'obrigado_page_google_signup'
-      });
+      // Salvar na coleção authorized_emails para dar acesso permanente (não-bloqueante)
+      try {
+        await setDoc(doc(db, 'authorized_emails', finalEmail), {
+          email: finalEmail,
+          createdAt: new Date().toISOString(),
+          createdBy: 'obrigado_page_google_signup'
+        });
+      } catch (authEmailErr) {
+        console.warn('Non-blocking authorized_emails error:', authEmailErr);
+      }
 
       // Explicitly authorize session and notify
       setIsAuthorized(true);
@@ -5199,25 +5203,27 @@ const ObrigadoPage = ({ addNotification, setCurrentPage, setIsAuthorized }: Obri
         setupComplete: true
       });
 
-      // Salvar na coleção authorized_emails para dar acesso permanente
-      await setDoc(doc(db, 'authorized_emails', finalEmail), {
-        email: finalEmail,
-        createdAt: new Date().toISOString(),
-        createdBy: 'obrigado_page_signup'
-      });
+      // Salvar na coleção authorized_emails para dar acesso permanente (não-bloqueante)
+      try {
+        await setDoc(doc(db, 'authorized_emails', finalEmail), {
+          email: finalEmail,
+          createdAt: new Date().toISOString(),
+          createdBy: 'obrigado_page_signup'
+        });
+      } catch (authEmailErr) {
+        console.warn('Non-blocking authorized_emails error:', authEmailErr);
+      }
 
-      addNotification('Acesso ativado com sucesso! Faça login para entrar.', 'info');
+      // Explicitly authorize session and notify
+      setIsAuthorized(true);
+      addNotification('Acesso ativado com sucesso! Seja muito bem-vinda!', 'info');
       
-      // 3. Sign out and redirect to login as requested
-      await signOut(auth);
-      
-      // Remove 'page' from URL safely
+      // Remove 'page' from URL safely so user stays inside instead of being logged out
       const url = new URL(window.location.href);
       url.searchParams.delete('page');
-      url.searchParams.set('email', finalEmail); // Pre-fill login
       window.history.pushState({}, '', url);
       
-      setCurrentPage('app'); // Back to login view
+      setCurrentPage('app'); // Go inside the system directly
     } catch (err: any) {
       console.error(err);
       if (err.code === 'auth/email-already-in-use') {
