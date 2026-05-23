@@ -150,18 +150,10 @@ function getDb(): admin.firestore.Firestore {
       console.log(`Using explicitly configured database ID from environment variable: ${customDbId}`);
       dbInstance = (admin as any).firestore(customDbId);
       resolvedDatabaseId = customDbId;
-    } else if (process.env.VERCEL || (process.env.FIREBASE_SERVICE_ACCOUNT && process.env.FIREBASE_SERVICE_ACCOUNT !== 'Secret value')) {
-      // If running on Vercel or using a custom service account, we are outside AI Studio's sandbox.
-      // Therefore, the template's custom database ID is guaranteed to not exist. Default to '(default)'.
-      console.log(`Production/Vercel environment or custom service account detected. Defaulting to '(default)' database.`);
-      dbInstance = admin.firestore();
-      resolvedDatabaseId = '(default)';
-    } else if (initializedProjectId && initializedProjectId !== 'brefer') {
-      // If the project ID is NOT "brefer", the default blueprint custom database ID cannot exist inside their custom Google Cloud project.
-      console.log(`Custom Project ID detected (${initializedProjectId}) which differs from blueprint ('brefer'). Defaulting to '(default)' database.`);
-      dbInstance = admin.firestore();
-      resolvedDatabaseId = '(default)';
     } else if (firebaseConfig.firestoreDatabaseId) {
+      // Prioritize the configured database ID from firebase-applet-config.json.
+      // If for any reason it does not exist under a custom service account/project,
+      // runWithFirestoreFallback will automatically catch the NOT_FOUND error and fallback to '(default)'.
       console.log(`Using configured Firestore Database ID: ${firebaseConfig.firestoreDatabaseId}`);
       dbInstance = (admin as any).firestore(firebaseConfig.firestoreDatabaseId);
       resolvedDatabaseId = firebaseConfig.firestoreDatabaseId;
