@@ -150,9 +150,14 @@ function getDb(): admin.firestore.Firestore {
       console.log(`Using explicitly configured database ID from environment variable: ${customDbId}`);
       dbInstance = (admin as any).firestore(customDbId);
       resolvedDatabaseId = customDbId;
+    } else if (process.env.VERCEL || (process.env.FIREBASE_SERVICE_ACCOUNT && process.env.FIREBASE_SERVICE_ACCOUNT !== 'Secret value')) {
+      // If running on Vercel or using a custom service account, we are outside AI Studio's sandbox.
+      // Therefore, the template's custom database ID is guaranteed to not exist. Default to '(default)'.
+      console.log(`Production/Vercel environment or custom service account detected. Defaulting to '(default)' database.`);
+      dbInstance = admin.firestore();
+      resolvedDatabaseId = '(default)';
     } else if (initializedProjectId && initializedProjectId !== 'brefer') {
-      // If the project ID is NOT "brefer", the default blueprint custom database ID is guaranteed to not exist inside their custom Google Cloud project.
-      // We must ignore the custom database ID and fallback to '(default)' of their custom project.
+      // If the project ID is NOT "brefer", the default blueprint custom database ID cannot exist inside their custom Google Cloud project.
       console.log(`Custom Project ID detected (${initializedProjectId}) which differs from blueprint ('brefer'). Defaulting to '(default)' database.`);
       dbInstance = admin.firestore();
       resolvedDatabaseId = '(default)';
@@ -246,6 +251,7 @@ app.get('/api/webhook/kiwify', async (req, res) => {
   let serviceAccountLength = 0;
   let parsedSuccessfully = false;
   let parseError = '';
+  let parsedProjectId = '';
 
   if (firebaseServiceAccountValue && firebaseServiceAccountValue.trim() !== '' && firebaseServiceAccountValue !== 'Secret value') {
     serviceAccountStatus = 'Present';
@@ -271,6 +277,7 @@ app.get('/api/webhook/kiwify', async (req, res) => {
 
       const parsed = JSON.parse(cleanedVar);
       parsedSuccessfully = !!parsed.project_id && !!parsed.private_key;
+      parsedProjectId = parsed.project_id || '';
     } catch (err: any) {
       parseError = err.message;
     }
@@ -299,6 +306,7 @@ app.get('/api/webhook/kiwify', async (req, res) => {
         status: serviceAccountStatus,
         rawLength: serviceAccountLength,
         parsedOk: parsedSuccessfully,
+        parsedProjectId: parsedProjectId || null,
         parseError: parseError || null
       },
       firebaseConfig: {
@@ -325,8 +333,31 @@ app.get('/api/webhook/kiwify', async (req, res) => {
     diagnostics.firestoreConnection = 'failed';
     diagnostics.initializedProjectId = initializedProjectId;
     diagnostics.usedDatabase = resolvedDatabaseId;
-    diagnostics.error = err.message || err.toString();
+    
+    const errorMsg = (err.message || err.toString() || '').toString();
+    diagnostics.error = errorMsg;
     diagnostics.stack = err.stack;
+    
+    // Add custom, high-impact Portuguese troubleshooting suggestions
+    if (errorMsg.includes('NOT_FOUND') || errorMsg.includes('not found') || err.code === 5) {
+      diagnostics.instructions = [
+        "ERRO INTERNO: Banco de dados não encontrado / Database Not Found.",
+        "",
+        "Como corrigir no seu Console do Firebase:",
+        `1. Acesse o console: https://console.firebase.google.com/project/${initializedProjectId || parsedProjectId || 'seu-projeto-id'}/firestore`,
+        "2. Certifique-se de que você CRIOU o banco de dados do Firestore para este projeto.",
+        `3. O banco de dados deve ser criado com o ID '(default)' (a menos que tenha configurado FIREBASE_DATABASE_ID de forma personalizada).`,
+        "4. Escolha uma região (ex: us-east1 ou nam5 multi-region) e inicie em 'Modo de Produção' ou 'Modo de Teste'.",
+        "5. Uma vez criado o banco '(default)', recarregue esta página de diagnóstico para confirmar o funcionamento."
+      ];
+    } else {
+      diagnostics.instructions = [
+        "Erro genérico de conexão com Firestore. Verifique se:",
+        "1. Suas credenciais em FIREBASE_SERVICE_ACCOUNT no Vercel estão no formato JSON válido.",
+        "2. A chave privada (private_key) não contém quebras de linha erradas.",
+        "3. O seu projeto tem faturamento ou permissões ativas para acesso admin."
+      ];
+    }
   }
 
   res.json(diagnostics);
@@ -441,10 +472,15 @@ app.post('/api/webhook/kiwify', async (req, res) => {
       return res.status(200).json({ status: 'success', message: 'Access granted/renewed successfully' });
     } catch (error: any) {
       console.error('Error saving active authorization to Firestore:', error);
+      const errorMsg = (error.message || error.toString() || '').toString();
+      let instructions = 'Verify that FIREBASE_SERVICE_ACCOUNT is correctly set as a valid JSON string.';
+      if (errorMsg.includes('NOT_FOUND') || errorMsg.includes('not found') || error.code === 5) {
+        instructions = `ERRO: Banco de dados não encontrado / Database Not Found. Certifique-se de que você CRIOU o banco de dados do Firestore com o ID '(default)' no console do seu Firebase: https://console.firebase.google.com/project/${initializedProjectId || 'seu-projeto'}/firestore`;
+      }
       return res.status(500).json({ 
         status: 'error', 
         message: `Error writing to Firestore: ${error.message}`,
-        details: 'Verify that FIREBASE_SERVICE_ACCOUNT is correctly set as a valid JSON string.'
+        details: instructions
       });
     }
   } else if (isRefundedOrCanceled) {
@@ -470,10 +506,15 @@ app.post('/api/webhook/kiwify', async (req, res) => {
       return res.status(200).json({ status: 'success', message: 'Access revoked/blocked successfully' });
     } catch (error: any) {
       console.error('Error updating blocked status to Firestore:', error);
+      const errorMsg = (error.message || error.toString() || '').toString();
+      let instructions = 'Verify that FIREBASE_SERVICE_ACCOUNT is correctly set as a valid JSON string.';
+      if (errorMsg.includes('NOT_FOUND') || errorMsg.includes('not found') || error.code === 5) {
+        instructions = `ERRO: Banco de dados não encontrado / Database Not Found. Certifique-se de que você CRIOU o banco de dados do Firestore com o ID '(default)' no console do seu Firebase: https://console.firebase.google.com/project/${initializedProjectId || 'seu-projeto'}/firestore`;
+      }
       return res.status(500).json({ 
         status: 'error', 
         message: `Error writing to Firestore: ${error.message}`,
-        details: 'Verify that FIREBASE_SERVICE_ACCOUNT is correctly set as a valid JSON string.'
+        details: instructions
       });
     }
   }
