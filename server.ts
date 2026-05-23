@@ -129,15 +129,11 @@ function getDb(): admin.firestore.Firestore {
 
   // Determine the correct Firestore Database ID dynamically
   try {
-    const isVercel = !!process.env.VERCEL;
     const customDbId = process.env.FIREBASE_DATABASE_ID || process.env.FIRESTORE_DATABASE_ID;
 
     if (customDbId) {
       console.log(`Using explicitly configured database ID from environment variable: ${customDbId}`);
       dbInstance = (admin as any).firestore(customDbId);
-    } else if (isVercel) {
-      console.log('Running on Vercel: Using default Firestore database ID (default)');
-      dbInstance = admin.firestore();
     } else if (firebaseConfig.firestoreDatabaseId) {
       console.log(`Using configured Firestore Database ID: ${firebaseConfig.firestoreDatabaseId}`);
       dbInstance = (admin as any).firestore(firebaseConfig.firestoreDatabaseId);
