@@ -38,12 +38,19 @@ try {
 // Initialize Firebase Admin lazily to prevent crashing on server boot
 let dbInstance: admin.firestore.Firestore | null = null;
 let useDefaultDbForce = false;
+let initializedProjectId: string | null = null;
+let resolvedDatabaseId: string = '(default)';
 
 function getDb(): admin.firestore.Firestore {
   if (dbInstance && !useDefaultDbForce) return dbInstance;
   if (useDefaultDbForce) {
     dbInstance = admin.firestore();
+    resolvedDatabaseId = '(default)';
     return dbInstance;
+  }
+
+  if (admin.apps.length > 0 && !initializedProjectId) {
+    initializedProjectId = admin.app().options.projectId || null;
   }
 
   if (!admin.apps.length) {
@@ -86,6 +93,7 @@ function getDb(): admin.firestore.Firestore {
 
         const targetProjectId = serviceAccount.project_id || firebaseConfig.projectId;
         console.log(`Targeting Firebase Project ID: ${targetProjectId}`);
+        initializedProjectId = targetProjectId;
 
         admin.initializeApp({
           credential: admin.credential.cert(serviceAccount),
@@ -109,6 +117,7 @@ function getDb(): admin.firestore.Firestore {
             serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
           }
           const targetProjectId = serviceAccount.project_id || firebaseConfig.projectId;
+          initializedProjectId = targetProjectId;
           admin.initializeApp({
             credential: admin.credential.cert(serviceAccount),
             projectId: targetProjectId
@@ -120,6 +129,7 @@ function getDb(): admin.firestore.Firestore {
 
         if (!loadedFromFile) {
           console.log('Initializing Firebase Admin with default project ID');
+          initializedProjectId = firebaseConfig.projectId;
           admin.initializeApp({
             projectId: firebaseConfig.projectId
           });
@@ -139,16 +149,26 @@ function getDb(): admin.firestore.Firestore {
     if (customDbId) {
       console.log(`Using explicitly configured database ID from environment variable: ${customDbId}`);
       dbInstance = (admin as any).firestore(customDbId);
+      resolvedDatabaseId = customDbId;
+    } else if (initializedProjectId && initializedProjectId !== 'brefer') {
+      // If the project ID is NOT "brefer", the default blueprint custom database ID is guaranteed to not exist inside their custom Google Cloud project.
+      // We must ignore the custom database ID and fallback to '(default)' of their custom project.
+      console.log(`Custom Project ID detected (${initializedProjectId}) which differs from blueprint ('brefer'). Defaulting to '(default)' database.`);
+      dbInstance = admin.firestore();
+      resolvedDatabaseId = '(default)';
     } else if (firebaseConfig.firestoreDatabaseId) {
       console.log(`Using configured Firestore Database ID: ${firebaseConfig.firestoreDatabaseId}`);
       dbInstance = (admin as any).firestore(firebaseConfig.firestoreDatabaseId);
+      resolvedDatabaseId = firebaseConfig.firestoreDatabaseId;
     } else {
       console.log('Using default Firestore database ID (default)');
       dbInstance = admin.firestore();
+      resolvedDatabaseId = '(default)';
     }
   } catch (dbError: any) {
     console.warn(`Could not initialize Firestore database. Falling back to default database. Error: ${dbError.message}`);
     dbInstance = admin.firestore();
+    resolvedDatabaseId = '(default)';
   }
 
   return dbInstance;
@@ -164,11 +184,12 @@ async function runWithFirestoreFallback<T>(operation: (db: admin.firestore.Fires
     const isNotFoundError = errorStr.includes('NOT_FOUND') || errorStr.includes('not found') || error.code === 5;
     
     // Check if we are currently using a custom Database ID (not the default one)
-    const usingCustomDb = !!(process.env.FIREBASE_DATABASE_ID || process.env.FIRESTORE_DATABASE_ID || firebaseConfig.firestoreDatabaseId);
+    const usingCustomDb = resolvedDatabaseId !== '(default)';
     
     if (isNotFoundError && usingCustomDb && !useDefaultDbForce) {
-      console.warn(`Firestore operation failed with NOT_FOUND on custom database ID. Automatically falling back to default database '(default)' and retrying. Error: ${errorStr}`);
+      console.warn(`Firestore operation failed with NOT_FOUND on custom database ID ${resolvedDatabaseId}. Automatically falling back to default database '(default)' and retrying. Error: ${errorStr}`);
       useDefaultDbForce = true;
+      resolvedDatabaseId = '(default)';
       // Re-initialize dbInstance to the default Firestore instance
       dbInstance = admin.firestore();
       return await operation(dbInstance);
@@ -285,6 +306,8 @@ app.get('/api/webhook/kiwify', async (req, res) => {
         firestoreDatabaseId: firebaseConfig.firestoreDatabaseId
       }
     },
+    initializedProjectId: initializedProjectId,
+    usedDatabase: resolvedDatabaseId,
     firestoreConnection: 'untested'
   };
 
@@ -294,11 +317,15 @@ app.get('/api/webhook/kiwify', async (req, res) => {
     );
     diagnostics.firestoreConnection = 'successful';
     diagnostics.firestoreDocumentCount = testDoc.size;
-    diagnostics.usedDatabase = useDefaultDbForce ? 'fallback (default)' : (process.env.FIREBASE_DATABASE_ID || process.env.FIRESTORE_DATABASE_ID || firebaseConfig.firestoreDatabaseId || '(default)');
+    // Update live database/project ID if they changed during fallback
+    diagnostics.initializedProjectId = initializedProjectId;
+    diagnostics.usedDatabase = resolvedDatabaseId;
   } catch (err: any) {
     diagnostics.status = 'error';
     diagnostics.firestoreConnection = 'failed';
-    diagnostics.error = err.message;
+    diagnostics.initializedProjectId = initializedProjectId;
+    diagnostics.usedDatabase = resolvedDatabaseId;
+    diagnostics.error = err.message || err.toString();
     diagnostics.stack = err.stack;
   }
 
