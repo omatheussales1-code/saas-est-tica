@@ -37,9 +37,14 @@ try {
 
 // Initialize Firebase Admin lazily to prevent crashing on server boot
 let dbInstance: admin.firestore.Firestore | null = null;
+let useDefaultDbForce = false;
 
 function getDb(): admin.firestore.Firestore {
-  if (dbInstance) return dbInstance;
+  if (dbInstance && !useDefaultDbForce) return dbInstance;
+  if (useDefaultDbForce) {
+    dbInstance = admin.firestore();
+    return dbInstance;
+  }
 
   if (!admin.apps.length) {
     const serviceAccountVar = process.env.FIREBASE_SERVICE_ACCOUNT;
@@ -149,6 +154,29 @@ function getDb(): admin.firestore.Firestore {
   return dbInstance;
 }
 
+// Wrapper with automatic fallback to '(default)' database on any 5 NOT_FOUND database error
+async function runWithFirestoreFallback<T>(operation: (db: admin.firestore.Firestore) => Promise<T>): Promise<T> {
+  try {
+    const db = getDb();
+    return await operation(db);
+  } catch (error: any) {
+    const errorStr = (error.message || '').toString();
+    const isNotFoundError = errorStr.includes('NOT_FOUND') || errorStr.includes('not found') || error.code === 5;
+    
+    // Check if we are currently using a custom Database ID (not the default one)
+    const usingCustomDb = !!(process.env.FIREBASE_DATABASE_ID || process.env.FIRESTORE_DATABASE_ID || firebaseConfig.firestoreDatabaseId);
+    
+    if (isNotFoundError && usingCustomDb && !useDefaultDbForce) {
+      console.warn(`Firestore operation failed with NOT_FOUND on custom database ID. Automatically falling back to default database '(default)' and retrying. Error: ${errorStr}`);
+      useDefaultDbForce = true;
+      // Re-initialize dbInstance to the default Firestore instance
+      dbInstance = admin.firestore();
+      return await operation(dbInstance);
+    }
+    throw error;
+  }
+}
+
 // Vercel config to disable automatic pre-parsing so express can parse the raw stream with rawBody verification
 export const config = {
   api: {
@@ -177,8 +205,9 @@ app.post('/api/auth/check-email', async (req, res) => {
   if (!email) return res.status(400).json({ status: 'error', message: 'Email required' });
 
   try {
-    const docRef = getDb().collection('authorized_emails').doc(email.toLowerCase().trim());
-    const docSnap = await docRef.get();
+    const docSnap = await runWithFirestoreFallback((db) => 
+      db.collection('authorized_emails').doc(email.toLowerCase().trim()).get()
+    );
     
     res.json({ authorized: docSnap.exists });
   } catch (error) {
@@ -260,10 +289,12 @@ app.get('/api/webhook/kiwify', async (req, res) => {
   };
 
   try {
-    const db = getDb();
-    const testDoc = await db.collection('authorized_emails').limit(1).get();
+    const testDoc = await runWithFirestoreFallback((db) => 
+      db.collection('authorized_emails').limit(1).get()
+    );
     diagnostics.firestoreConnection = 'successful';
     diagnostics.firestoreDocumentCount = testDoc.size;
+    diagnostics.usedDatabase = useDefaultDbForce ? 'fallback (default)' : (process.env.FIREBASE_DATABASE_ID || process.env.FIRESTORE_DATABASE_ID || firebaseConfig.firestoreDatabaseId || '(default)');
   } catch (err: any) {
     diagnostics.status = 'error';
     diagnostics.firestoreConnection = 'failed';
@@ -363,20 +394,21 @@ app.post('/api/webhook/kiwify', async (req, res) => {
 
   if (isPaid) {
     try {
-      const db = getDb();
-      await db.collection('authorized_emails').doc(customer_email).set({
-        email: customer_email,
-        name: customer_name,
-        status: 'approved',
-        originalStatus: order_status || event || 'approved',
-        productId: product_id,
-        productName: product_name,
-        subscriptionId: subscription_id,
-        paymentMethod: payment_method,
-        blocked: false,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        source: 'kiwify'
-      });
+      await runWithFirestoreFallback((db) => 
+        db.collection('authorized_emails').doc(customer_email).set({
+          email: customer_email,
+          name: customer_name,
+          status: 'approved',
+          originalStatus: order_status || event || 'approved',
+          productId: product_id,
+          productName: product_name,
+          subscriptionId: subscription_id,
+          paymentMethod: payment_method,
+          blocked: false,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          source: 'kiwify'
+        })
+      );
 
       console.log(`Access granted/renewed to: ${customer_email} for product: ${product_name}`);
       return res.status(200).json({ status: 'success', message: 'Access granted/renewed successfully' });
@@ -390,22 +422,22 @@ app.post('/api/webhook/kiwify', async (req, res) => {
     }
   } else if (isRefundedOrCanceled) {
     try {
-      const db = getDb();
-      // Set to blocked/canceled in Firestore to instantly deny access on both front-end and back-end checks
-      await db.collection('authorized_emails').doc(customer_email).set({
-        email: customer_email,
-        name: customer_name,
-        status: 'canceled', // Explicit canceled status to block access immediately
-        originalStatus: order_status || event || 'canceled',
-        subscriptionStatus: subscription_status,
-        productId: product_id,
-        productName: product_name,
-        subscriptionId: subscription_id,
-        paymentMethod: payment_method,
-        blocked: true,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        source: 'kiwify'
-      });
+      await runWithFirestoreFallback((db) => 
+        db.collection('authorized_emails').doc(customer_email).set({
+          email: customer_email,
+          name: customer_name,
+          status: 'canceled', // Explicit canceled status to block access immediately
+          originalStatus: order_status || event || 'canceled',
+          subscriptionStatus: subscription_status,
+          productId: product_id,
+          productName: product_name,
+          subscriptionId: subscription_id,
+          paymentMethod: payment_method,
+          blocked: true,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          source: 'kiwify'
+        })
+      );
 
       console.log(`Access revoked/blocked for: ${customer_email} (Order status: ${order_status}, Subscription status: ${subscription_status})`);
       return res.status(200).json({ status: 'success', message: 'Access revoked/blocked successfully' });
