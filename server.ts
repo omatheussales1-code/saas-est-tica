@@ -79,9 +79,12 @@ function getDb(): admin.firestore.Firestore {
           serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
         }
 
+        const targetProjectId = serviceAccount.project_id || firebaseConfig.projectId;
+        console.log(`Targeting Firebase Project ID: ${targetProjectId}`);
+
         admin.initializeApp({
           credential: admin.credential.cert(serviceAccount),
-          projectId: firebaseConfig.projectId
+          projectId: targetProjectId
         });
       } else {
         // Try to load from service account file using robust reader
@@ -100,9 +103,10 @@ function getDb(): admin.firestore.Firestore {
           if (serviceAccount && typeof serviceAccount.private_key === 'string') {
             serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
           }
+          const targetProjectId = serviceAccount.project_id || firebaseConfig.projectId;
           admin.initializeApp({
             credential: admin.credential.cert(serviceAccount),
-            projectId: firebaseConfig.projectId
+            projectId: targetProjectId
           });
           loadedFromFile = true;
         } catch (e) {
@@ -123,16 +127,26 @@ function getDb(): admin.firestore.Firestore {
     }
   }
 
-  // Properly initialize Firestore with the custom database ID if provided, with safe fallback to '(default)'
+  // Determine the correct Firestore Database ID dynamically
   try {
-    if (firebaseConfig.firestoreDatabaseId) {
-      console.log(`Using custom Firestore Database ID: ${firebaseConfig.firestoreDatabaseId}`);
+    const isVercel = !!process.env.VERCEL;
+    const customDbId = process.env.FIREBASE_DATABASE_ID || process.env.FIRESTORE_DATABASE_ID;
+
+    if (customDbId) {
+      console.log(`Using explicitly configured database ID from environment variable: ${customDbId}`);
+      dbInstance = (admin as any).firestore(customDbId);
+    } else if (isVercel) {
+      console.log('Running on Vercel: Using default Firestore database ID (default)');
+      dbInstance = admin.firestore();
+    } else if (firebaseConfig.firestoreDatabaseId) {
+      console.log(`Using configured Firestore Database ID: ${firebaseConfig.firestoreDatabaseId}`);
       dbInstance = (admin as any).firestore(firebaseConfig.firestoreDatabaseId);
     } else {
+      console.log('Using default Firestore database ID (default)');
       dbInstance = admin.firestore();
     }
   } catch (dbError: any) {
-    console.warn(`Could not initialize Firestore with database ID ${firebaseConfig.firestoreDatabaseId}. Falling back to default database. Error: ${dbError.message}`);
+    console.warn(`Could not initialize Firestore database. Falling back to default database. Error: ${dbError.message}`);
     dbInstance = admin.firestore();
   }
 
