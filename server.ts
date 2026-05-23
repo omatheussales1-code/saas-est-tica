@@ -150,6 +150,12 @@ function getDb(): admin.firestore.Firestore {
       console.log(`Using explicitly configured database ID from environment variable: ${customDbId}`);
       dbInstance = (admin as any).firestore(customDbId);
       resolvedDatabaseId = customDbId;
+    } else if (process.env.VERCEL) {
+      // In production / Vercel, the Google AI Studio-specific sandbox database ID does not exist in the custom project.
+      // Therefore, we must default to '(default)' directly to avoid 5 NOT_FOUND database errors.
+      console.log('Vercel production environment detected. Defaulting directly to the (default) database ID.');
+      dbInstance = admin.firestore();
+      resolvedDatabaseId = '(default)';
     } else if (firebaseConfig.firestoreDatabaseId) {
       // Prioritize the configured database ID from firebase-applet-config.json.
       // If for any reason it does not exist under a custom service account/project,
