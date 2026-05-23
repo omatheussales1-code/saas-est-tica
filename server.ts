@@ -48,7 +48,23 @@ function getDb(): admin.firestore.Firestore {
     try {
       if (serviceAccountVar && serviceAccountVar.trim() !== '' && serviceAccountVar !== 'Secret value') {
         console.log('Initializing Firebase Admin with Service Account from ENV');
-        const serviceAccount = JSON.parse(serviceAccountVar);
+        
+        let cleanedVar = serviceAccountVar.trim();
+        // Remove accidental copy-pasted outer quotes (single or double) from Vercel UI
+        if (cleanedVar.startsWith("'") && cleanedVar.endsWith("'")) {
+          cleanedVar = cleanedVar.slice(1, -1).trim();
+        }
+        if (cleanedVar.startsWith('"') && cleanedVar.endsWith('"')) {
+          cleanedVar = cleanedVar.slice(1, -1).trim();
+        }
+
+        const serviceAccount = JSON.parse(cleanedVar);
+        
+        // Repair private_key containing escaped literal newlines (\n as two chars)
+        if (serviceAccount && typeof serviceAccount.private_key === 'string') {
+          serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+        }
+
         admin.initializeApp({
           credential: admin.credential.cert(serviceAccount),
           projectId: firebaseConfig.projectId
@@ -59,7 +75,17 @@ function getDb(): admin.firestore.Firestore {
         try {
           const serviceAccountContent = readConfigFile('firebase-service-account.json');
           console.log('Initializing Firebase Admin with Service Account from File');
-          const serviceAccount = JSON.parse(serviceAccountContent);
+          let cleanedContent = serviceAccountContent.trim();
+          if (cleanedContent.startsWith("'") && cleanedContent.endsWith("'")) {
+            cleanedContent = cleanedContent.slice(1, -1).trim();
+          }
+          if (cleanedContent.startsWith('"') && cleanedContent.endsWith('"')) {
+            cleanedContent = cleanedContent.slice(1, -1).trim();
+          }
+          const serviceAccount = JSON.parse(cleanedContent);
+          if (serviceAccount && typeof serviceAccount.private_key === 'string') {
+            serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+          }
           admin.initializeApp({
             credential: admin.credential.cert(serviceAccount),
             projectId: firebaseConfig.projectId
@@ -83,11 +109,16 @@ function getDb(): admin.firestore.Firestore {
     }
   }
 
-  // Properly initialize Firestore with the custom database ID if provided
-  if (firebaseConfig.firestoreDatabaseId) {
-    console.log(`Using custom Firestore Database ID: ${firebaseConfig.firestoreDatabaseId}`);
-    dbInstance = (admin as any).firestore(firebaseConfig.firestoreDatabaseId);
-  } else {
+  // Properly initialize Firestore with the custom database ID if provided, with safe fallback to '(default)'
+  try {
+    if (firebaseConfig.firestoreDatabaseId) {
+      console.log(`Using custom Firestore Database ID: ${firebaseConfig.firestoreDatabaseId}`);
+      dbInstance = (admin as any).firestore(firebaseConfig.firestoreDatabaseId);
+    } else {
+      dbInstance = admin.firestore();
+    }
+  } catch (dbError: any) {
+    console.warn(`Could not initialize Firestore with database ID ${firebaseConfig.firestoreDatabaseId}. Falling back to default database. Error: ${dbError.message}`);
     dbInstance = admin.firestore();
   }
 
@@ -132,26 +163,111 @@ app.post('/api/auth/check-email', async (req, res) => {
   }
 });
 
+// Kiwify Webhook Diagnostics
+app.get('/api/webhook/kiwify', async (req, res) => {
+  console.log('Kiwify Webhook Diagnostics requested.');
+  
+  let firebaseServiceAccountValue = process.env.FIREBASE_SERVICE_ACCOUNT || '';
+  let serviceAccountStatus = 'Missing';
+  let serviceAccountLength = 0;
+  let parsedSuccessfully = false;
+  let parseError = '';
+
+  if (firebaseServiceAccountValue && firebaseServiceAccountValue.trim() !== '' && firebaseServiceAccountValue !== 'Secret value') {
+    serviceAccountStatus = 'Present';
+    serviceAccountLength = firebaseServiceAccountValue.length;
+    
+    try {
+      let cleanedVar = firebaseServiceAccountValue.trim();
+      if (cleanedVar.startsWith("'") && cleanedVar.endsWith("'")) {
+        cleanedVar = cleanedVar.slice(1, -1).trim();
+      }
+      if (cleanedVar.startsWith('"') && cleanedVar.endsWith('"')) {
+        cleanedVar = cleanedVar.slice(1, -1).trim();
+      }
+      const parsed = JSON.parse(cleanedVar);
+      parsedSuccessfully = !!parsed.project_id && !!parsed.private_key;
+    } catch (err: any) {
+      parseError = err.message;
+    }
+  }
+
+  let rawSecret = process.env.KIWIFY_WEBHOOK_SECRET || '';
+  let cleanedSecret = rawSecret.trim();
+  if (cleanedSecret.startsWith("'") && cleanedSecret.endsWith("'")) {
+    cleanedSecret = cleanedSecret.slice(1, -1).trim();
+  }
+  if (cleanedSecret.startsWith('"') && cleanedSecret.endsWith('"')) {
+    cleanedSecret = cleanedSecret.slice(1, -1).trim();
+  }
+
+  const diagnostics: any = {
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    environment: {
+      isVercel: !!process.env.VERCEL,
+      kiwifyWebhookSecret: {
+        configured: !!rawSecret,
+        rawLength: rawSecret.length,
+        cleaned: cleanedSecret || null
+      },
+      firebaseServiceAccount: {
+        status: serviceAccountStatus,
+        rawLength: serviceAccountLength,
+        parsedOk: parsedSuccessfully,
+        parseError: parseError || null
+      },
+      firebaseConfig: {
+        projectId: firebaseConfig.projectId,
+        firestoreDatabaseId: firebaseConfig.firestoreDatabaseId
+      }
+    },
+    firestoreConnection: 'untested'
+  };
+
+  try {
+    const db = getDb();
+    const testDoc = await db.collection('authorized_emails').limit(1).get();
+    diagnostics.firestoreConnection = 'successful';
+    diagnostics.firestoreDocumentCount = testDoc.size;
+  } catch (err: any) {
+    diagnostics.status = 'error';
+    diagnostics.firestoreConnection = 'failed';
+    diagnostics.error = err.message;
+    diagnostics.stack = err.stack;
+  }
+
+  res.json(diagnostics);
+});
+
 // Kiwify Webhook
 app.post('/api/webhook/kiwify', async (req, res) => {
   console.log('Kiwify Webhook Received:', JSON.stringify(req.body, null, 2));
 
   // Security Check: Verify signature if secret is provided
   const signature = req.headers['x-kiwify-signature'];
-  const webhookSecret = process.env.KIWIFY_WEBHOOK_SECRET;
+  let webhookSecret = process.env.KIWIFY_WEBHOOK_SECRET;
 
   if (webhookSecret) {
+    // Sanitize copy-pasted secret keys containing single/double quotes from environment dashboard
+    let cleanedSecret = webhookSecret.trim();
+    if (cleanedSecret.startsWith("'") && cleanedSecret.endsWith("'")) {
+      cleanedSecret = cleanedSecret.slice(1, -1).trim();
+    }
+    if (cleanedSecret.startsWith('"') && cleanedSecret.endsWith('"')) {
+      cleanedSecret = cleanedSecret.slice(1, -1).trim();
+    }
+
     if (!signature) {
       console.error('Webhook Error: Missing x-kiwify-signature header');
       return res.status(401).json({ status: 'error', message: 'Unauthorized: Missing x-kiwify-signature header' });
     }
 
-    const trimmedSecret = webhookSecret.trim();
     const rawBody = (req as any).rawBody;
     const bodyStr = rawBody ? rawBody.toString('utf-8') : JSON.stringify(req.body);
 
-    const digestSha1 = crypto.createHmac('sha1', trimmedSecret).update(bodyStr).digest('hex');
-    const digestSha256 = crypto.createHmac('sha256', trimmedSecret).update(bodyStr).digest('hex');
+    const digestSha1 = crypto.createHmac('sha1', cleanedSecret).update(bodyStr).digest('hex');
+    const digestSha256 = crypto.createHmac('sha256', cleanedSecret).update(bodyStr).digest('hex');
 
     const cleanSig = signature.toString().trim().toLowerCase();
     const isValid = cleanSig === digestSha1.toLowerCase() || cleanSig === digestSha256.toLowerCase();
