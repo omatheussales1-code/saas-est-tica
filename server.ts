@@ -24,15 +24,23 @@ function readConfigFile(filename: string): string {
   throw new Error(`File not found: ${filename}`);
 }
 
-const firebaseConfig = JSON.parse(readConfigFile('firebase-applet-config.json'));
+let firebaseConfig: any = {
+  projectId: 'brefer',
+  firestoreDatabaseId: 'ai-studio-3e2f12e2-b01b-4da0-b986-294c04a94a5c'
+};
+
+try {
+  const fileContent = readConfigFile('firebase-applet-config.json');
+  firebaseConfig = JSON.parse(fileContent);
+} catch (e) {
+  console.warn('Could not read firebase-applet-config.json, using defaults.', e);
+}
 
 // Initialize Firebase Admin lazily to prevent crashing on server boot
 let dbInstance: admin.firestore.Firestore | null = null;
 
 function getDb(): admin.firestore.Firestore {
   if (dbInstance) return dbInstance;
-
-  const firebaseConfig = JSON.parse(readConfigFile('firebase-applet-config.json'));
 
   if (!admin.apps.length) {
     const serviceAccountVar = process.env.FIREBASE_SERVICE_ACCOUNT;
@@ -86,9 +94,23 @@ function getDb(): admin.firestore.Firestore {
   return dbInstance;
 }
 
+// Vercel config to disable automatic pre-parsing so express can parse the raw stream with rawBody verification
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
 const app = express();
 
 app.use(express.json({
+  verify: (req: any, res, buf) => {
+    req.rawBody = buf;
+  }
+}));
+
+app.use(express.urlencoded({
+  extended: true,
   verify: (req: any, res, buf) => {
     req.rawBody = buf;
   }
