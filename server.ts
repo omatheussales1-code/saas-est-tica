@@ -1,5 +1,4 @@
 import express from 'express';
-import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import admin from 'firebase-admin';
@@ -58,7 +57,22 @@ function getDb(): admin.firestore.Firestore {
           cleanedVar = cleanedVar.slice(1, -1).trim();
         }
 
-        const serviceAccount = JSON.parse(cleanedVar);
+        // Robust safeguard: if the user missed the outer curly braces, wrap them!
+        if (!cleanedVar.startsWith('{') && !cleanedVar.endsWith('}')) {
+          cleanedVar = '{' + cleanedVar + '}';
+        } else if (!cleanedVar.startsWith('{') && cleanedVar.endsWith('}')) {
+          cleanedVar = '{' + cleanedVar;
+        } else if (cleanedVar.startsWith('{') && !cleanedVar.endsWith('}')) {
+          cleanedVar = cleanedVar + '}';
+        }
+
+        let serviceAccount: any;
+        try {
+          serviceAccount = JSON.parse(cleanedVar);
+        } catch (jsonErr: any) {
+          console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT variable as JSON:', jsonErr.message);
+          throw new Error(`JSON format error in FIREBASE_SERVICE_ACCOUNT: ${jsonErr.message}. Ensure your Service Account environment variable starts with { and ends with } and is a valid JSON object.`);
+        }
         
         // Repair private_key containing escaped literal newlines (\n as two chars)
         if (serviceAccount && typeof serviceAccount.private_key === 'string') {
@@ -185,6 +199,16 @@ app.get('/api/webhook/kiwify', async (req, res) => {
       if (cleanedVar.startsWith('"') && cleanedVar.endsWith('"')) {
         cleanedVar = cleanedVar.slice(1, -1).trim();
       }
+
+      // Robust safeguard: if the user missed the outer curly braces, wrap them!
+      if (!cleanedVar.startsWith('{') && !cleanedVar.endsWith('}')) {
+        cleanedVar = '{' + cleanedVar + '}';
+      } else if (!cleanedVar.startsWith('{') && cleanedVar.endsWith('}')) {
+        cleanedVar = '{' + cleanedVar;
+      } else if (cleanedVar.startsWith('{') && !cleanedVar.endsWith('}')) {
+        cleanedVar = cleanedVar + '}';
+      }
+
       const parsed = JSON.parse(cleanedVar);
       parsedSuccessfully = !!parsed.project_id && !!parsed.private_key;
     } catch (err: any) {
@@ -391,12 +415,13 @@ app.post('/api/webhook/kiwify', async (req, res) => {
 async function setupApp() {
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
-    const vite = await createViteServer({
+    const { createServer } = await import('vite');
+    const vite = await createServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
-  } else {
+  } else if (!process.env.VERCEL) {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     
