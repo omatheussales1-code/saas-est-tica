@@ -1518,6 +1518,7 @@ const Dashboard = ({
   clients, 
   procedures, 
   onNavigateToAgenda, 
+  onNavigateToConfig,
   notificationHistory,
   csLabel,
   user,
@@ -1530,6 +1531,7 @@ const Dashboard = ({
   clients: Client[], 
   procedures: Procedure[], 
   onNavigateToAgenda: () => void, 
+  onNavigateToConfig: () => void,
   notificationHistory: { id: string, message: string, type: 'info' | 'warning' | 'error', date: Date }[],
   csLabel: string,
   user: User | null,
@@ -1584,6 +1586,27 @@ const Dashboard = ({
   
   return (
     <div className="space-y-6 relative">
+      {(!userProfile?.name || !userProfile?.businessName || !userProfile?.specialty) && (
+        <div className="bg-gradient-to-r from-amber-50 to-rose-50 border border-amber-200/60 rounded-[28px] p-6 mb-2 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center text-xl shrink-0">
+              ✨
+            </div>
+            <div>
+              <p className="font-black text-sm text-gray-900 uppercase tracking-tight">Experimente com seus dados reais!</p>
+              <p className="text-xs text-gray-500 font-medium mt-0.5">Cadastre o seu <strong>Nome do Estúdio</strong>, <strong>Nome Completo</strong> e <strong>Especialidade</strong> nas Configurações para simular os envios de WhatsApp em tempo real!</p>
+            </div>
+          </div>
+          <button 
+            type="button"
+            onClick={onNavigateToConfig} 
+            className="px-5 py-3 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all self-start md:self-auto shrink-0 shadow-lg shadow-amber-200 border-none outline-none cursor-pointer"
+          >
+            Configurar Perfil
+          </button>
+        </div>
+      )}
+
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
         <div className="flex items-center gap-4">
           <div>
@@ -5566,12 +5589,12 @@ const DEFAULT_WELCOME_TEMPLATE = 'Olá, {cliente_nome} ✨ Seja muito bem-vinda!
 const getDemoUserProfile = () => {
   const defaultDemoProfile = {
     id: 'demo-user',
-    name: 'Usuária Demo (Lookalike)',
-    businessName: 'Clínica de Estética Especializada',
-    specialty: 'Estética Avançada',
-    phone: '(11) 99999-9999',
-    address: 'Rua da Estética, 123',
-    instagram: '@marketing_estetico',
+    name: '',
+    businessName: '',
+    specialty: '',
+    phone: '',
+    address: '',
+    instagram: '',
     workingHours: { start: '08:00', end: '19:00' },
     workingDays: [1, 2, 3, 4, 5, 6],
     budgetValidityDays: 15,
@@ -5593,11 +5616,12 @@ const getDemoUserProfile = () => {
       const parsed = JSON.parse(cached);
       return {
         ...defaultDemoProfile,
-        businessName: parsed.businessName || defaultDemoProfile.businessName,
-        specialty: parsed.specialty || defaultDemoProfile.specialty,
-        phone: parsed.phone || defaultDemoProfile.phone,
-        address: parsed.address || defaultDemoProfile.address,
-        instagram: parsed.instagram || defaultDemoProfile.instagram,
+        name: parsed.name !== undefined ? parsed.name : defaultDemoProfile.name,
+        businessName: parsed.businessName !== undefined ? parsed.businessName : defaultDemoProfile.businessName,
+        specialty: parsed.specialty !== undefined ? parsed.specialty : defaultDemoProfile.specialty,
+        phone: parsed.phone !== undefined ? parsed.phone : defaultDemoProfile.phone,
+        address: parsed.address !== undefined ? parsed.address : defaultDemoProfile.address,
+        instagram: parsed.instagram !== undefined ? parsed.instagram : defaultDemoProfile.instagram,
         workingHours: parsed.workingHours || defaultDemoProfile.workingHours,
         workingDays: parsed.workingDays || defaultDemoProfile.workingDays,
         budgetValidityDays: parsed.budgetValidityDays || defaultDemoProfile.budgetValidityDays,
@@ -7097,6 +7121,7 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
           clients={clients} 
           procedures={procedures} 
           onNavigateToAgenda={() => setActiveTab('agenda')} 
+          onNavigateToConfig={() => setActiveTab('configuracoes')} 
           notificationHistory={notificationHistory}
           csLabel={csLabel}
           user={user}
@@ -7255,6 +7280,7 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
           clients={clients} 
           procedures={procedures} 
           onNavigateToAgenda={() => setActiveTab('agenda')} 
+          onNavigateToConfig={() => setActiveTab('configuracoes')} 
           notificationHistory={notificationHistory}
           csLabel={csLabel}
           user={user}
