@@ -7566,18 +7566,19 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
   return (
     <div className="min-h-screen flex font-sans transition-colors duration-300 bg-[#FFF9F9] text-gray-900">
       {isDemo && (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[200] flex items-center gap-6 bg-white/80 backdrop-blur-xl px-8 py-4 rounded-[32px] border border-blue-50 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5 animate-in fade-in slide-in-from-bottom-8 duration-700">
-          <div className="flex flex-col gap-0.5">
-            <div className="flex items-center gap-2">
+        <div className="fixed bottom-24 lg:bottom-8 left-1/2 -translate-x-1/2 z-[200] flex flex-col sm:flex-row items-center gap-3 sm:gap-6 bg-white/90 backdrop-blur-xl px-6 sm:px-8 py-3.5 sm:py-4 rounded-[28px] sm:rounded-[32px] border border-blue-50 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5 animate-in fade-in slide-in-from-bottom-8 duration-700 w-[90%] sm:w-auto max-w-md sm:max-w-none">
+          <div className="flex flex-col gap-0.5 text-center sm:text-left">
+            <div className="flex items-center justify-center sm:justify-start gap-2">
               <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
               <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Modo Demonstração</span>
             </div>
             <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">Os dados serão resetados ao sair</p>
           </div>
-          <div className="w-px h-10 bg-slate-100" />
+          <div className="hidden sm:block w-px h-10 bg-slate-100" />
           <button 
+            type="button"
             onClick={() => window.open(UPGRADE_URL, '_blank')}
-            className="group relative overflow-hidden bg-[#050b1a] text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all hover:scale-105 active:scale-95 shadow-xl shadow-blue-200/50"
+            className="group relative overflow-hidden bg-[#050b1a] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl font-black text-[9px] sm:text-[10px] uppercase tracking-widest transition-all hover:scale-105 active:scale-95 shadow-xl shadow-blue-200/50 w-full sm:w-auto"
           >
             <span className="relative z-10 transition-colors group-hover:text-blue-200">Adquirir Versão Completa</span>
             <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-transparent translate-x-[-100%] group-hover:translate-x-0 transition-transform duration-500" />
