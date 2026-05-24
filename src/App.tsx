@@ -5614,14 +5614,30 @@ const getDemoUserProfile = () => {
     const cached = localStorage.getItem('last_saved_user_profile');
     if (cached) {
       const parsed = JSON.parse(cached);
+      
+      const cleanDemoVal = (val: any, defaultStale: string) => {
+        if (typeof val !== 'string') return '';
+        const trimmed = val.trim();
+        if (trimmed === defaultStale || trimmed.toLowerCase() === defaultStale.toLowerCase()) return '';
+        if (trimmed.includes('Usuária Demo') || trimmed.includes('Clínica de Estética Especializada') || trimmed.includes('Estética Avançada') || trimmed.includes('Lookalike')) return '';
+        return trimmed;
+      };
+
+      const parsedName = cleanDemoVal(parsed.name, 'Usuária Demo (Lookalike)');
+      const parsedBusinessName = cleanDemoVal(parsed.businessName, 'Clínica de Estética Especializada');
+      const parsedSpecialty = cleanDemoVal(parsed.specialty, 'Estética Avançada');
+      const parsedPhone = cleanDemoVal(parsed.phone, '(11) 99999-9999');
+      const parsedAddress = cleanDemoVal(parsed.address, 'Rua da Estética, 123');
+      const parsedInstagram = cleanDemoVal(parsed.instagram, '@marketing_estetico');
+
       return {
         ...defaultDemoProfile,
-        name: parsed.name !== undefined ? parsed.name : defaultDemoProfile.name,
-        businessName: parsed.businessName !== undefined ? parsed.businessName : defaultDemoProfile.businessName,
-        specialty: parsed.specialty !== undefined ? parsed.specialty : defaultDemoProfile.specialty,
-        phone: parsed.phone !== undefined ? parsed.phone : defaultDemoProfile.phone,
-        address: parsed.address !== undefined ? parsed.address : defaultDemoProfile.address,
-        instagram: parsed.instagram !== undefined ? parsed.instagram : defaultDemoProfile.instagram,
+        name: parsedName,
+        businessName: parsedBusinessName,
+        specialty: parsedSpecialty,
+        phone: parsedPhone,
+        address: parsedAddress,
+        instagram: parsedInstagram,
         workingHours: parsed.workingHours || defaultDemoProfile.workingHours,
         workingDays: parsed.workingDays || defaultDemoProfile.workingDays,
         budgetValidityDays: parsed.budgetValidityDays || defaultDemoProfile.budgetValidityDays,
@@ -5960,7 +5976,7 @@ export default function App() {
       // Force user state for demo
       setUser({ 
         uid: 'demo-user', 
-        displayName: 'Usuária Demo (Lookalike)', 
+        displayName: '', 
         email: 'demo@demo.com',
         emailVerified: true 
       } as any);
