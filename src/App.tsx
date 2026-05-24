@@ -12,6 +12,8 @@ import {
   Search, 
   ChevronRight, 
   ChevronLeft, 
+  ChevronDown,
+  ChevronUp, 
   MoreVertical, 
   Clock, 
   TrendingUp, 
@@ -661,31 +663,115 @@ const PagamentosTab = ({
   onDeleteAppointment: (id: string) => void
 }) => {
   const [filter, setFilter] = useState('all'); // all, paid, pending, partial
-  
-  const filteredApps = appointments.filter(app => {
-    if (filter === 'paid') return app.isPaid;
-    if (filter === 'pending') return !app.isPaid && (!app.paidAmount || app.paidAmount === 0);
-    if (filter === 'partial') return !app.isPaid && app.paidAmount && app.paidAmount > 0;
-    return true;
-  }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const [groupByPackage, setGroupByPackage] = useState(true); // default to true grouped
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+
+  const filteredApps = useMemo(() => {
+    return appointments.filter(app => {
+      if (filter === 'paid') return app.isPaid;
+      if (filter === 'pending') return !app.isPaid && (!app.paidAmount || app.paidAmount === 0);
+      if (filter === 'partial') return !app.isPaid && app.paidAmount && app.paidAmount > 0;
+      return true;
+    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [appointments, filter]);
+
+  // Group appointments by Client and Procedure
+  const groupedData = useMemo(() => {
+    if (!groupByPackage) return [];
+
+    const map: Record<string, Appointment[]> = {};
+    filteredApps.forEach(app => {
+      const key = `${app.clientId}_${app.procedureId}`;
+      if (!map[key]) {
+        map[key] = [];
+      }
+      map[key].push(app);
+    });
+
+    return Object.entries(map).map(([key, apps]) => {
+      // Sort appointments by session number ascending (1, 2, 3...)
+      const sortedApps = [...apps].sort((a, b) => (a.sessionNumber || 1) - (b.sessionNumber || 1));
+      
+      const totalCount = sortedApps.length;
+      const paidCount = sortedApps.filter(a => a.isPaid).length;
+      
+      const totalPrice = sortedApps.reduce((sum, a) => sum + a.price, 0);
+      const totalPaid = sortedApps.reduce((sum, a) => sum + (a.paidAmount || 0), 0);
+      const remaining = totalPrice - totalPaid;
+      
+      const isPaid = sortedApps.every(a => a.isPaid);
+      const isPartial = totalPaid > 0 && !isPaid;
+
+      // The active appointment is the first one that is NOT paid, 
+      // or the last one if all are paid.
+      const activeApp = sortedApps.find(a => !a.isPaid) || sortedApps[sortedApps.length - 1];
+
+      return {
+        key,
+        activeApp,
+        appointments: sortedApps,
+        totalCount,
+        paidCount,
+        totalPrice,
+        totalPaid,
+        remaining,
+        isPaid,
+        isPartial
+      };
+    }).sort((a, b) => {
+      // Sort groups by the date of their active or newest appointment (descending)
+      return new Date(b.activeApp.date).getTime() - new Date(a.activeApp.date).getTime();
+    });
+  }, [filteredApps, groupByPackage]);
+
+  const toggleGroup = (key: string) => {
+    setExpandedGroups(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           <div>
             <h2 className="text-2xl lg:text-3xl font-black text-gray-900 uppercase tracking-tight">Pagamentos</h2>
             <p className="text-sm font-medium text-gray-500">Gestão de parcelamentos e saldos pendentes</p>
           </div>
-          <button 
-            onClick={() => onOpenNewAppointment(new Date())}
-            className="p-3 bg-rose-500 text-white rounded-2xl hover:bg-rose-600 transition-all shadow-lg shadow-rose-200"
-            title="Novo Registro / Adicionar Pessoa"
-          >
-            <Plus className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => onOpenNewAppointment(new Date())}
+              className="p-3 bg-rose-500 text-white rounded-2xl hover:bg-rose-600 transition-all shadow-lg shadow-rose-200"
+              title="Novo Registro / Adicionar Pessoa"
+            >
+              <Plus className="w-5 h-5" />
+            </button>
+            
+            {/* Grouping Toggle */}
+            <div className="flex items-center gap-1 bg-rose-50/50 border border-rose-100/30 rounded-2xl p-1 shadow-inner">
+              <button
+                onClick={() => setGroupByPackage(true)}
+                className={cn(
+                  "px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all whitespace-nowrap",
+                  groupByPackage ? "bg-white text-rose-500 shadow-sm" : "text-gray-400 hover:text-gray-600"
+                )}
+              >
+                Agrupar Pacotes
+              </button>
+              <button
+                onClick={() => setGroupByPackage(false)}
+                className={cn(
+                  "px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all whitespace-nowrap",
+                  !groupByPackage ? "bg-white text-rose-500 shadow-sm" : "text-gray-400 hover:text-gray-600"
+                )}
+              >
+                Ver Todas as Sessões
+              </button>
+            </div>
+          </div>
         </div>
-        <div className="flex gap-1.5 bg-gray-100 p-1 rounded-[20px] overflow-x-auto no-scrollbar">
+        <div className="flex gap-1.5 bg-gray-100 p-1 rounded-[20px] overflow-x-auto no-scrollbar self-start md:self-auto">
           {[
             { id: 'all', label: 'Todos' },
             { id: 'partial', label: 'Parciais' },
@@ -710,19 +796,526 @@ const PagamentosTab = ({
         <div className="overflow-x-auto hidden lg:block">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-rose-50/30">
-                <th className="px-4 py-4 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Data</th>
-                <th className="px-4 py-4 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Cliente</th>
-                <th className="px-4 py-4 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Procedimento / Sessão</th>
-                <th className="px-4 py-4 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Valor Total</th>
-                <th className="px-4 py-4 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Pago</th>
-                <th className="px-4 py-4 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Restante</th>
-                <th className="px-4 py-4 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100">Status</th>
-                <th className="px-4 py-4 text-[10px] font-black text-rose-400 uppercase tracking-widest border-b border-rose-100 text-right">Ações</th>
+              <tr className="bg-rose-50/30 font-black text-rose-400 uppercase tracking-widest text-[10px] border-b border-rose-100">
+                {groupByPackage && <th className="px-4 py-4 w-12"></th>}
+                <th className="px-4 py-4">Data</th>
+                <th className="px-4 py-4">Cliente</th>
+                <th className="px-4 py-4">Procedimento / {groupByPackage ? 'Pacote' : 'Sessão'}</th>
+                <th className="px-4 py-4">Valor Total</th>
+                <th className="px-4 py-4">Pago</th>
+                <th className="px-4 py-4">Restante</th>
+                <th className="px-4 py-4">Status</th>
+                <th className="px-4 py-4 text-right">Ações</th>
               </tr>
             </thead>
-            <tbody>
-              {filteredApps.map(app => {
+            <tbody className="divide-y divide-gray-50">
+              {groupByPackage ? (
+                groupedData.map(group => {
+                  const client = clients.find(c => c.id === group.activeApp.clientId);
+                  const proc = procedures.find(p => p.id === group.activeApp.procedureId);
+                  const isExpanded = expandedGroups[group.key];
+                  const nextUnpaidApp = group.appointments.find(a => !a.isPaid);
+
+                  return (
+                    <React.Fragment key={group.key}>
+                      <tr className={cn(
+                        "group hover:bg-rose-50/20 transition-colors cursor-pointer",
+                        isExpanded && "bg-rose-50/10"
+                      )} onClick={() => toggleGroup(group.key)}>
+                        <td className="px-4 py-4 text-center">
+                          <button 
+                            type="button"
+                            className="p-1 hover:bg-rose-50 rounded-lg text-gray-400 hover:text-rose-500 transition-colors"
+                          >
+                            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                          </button>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex flex-col">
+                            <span className="text-sm font-bold text-gray-900">
+                              {group.activeApp.date ? format(parseISO(group.activeApp.date), "dd/MM/yyyy") : '-'}
+                            </span>
+                            <span className="text-[10px] font-medium text-gray-400 uppercase">
+                              {group.activeApp.date ? format(parseISO(group.activeApp.date), "HH:mm") : '--:--'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-rose-100 rounded-full flex items-center justify-center text-[10px] font-black text-rose-600 shrink-0">
+                              {client?.name?.substring(0, 2).toUpperCase() || '??'}
+                            </div>
+                            <span className="text-sm font-bold text-gray-900 truncate max-w-[150px]" title={client?.name}>{client?.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold text-gray-600">{proc?.name || 'Venda Direta / Outro'}</span>
+                            <span className="text-[10px] font-bold text-gray-400 mt-0.5">
+                              Sessões: <span className="text-rose-400 font-extrabold">{group.paidCount} de {group.totalCount}</span> completas
+                            </span>
+                            
+                            {/* Visual bullet points representing sessions */}
+                            <div className="flex gap-1 mt-1.5" onClick={(e) => e.stopPropagation()}>
+                              {group.appointments.map((a, idx) => {
+                                const isAppPaid = a.isPaid;
+                                const hasPart = (a.paidAmount || 0) > 0 && !isAppPaid;
+                                return (
+                                  <span 
+                                    key={a.id} 
+                                    title={`Sessão ${a.sessionNumber || (idx + 1)} de ${group.totalCount}: ${isAppPaid ? 'Paga' : hasPart ? 'Pago Parcial' : 'Pendente'}`}
+                                    className={cn(
+                                      "w-2 h-2 rounded-full transition-all",
+                                      isAppPaid ? "bg-emerald-500" : hasPart ? "bg-amber-400 animate-pulse" : "bg-gray-200"
+                                    )}
+                                  />
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className="text-sm font-black text-gray-900">{formatCurrency(group.totalPrice)}</span>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className={cn(
+                            "text-sm font-black",
+                            group.totalPaid > 0 ? "text-emerald-600" : "text-gray-300"
+                          )}>{formatCurrency(group.totalPaid)}</span>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className={cn(
+                            "text-sm font-black text-rose-600",
+                            group.remaining <= 0 && "text-gray-200"
+                          )}>{formatCurrency(Math.max(0, group.remaining))}</span>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className={cn(
+                            "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest whitespace-nowrap",
+                            group.isPaid ? "bg-emerald-100 text-emerald-600" :
+                            group.isPartial ? "bg-amber-100 text-amber-600" : "bg-red-100 text-red-600"
+                          )}>
+                            {group.isPaid ? 'Pago' : group.isPartial ? 'Parcial' : 'Pendente'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => toggleGroup(group.key)}
+                              className="p-1 px-2.5 text-[10px] font-black text-rose-500 bg-rose-50/50 hover:bg-rose-50 rounded-xl transition-all uppercase tracking-wider"
+                              title="Ver Detalhes das Sessões"
+                            >
+                              {isExpanded ? 'Ocultar' : `Ver ${group.totalCount} Sessões`}
+                            </button>
+                            {nextUnpaidApp ? (
+                              <button
+                                onClick={() => onMarkAsPaid(nextUnpaidApp.id)}
+                                className="px-3 py-1.5 bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-100 hover:-translate-y-0.5 hover:bg-emerald-600 transition-all outline-none"
+                              >
+                                Receber S.{nextUnpaidApp.sessionNumber || 1}
+                              </button>
+                            ) : (
+                              <div className="flex items-center gap-1 text-emerald-600 text-[10px] font-black uppercase tracking-wider py-1.5 px-3 bg-emerald-50 rounded-xl">
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Concluído
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* Expanded Section inside desktop table */}
+                      {isExpanded && (
+                        <tr className="bg-rose-50/10" onClick={(e) => e.stopPropagation()}>
+                          <td colSpan={9} className="px-8 py-4 bg-gray-50/50 border-y border-gray-100">
+                            <div className="pl-6 border-l-4 border-rose-400 space-y-3">
+                              <h4 className="text-[10px] font-black uppercase tracking-widest text-rose-500 mb-2">Cronograma de Sessões do Pacote</h4>
+                              <div className="bg-white rounded-2xl border border-gray-100 divide-y divide-gray-100 overflow-hidden shadow-xs">
+                                {group.appointments.map((app, index) => {
+                                  const paid = app.paidAmount || 0;
+                                  const remaining = app.price - paid;
+                                  const isPart = paid > 0 && !app.isPaid;
+                                  return (
+                                    <div key={app.id} className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-rose-50/10 transition-colors">
+                                      <div className="flex items-center gap-4">
+                                        <div className={cn(
+                                          "w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black uppercase",
+                                          app.isPaid ? "bg-emerald-100 text-emerald-600" : "bg-gray-100 text-gray-500"
+                                        )}>
+                                          S{app.sessionNumber || (index + 1)}
+                                        </div>
+                                        <div>
+                                          <p className="font-bold text-gray-800 text-xs">Sessão {app.sessionNumber || (index + 1)} de {group.totalCount}</p>
+                                          <p className="text-[10px] text-gray-400 font-semibold uppercase">
+                                            {app.date ? format(parseISO(app.date), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : '-'}
+                                          </p>
+                                        </div>
+                                      </div>
+
+                                      <div className="grid grid-cols-3 gap-6 text-xs text-center md:text-left">
+                                        <div>
+                                          <p className="text-[9px] font-black uppercase text-gray-400">Preço</p>
+                                          <p className="font-black text-gray-800">{formatCurrency(app.price)}</p>
+                                        </div>
+                                        <div>
+                                          <p className="text-[9px] font-black uppercase text-gray-400">Recebido</p>
+                                          <p className={cn("font-black", paid > 0 ? "text-emerald-600" : "text-gray-300")}>{formatCurrency(paid)}</p>
+                                        </div>
+                                        <div>
+                                          <p className="text-[9px] font-black uppercase text-gray-400">Restante</p>
+                                          <p className={cn("font-black text-rose-600", remaining <= 0 && "text-gray-200")}>{formatCurrency(Math.max(0, remaining))}</p>
+                                        </div>
+                                      </div>
+
+                                      <div className="flex items-center justify-end gap-3 self-end md:self-auto">
+                                        <span className={cn(
+                                          "px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest mr-2",
+                                          app.isPaid ? "bg-emerald-100 text-emerald-600" :
+                                          isPart ? "bg-amber-100 text-amber-600" : "bg-red-100 text-red-600"
+                                        )}>
+                                          {app.isPaid ? 'Pago' : isPart ? 'Parcial' : 'Pendente'}
+                                        </span>
+                                        {!app.isPaid && (
+                                          <button
+                                            onClick={() => onSendWhatsApp(app, 'payment')}
+                                            className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all"
+                                            title="Cobrar via WhatsApp"
+                                          >
+                                            <MessageCircle className="w-4 h-4" />
+                                          </button>
+                                        )}
+                                        <button
+                                          onClick={() => onEditAppointment(app)}
+                                          className="p-1.5 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+                                          title="Editar Sessão"
+                                        >
+                                          <Pencil className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          onClick={() => onDeleteAppointment(app.id)}
+                                          className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                                          title="Excluir Sessão"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                        {!app.isPaid ? (
+                                          <button
+                                            onClick={() => onMarkAsPaid(app.id)}
+                                            className="px-3 py-1 bg-emerald-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-emerald-600 transition-all"
+                                          >
+                                            Receber S.{app.sessionNumber || (index + 1)}
+                                          </button>
+                                        ) : (
+                                          <button
+                                            onClick={() => onUndoMarkAsPaid(app.id)}
+                                            className="p-1.5 text-gray-300 hover:text-rose-500 transition-colors"
+                                            title="Estornar Sessão"
+                                          >
+                                            <RefreshCcw className="w-3.5 h-3.5" />
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })
+              ) : (
+                filteredApps.map(app => {
+                  const client = clients.find(c => c.id === app.clientId);
+                  const proc = procedures.find(p => p.id === app.procedureId);
+                  const paid = app.paidAmount || 0;
+                  const remaining = app.price - paid;
+                  const isPartial = paid > 0 && !app.isPaid;
+
+                  return (
+                    <tr key={app.id} className="group hover:bg-rose-50/20 transition-colors">
+                      <td className="px-4 py-4">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-gray-900">{app.date ? format(parseISO(app.date), "dd/MM/yyyy") : '-'}</span>
+                          <span className="text-[10px] font-medium text-gray-400 uppercase">{app.date ? format(parseISO(app.date), "HH:mm") : '--:--'}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-rose-100 rounded-full flex items-center justify-center text-[10px] font-black text-rose-600 shrink-0">
+                            {client?.name?.substring(0, 2).toUpperCase() || '??'}
+                          </div>
+                          <span className="text-sm font-bold text-gray-900 truncate max-w-[150px]" title={client?.name}>{client?.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold text-gray-600">{proc?.name || 'Venda Direta / Outro'}</span>
+                          <span className="text-[10px] font-bold text-gray-400 mt-0.5">
+                            Sessão {app.sessionNumber || 1} de {app.totalSessions || 1}
+                            {((app.totalSessions || 1) - (app.sessionNumber || 1) > 0) ? (
+                              <span className="text-rose-400 ml-1">({(app.totalSessions || 1) - (app.sessionNumber || 1)} restando)</span>
+                            ) : (
+                              <span className="text-emerald-500 ml-1">(Concluído)</span>
+                            )}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className="text-sm font-black text-gray-900">{formatCurrency(app.price)}</span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className={cn(
+                          "text-sm font-black",
+                          paid > 0 ? "text-emerald-600" : "text-gray-300"
+                        )}>{formatCurrency(paid)}</span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className={cn(
+                          "text-sm font-black text-rose-600",
+                          remaining <= 0 && "text-gray-200"
+                        )}>{formatCurrency(Math.max(0, remaining))}</span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className={cn(
+                          "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                          app.isPaid ? "bg-emerald-100 text-emerald-600" :
+                          isPartial ? "bg-amber-100 text-amber-600" : "bg-red-100 text-red-600"
+                        )}>
+                          {app.isPaid ? 'Pago' : isPartial ? 'Parcial' : 'Pendente'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {!app.isPaid && (
+                            <button
+                              onClick={() => onSendWhatsApp(app, 'payment')}
+                              className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all"
+                              title="Cobrar via WhatsApp"
+                            >
+                              <MessageCircle className="w-5 h-5" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => onEditAppointment(app)}
+                            className="p-1.5 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+                            title="Editar Registro"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => onDeleteAppointment(app.id)}
+                            className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                            title="Excluir Registro"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                          {!app.isPaid ? (
+                            <button
+                              onClick={() => onMarkAsPaid(app.id)}
+                              className="px-3 py-1.5 bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-100 hover:-translate-y-0.5 transition-all outline-none"
+                            >
+                              {isPartial ? 'Completar' : 'Receber'}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => onUndoMarkAsPaid(app.id)}
+                              className="p-1.5 text-gray-300 hover:text-rose-500 transition-colors"
+                              title="Estornar Pagamento"
+                            >
+                              <RefreshCcw className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+          {((groupByPackage && groupedData.length === 0) || (!groupByPackage && filteredApps.length === 0)) && (
+            <div className="p-20 text-center">
+               <DollarSign className="w-12 h-12 text-rose-100 mx-auto mb-4" />
+               <p className="text-gray-400 font-bold uppercase tracking-widest text-xs">Nenhum registro encontrado</p>
+            </div>
+          )}
+        </div>
+
+        {/* Mobile View for Pagamentos */}
+        <div className="lg:hidden divide-y divide-rose-50">
+          {groupByPackage ? (
+            groupedData.length > 0 ? (
+              groupedData.map(group => {
+                const client = clients.find(c => c.id === group.activeApp.clientId);
+                const proc = procedures.find(p => p.id === group.activeApp.procedureId);
+                const isExpanded = expandedGroups[group.key];
+                const nextUnpaidApp = group.appointments.find(a => !a.isPaid);
+
+                return (
+                  <div key={group.key} className="p-6 space-y-4 hover:bg-rose-50/10 transition-colors">
+                    <div className="flex justify-between items-start" onClick={() => toggleGroup(group.key)}>
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-500 font-bold shrink-0">
+                          {client?.name?.charAt(0) || '?'}
+                        </div>
+                        <div>
+                          <p className="font-bold text-gray-900 leading-tight">{client?.name}</p>
+                          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest flex items-center gap-1.5 mt-0.5">
+                            <span>Sessão {group.paidCount} de {group.totalCount}</span>
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-1.5">
+                        <span className={cn(
+                          "px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest",
+                          group.isPaid ? "bg-emerald-100 text-emerald-600" :
+                          group.isPartial ? "bg-amber-100 text-amber-600" : "bg-red-100 text-red-600"
+                        )}>
+                          {group.isPaid ? 'Pago' : group.isPartial ? 'Parcial' : 'Pendente'}
+                        </span>
+                        
+                        <div className="flex gap-1" onClick={(ev) => ev.stopPropagation()}>
+                          {group.appointments.map((a, idx) => (
+                            <span 
+                              key={a.id} 
+                              className={cn(
+                                "w-1.5 h-1.5 rounded-full",
+                                a.isPaid ? "bg-emerald-500" : (a.paidAmount || 0) > 0 ? "bg-amber-400" : "bg-gray-200"
+                              )}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-gray-50/50 rounded-2xl flex items-center justify-between text-xs font-semibold text-gray-500">
+                      <span>Procimento: <span className="text-gray-800 font-bold">{proc?.name || 'Outro'}</span></span>
+                      <button 
+                        onClick={() => toggleGroup(group.key)}
+                        className="text-[10px] font-black uppercase text-rose-400 hover:text-rose-500"
+                      >
+                        {isExpanded ? 'Ocultar Detalhes' : 'Detalhar Sessões'}
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="p-3 bg-gray-50 rounded-2xl">
+                        <p className="text-[9px] font-black uppercase text-gray-400 tracking-wider mb-0.5">Total Pacote</p>
+                        <p className="text-sm font-black text-gray-900">{formatCurrency(group.totalPrice)}</p>
+                      </div>
+                      <div className="p-3 bg-emerald-50 rounded-2xl">
+                        <p className="text-[9px] font-black uppercase text-emerald-400 tracking-wider mb-0.5">Pago Total</p>
+                        <p className="text-sm font-black text-emerald-600">{formatCurrency(group.totalPaid)}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2">
+                      <div>
+                        <p className="text-[9px] font-black uppercase text-gray-400 tracking-wider mb-0.5">Pendente</p>
+                        <p className="text-base font-black text-rose-600">{formatCurrency(Math.max(0, group.remaining))}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        {nextUnpaidApp ? (
+                          <button
+                            onClick={() => onMarkAsPaid(nextUnpaidApp.id)}
+                            className="px-5 py-2.5 bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-100"
+                          >
+                            Receber S.{nextUnpaidApp.sessionNumber || 1}
+                          </button>
+                        ) : (
+                          <div className="flex items-center gap-1 text-emerald-600 text-[10px] font-black uppercase tracking-wider py-2 px-3 bg-emerald-50 rounded-xl">
+                            <CheckCircle className="w-4 h-4" /> Concluído
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Expandable sub-sessions panel for mobile */}
+                    {isExpanded && (
+                      <div className="pt-2 border-t border-gray-100 space-y-3">
+                        <p className="text-[9px] font-black uppercase text-rose-400 tracking-widest">Sessões Individuais</p>
+                        <div className="space-y-2.5">
+                          {group.appointments.map((app, index) => {
+                            const paid = app.paidAmount || 0;
+                            const remaining = app.price - paid;
+                            const isPart = paid > 0 && !app.isPaid;
+                            return (
+                              <div key={app.id} className="p-3 bg-gray-50 rounded-xl border border-gray-100 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <span className="text-xs font-black text-gray-800">Sessão {app.sessionNumber || (index + 1)} de {group.totalCount}</span>
+                                    <p className="text-[9px] text-gray-400 font-bold uppercase">
+                                      {app.date ? format(parseISO(app.date), "dd/MM/yyyy HH:mm") : '-'}
+                                    </p>
+                                  </div>
+                                  <span className={cn(
+                                    "px-2 py-0.5 rounded text-[8px] font-black uppercase",
+                                    app.isPaid ? "bg-emerald-100 text-emerald-600" :
+                                    isPart ? "bg-amber-100 text-amber-600" : "bg-red-100 text-red-600"
+                                  )}>
+                                    {app.isPaid ? 'Pago' : isPart ? 'Parcial' : 'Pendente'}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between items-center text-[10px] text-gray-400">
+                                  <span>Preço: <strong className="text-gray-800">{formatCurrency(app.price)}</strong></span>
+                                  <span>Restante: <strong className="text-rose-500">{formatCurrency(remaining)}</strong></span>
+                                </div>
+                                <div className="flex gap-1.5 justify-end pt-1">
+                                  {!app.isPaid && (
+                                    <button
+                                      onClick={() => onSendWhatsApp(app, 'payment')}
+                                      className="p-1.5 bg-white text-emerald-600 rounded-lg border border-gray-100 text-[10px] font-bold"
+                                    >
+                                      Cobrar
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => onEditAppointment(app)}
+                                    className="p-1.5 bg-white text-gray-400 rounded-lg border border-gray-100"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => onDeleteAppointment(app.id)}
+                                    className="p-1.5 bg-white text-gray-300 rounded-lg border border-gray-100"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                  {!app.isPaid ? (
+                                    <button
+                                      onClick={() => onMarkAsPaid(app.id)}
+                                      className="px-3 bg-emerald-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider"
+                                    >
+                                      Receber S.{app.sessionNumber || (index + 1)}
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={() => onUndoMarkAsPaid(app.id)}
+                                      className="p-1.5 bg-white text-gray-400 rounded-lg border border-gray-100"
+                                    >
+                                      <RefreshCcw className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            ) : (
+              <div className="p-12 text-center text-gray-400 font-bold uppercase tracking-widest text-[10px]">
+                Nenhum registro de pagamento encontrado.
+              </div>
+            )
+          ) : (
+            filteredApps.length > 0 ? (
+              filteredApps.map(app => {
                 const client = clients.find(c => c.id === app.clientId);
                 const proc = procedures.find(p => p.id === app.procedureId);
                 const paid = app.paidAmount || 0;
@@ -730,210 +1323,97 @@ const PagamentosTab = ({
                 const isPartial = paid > 0 && !app.isPaid;
 
                 return (
-                  <tr key={app.id} className="group hover:bg-rose-50/20 transition-colors">
-                    <td className="px-4 py-4 border-b border-gray-50">
-                      <div className="flex flex-col">
-                        <span className="text-sm font-bold text-gray-900">{app.date ? format(parseISO(app.date), "dd/MM/yyyy") : '-'}</span>
-                        <span className="text-[10px] font-medium text-gray-400 uppercase">{app.date ? format(parseISO(app.date), "HH:mm") : '--:--'}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 border-b border-gray-50">
+                  <div key={app.id} className="p-6 space-y-4">
+                    <div className="flex justify-between items-start">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-rose-100 rounded-full flex items-center justify-center text-[10px] font-black text-rose-600 shrink-0">
-                          {client?.name.substring(0, 2).toUpperCase()}
+                        <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-500 font-bold">
+                          {client?.name?.charAt(0) || '?'}
                         </div>
-                        <span className="text-sm font-bold text-gray-900 truncate max-w-[150px]" title={client?.name}>{client?.name}</span>
+                        <div>
+                          <p className="font-bold text-gray-900 leading-tight">{client?.name}</p>
+                          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+                            {app.date ? format(parseISO(app.date), 'dd/MM/yyyy') : '-'}
+                          </p>
+                        </div>
                       </div>
-                    </td>
-                    <td className="px-4 py-4 border-b border-gray-50">
-                      <div className="flex flex-col">
-                        <span className="text-xs font-bold text-gray-600">{proc?.name || 'Venda Direta / Outro'}</span>
-                        <span className="text-[10px] font-bold text-gray-400">
-                          Sessão {app.sessionNumber || 1} de {app.totalSessions || 1}
-                          {((app.totalSessions || 1) - (app.sessionNumber || 1) > 0) ? (
-                            <span className="text-rose-400 ml-1">({(app.totalSessions || 1) - (app.sessionNumber || 1)} restando)</span>
-                          ) : (
-                            <span className="text-emerald-500 ml-1">(Concluído)</span>
-                          )}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 border-b border-gray-50">
-                      <span className="text-sm font-black text-gray-900">{formatCurrency(app.price)}</span>
-                    </td>
-                    <td className="px-4 py-4 border-b border-gray-50">
                       <span className={cn(
-                        "text-sm font-black",
-                        paid > 0 ? "text-emerald-600" : "text-gray-300"
-                      )}>{formatCurrency(paid)}</span>
-                    </td>
-                    <td className="px-4 py-4 border-b border-gray-50">
-                      <span className={cn(
-                        "text-sm font-black text-rose-600",
-                        remaining <= 0 && "text-gray-200"
-                      )}>{formatCurrency(Math.max(0, remaining))}</span>
-                    </td>
-                    <td className="px-4 py-4 border-b border-gray-50">
-                      <span className={cn(
-                        "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                        "px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest",
                         app.isPaid ? "bg-emerald-100 text-emerald-600" :
                         isPartial ? "bg-amber-100 text-amber-600" : "bg-red-100 text-red-600"
                       )}>
                         {app.isPaid ? 'Pago' : isPartial ? 'Parcial' : 'Pendente'}
                       </span>
-                    </td>
-                    <td className="px-4 py-4 border-b border-gray-50 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
+                    </div>
+
+                    <div className="p-3 bg-gray-50 rounded-2xl">
+                      <p className="text-[10px] text-gray-400 font-bold">Procedimento: <span className="text-gray-800">{proc?.name || 'Outro'}</span></p>
+                      <p className="text-[9px] text-gray-400 mt-0.5">Sessão {app.sessionNumber || 1} de {app.totalSessions || 1}</p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="p-3 bg-gray-50 rounded-2xl">
+                        <p className="text-[9px] font-black uppercase text-gray-400 tracking-wider mb-0.5">Total</p>
+                        <p className="text-sm font-black text-gray-900">{formatCurrency(app.price)}</p>
+                      </div>
+                      <div className="p-3 bg-emerald-50 rounded-2xl">
+                        <p className="text-[9px] font-black uppercase text-emerald-400 tracking-wider mb-0.5">Pago</p>
+                        <p className="text-sm font-black text-emerald-600">{formatCurrency(paid)}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2">
+                      <div>
+                        <p className="text-[9px] font-black uppercase text-gray-400 tracking-wider mb-0.5">Restante</p>
+                        <p className="text-lg font-black text-rose-600">{formatCurrency(Math.max(0, remaining))}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => onEditAppointment(app)}
+                          className="p-3 bg-gray-50 text-gray-400 rounded-xl"
+                          title="Editar Registro"
+                        >
+                          <Pencil className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => onDeleteAppointment(app.id)}
+                          className="p-3 bg-gray-50 text-gray-300 hover:text-red-500 rounded-xl"
+                          title="Excluir Registro"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
                         {!app.isPaid && (
                           <button
                             onClick={() => onSendWhatsApp(app, 'payment')}
-                            className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all"
-                            title="Cobrar via WhatsApp"
+                            className="p-3 bg-emerald-50 text-emerald-600 rounded-xl"
                           >
                             <MessageCircle className="w-5 h-5" />
                           </button>
                         )}
-                        <button
-                          onClick={() => onEditAppointment(app)}
-                          className="p-1.5 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
-                          title="Editar Registro"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => onDeleteAppointment(app.id)}
-                          className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                          title="Excluir Registro"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
                         {!app.isPaid ? (
                           <button
                             onClick={() => onMarkAsPaid(app.id)}
-                            className="px-3 py-1.5 bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-100 hover:-translate-y-0.5 transition-all outline-none"
+                            className="px-6 py-3 bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-100"
                           >
                             {isPartial ? 'Completar' : 'Receber'}
                           </button>
                         ) : (
                           <button
                             onClick={() => onUndoMarkAsPaid(app.id)}
-                            className="p-1.5 text-gray-300 hover:text-rose-500 transition-colors"
-                            title="Estornar Pagamento"
+                            className="p-3 bg-gray-50 text-gray-400 rounded-xl"
                           >
-                            <RefreshCcw className="w-4 h-4" />
+                            <RefreshCcw className="w-5 h-5" />
                           </button>
                         )}
                       </div>
-                    </td>
-                  </tr>
+                    </div>
+                  </div>
                 );
-              })}
-            </tbody>
-          </table>
-          {filteredApps.length === 0 && (
-            <div className="p-20 text-center">
-               <DollarSign className="w-12 h-12 text-rose-100 mx-auto mb-4" />
-               <p className="text-gray-400 font-bold uppercase tracking-widest">Nenhum registro encontrado</p>
-            </div>
-          )}
-        </div>
-
-        {/* Mobile View for Pagamentos */}
-        <div className="lg:hidden divide-y divide-rose-50">
-          {filteredApps.length > 0 ? (
-            filteredApps.map(app => {
-              const client = clients.find(c => c.id === app.clientId);
-              const proc = procedures.find(p => p.id === app.procedureId);
-              const paid = app.paidAmount || 0;
-              const remaining = app.price - paid;
-              const isPartial = paid > 0 && !app.isPaid;
-
-              return (
-                <div key={app.id} className="p-6 space-y-4">
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-500 font-bold">
-                        {client?.name?.charAt(0) || '?'}
-                      </div>
-                      <div>
-                        <p className="font-bold text-gray-900 leading-tight">{client?.name}</p>
-                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
-                          {app.date ? format(parseISO(app.date), 'dd/MM/yyyy') : '-'}
-                        </p>
-                      </div>
-                    </div>
-                    <span className={cn(
-                      "px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest",
-                      app.isPaid ? "bg-emerald-100 text-emerald-600" :
-                      isPartial ? "bg-amber-100 text-amber-600" : "bg-red-100 text-red-600"
-                    )}>
-                      {app.isPaid ? 'Pago' : isPartial ? 'Parcial' : 'Pendente'}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="p-3 bg-gray-50 rounded-2xl">
-                      <p className="text-[9px] font-black uppercase text-gray-400 tracking-wider mb-0.5">Total</p>
-                      <p className="text-sm font-black text-gray-900">{formatCurrency(app.price)}</p>
-                    </div>
-                    <div className="p-3 bg-emerald-50 rounded-2xl">
-                      <p className="text-[9px] font-black uppercase text-emerald-400 tracking-wider mb-0.5">Pago</p>
-                      <p className="text-sm font-black text-emerald-600">{formatCurrency(paid)}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2">
-                    <div>
-                      <p className="text-[9px] font-black uppercase text-gray-400 tracking-wider mb-0.5">Restante</p>
-                      <p className="text-lg font-black text-rose-600">{formatCurrency(Math.max(0, remaining))}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => onEditAppointment(app)}
-                        className="p-3 bg-gray-50 text-gray-400 rounded-xl"
-                        title="Editar Registro"
-                      >
-                        <Pencil className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => onDeleteAppointment(app.id)}
-                        className="p-3 bg-gray-50 text-gray-300 hover:text-red-500 rounded-xl"
-                        title="Excluir Registro"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                      {!app.isPaid && (
-                        <button
-                          onClick={() => onSendWhatsApp(app, 'payment')}
-                          className="p-3 bg-emerald-50 text-emerald-600 rounded-xl"
-                        >
-                          <MessageCircle className="w-5 h-5" />
-                        </button>
-                      )}
-                      {!app.isPaid ? (
-                        <button
-                          onClick={() => onMarkAsPaid(app.id)}
-                          className="px-6 py-3 bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-100"
-                        >
-                          {isPartial ? 'Completar' : 'Receber'}
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => onUndoMarkAsPaid(app.id)}
-                          className="p-3 bg-gray-50 text-gray-400 rounded-xl"
-                        >
-                          <RefreshCcw className="w-5 h-5" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          ) : (
-            <div className="p-12 text-center text-gray-400 font-bold uppercase tracking-widest text-[10px]">
-              Nenhum registro de pagamento encontrado.
-            </div>
+              })
+            ) : (
+              <div className="p-12 text-center text-gray-400 font-bold uppercase tracking-widest text-[10px]">
+                Nenhum registro de pagamento encontrado.
+              </div>
+            )
           )}
         </div>
       </div>
