@@ -6317,62 +6317,65 @@ export default function App() {
         const resData = await response.json();
         if (resData.status === 'success' && resData.data) {
           const { clientName, procedureName, date, time, notes } = resData.data;
+          const formEl = document.getElementById('new-appointment-form');
 
-          if (date) {
-            const dateInput = document.querySelector('input[name="date"]') as HTMLInputElement;
-            if (dateInput) {
-              dateInput.value = date;
-              dateInput.dispatchEvent(new Event('input', { bubbles: true }));
+          if (formEl) {
+            if (date) {
+              const dateInput = formEl.querySelector('input[name="date"]') as HTMLInputElement;
+              if (dateInput) {
+                dateInput.value = date;
+                dateInput.dispatchEvent(new Event('input', { bubbles: true }));
+              }
             }
-          }
-          if (time) {
-            const timeInput = document.querySelector('input[name="time"]') as HTMLInputElement;
-            if (timeInput) {
-              timeInput.value = time;
-              timeInput.dispatchEvent(new Event('input', { bubbles: true }));
+            if (time) {
+              const timeInput = formEl.querySelector('input[name="time"]') as HTMLInputElement;
+              if (timeInput) {
+                timeInput.value = time;
+                timeInput.dispatchEvent(new Event('input', { bubbles: true }));
+              }
             }
-          }
 
-          if (clientName) {
-            const clientSearchInput = document.querySelector('input[name="clientSearch"]') as HTMLInputElement;
-            if (clientSearchInput) {
-              clientSearchInput.value = clientName;
-              clientSearchInput.dispatchEvent(new Event('input', { bubbles: true }));
+            if (clientName) {
+              const clientSearchInput = formEl.querySelector('input[name="clientSearch"]') as HTMLInputElement;
+              if (clientSearchInput) {
+                clientSearchInput.value = clientName;
+                clientSearchInput.dispatchEvent(new Event('input', { bubbles: true }));
 
-              const matchedClient = clients.find(c => (c.name || '').toLowerCase().includes(clientName.toLowerCase()));
-              if (matchedClient) {
-                clientSearchInput.value = matchedClient.name;
-                const hiddenInput = document.getElementById('selected-client-id') as HTMLInputElement;
-                if (hiddenInput) {
-                  hiddenInput.value = matchedClient.id;
-                  hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
+                const matchedClient = clients.find(c => (c.name || '').toLowerCase().includes(clientName.toLowerCase()));
+                if (matchedClient) {
+                  clientSearchInput.value = matchedClient.name;
+                  const hiddenInput = formEl.querySelector('#selected-client-id') as HTMLInputElement;
+                  if (hiddenInput) {
+                    hiddenInput.value = matchedClient.id;
+                    hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
+                  }
                 }
               }
             }
-          }
 
-          if (procedureName) {
-            const selectProc = document.querySelector('select[name="procedureId"]') as HTMLSelectElement;
-            if (selectProc) {
-              const matchedProc = procedures.find(p => (p.name || '').toLowerCase().includes(procedureName.toLowerCase()));
-              if (matchedProc) {
-                selectProc.value = matchedProc.id;
-                selectProc.dispatchEvent(new Event('change', { bubbles: true }));
-              } else {
-                const closestProc = procedures.find(p => procedureName.toLowerCase().includes((p.name || '').toLowerCase()));
-                if (closestProc) {
-                  selectProc.value = closestProc.id;
+            if (procedureName) {
+              const selectProc = formEl.querySelector('select[name="procedureId"]') as HTMLSelectElement;
+              if (selectProc) {
+                const matchedProc = procedures.find(p => (p.name || '').toLowerCase().includes(procedureName.toLowerCase()));
+                if (matchedProc) {
+                  selectProc.value = matchedProc.id;
                   selectProc.dispatchEvent(new Event('change', { bubbles: true }));
+                } else {
+                  const closestProc = procedures.find(p => procedureName.toLowerCase().includes((p.name || '').toLowerCase()));
+                  if (closestProc) {
+                    selectProc.value = closestProc.id;
+                    selectProc.dispatchEvent(new Event('change', { bubbles: true }));
+                  }
                 }
               }
             }
-          }
 
-          if (notes) {
-            const notesInput = document.querySelector('textarea[name="notes"]') as HTMLTextAreaElement;
-            if (notesInput) {
-              notesInput.value = notes;
-              notesInput.dispatchEvent(new Event('input', { bubbles: true }));
+            if (notes) {
+              const notesInput = formEl.querySelector('textarea[name="notes"]') as HTMLTextAreaElement;
+              if (notesInput) {
+                notesInput.value = notes;
+                notesInput.dispatchEvent(new Event('input', { bubbles: true }));
+              }
             }
           }
 
@@ -7936,6 +7939,7 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
                 setIsRecurring(false); // Reset recurrence
               }}
               className="space-y-4"
+              id="new-appointment-form"
             >
               <div className="space-y-1">
                 <div className="flex justify-between items-center">
