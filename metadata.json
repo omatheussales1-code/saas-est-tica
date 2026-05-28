@@ -1,5 +1,6 @@
 {
   "name": "OrbyFlow",
   "description": "Sistema profissional de gestão inteligente para profissionais de estética.",
-  "requestFramePermissions": []
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -4,6 +4,26 @@ import { fileURLToPath } from 'url';
 import admin from 'firebase-admin';
 import fs from 'fs';
 import crypto from 'crypto';
+import { GoogleGenAI, Type } from '@google/genai';
+
+let geminiClient: GoogleGenAI | null = null;
+function getGeminiClient(): GoogleGenAI {
+  if (!geminiClient) {
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) {
+      throw new Error('Chave de API do Gemini (GEMINI_API_KEY) não configurada. Configure no painel de Segredos.');
+    }
+    geminiClient = new GoogleGenAI({
+      apiKey: key,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
+  }
+  return geminiClient;
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -237,6 +257,81 @@ app.post('/api/auth/check-email', async (req, res) => {
   } catch (error) {
     console.error('Error checking authorized email:', error);
     res.status(500).json({ status: 'error', message: 'Internal server error' });
+  }
+});
+
+// AI Voice Dictation Parser for Appointments
+app.post('/api/gemini/parse-scheduling', async (req, res) => {
+  const { text, contextDate, contextDayOfWeek, contextTime } = req.body;
+  if (!text) {
+    return res.status(400).json({ status: 'error', message: 'Texto para processamento é obrigatório.' });
+  }
+
+  try {
+    const ai = getGeminiClient();
+    
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.5-flash',
+      contents: `Processe o ditado a seguir:
+"${text}"`,
+      config: {
+        systemInstruction: `Você é um assistente especialista e recepcionista para uma clínica de estética que ajuda a extrair e estruturar agendamentos a partir de transcrições de voz (ditado).
+Você receberá uma transcrição de voz livre e as informações da data/hora de hoje para resolver termos relativos como "amanhã", "segunda-feira que vem", "às duas da tarde", "daqui a pouco", etc.
+
+Data de hoje: ${contextDate || new Date().toISOString().split('T')[0]}
+Dia da semana de hoje: ${contextDayOfWeek || 'desconhecido'}
+Hora de hoje: ${contextTime || '09:00'}
+
+Sua tarefa consiste em extrair as seguintes informações e retornar EXCLUSIVAMENTE o formato JSON estruturado seguindo o esquema definido.
+Atenção especial para as regras de cálculo de datas relativas:
+- Se hoje é quinta-feira e o áudio ditar "amanhã", a dataCalculada é sexta-feira (amanhã).
+- Se hoje é quinta-feira e o áudio ditar "segunda que vem" ou "segunda-feira", a dataCalculada é a próxima segunda-feira calendário adentro.`,
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            clientName: {
+              type: Type.STRING,
+              description: 'Nome do cliente ou paciente mencionado, ex: "Amanda Silva". Retornar vazio ("") se não mencionado.'
+            },
+            procedureName: {
+              type: Type.STRING,
+              description: 'Nome do procedimento ou tratamento mencionado, ex: "Limpeza de Pele". Retornar vazio ("") se não mencionado.'
+            },
+            date: {
+              type: Type.STRING,
+              description: 'Data do agendamento calculada no formato YYYY-MM-DD. Se não mencionado e não for possível deduzir, retorne a data de hoje.'
+            },
+            time: {
+              type: Type.STRING,
+              description: 'Horário do agendamento no formato de 24 horas HH:MM, ex: "14:30". Retornar vazio ("") se não embutido.'
+            },
+            price: {
+              type: Type.NUMBER,
+              description: 'O valor cobrado mencionado (número), ex: 150.0. Retornar null se não mencionado.'
+            },
+            notes: {
+              type: Type.STRING,
+              description: 'Qualquer observação relevante descrita pelo profissional (como restrições, sintomas ou lembretes), ex: "observações: necessita vir sem maquiagem". Retornar vazio ("") se não mencionado.'
+            },
+            reasoning: {
+              type: Type.STRING,
+              description: 'Breve resumo em português da interpretação do agendamento (máximo de 15 palavras) para visualização rápida.'
+            }
+          },
+          required: ['clientName', 'procedureName', 'date', 'time', 'price', 'notes', 'reasoning']
+        }
+      }
+    });
+
+    const parsedResult = JSON.parse(response.text || '{}');
+    res.json({ status: 'success', data: parsedResult });
+  } catch (error: any) {
+    console.error('Error parsing schedule with Gemini:', error);
+    res.status(500).json({ 
+      status: 'error', 
+      message: error.message || 'Erro ao processar as informações de voz com IA.' 
+    });
   }
 });
 

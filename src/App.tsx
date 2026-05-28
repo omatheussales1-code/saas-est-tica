@@ -48,7 +48,8 @@ import {
   X,
   CreditCard,
   RefreshCcw,
-  Mail
+  Mail,
+  Mic
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { 
@@ -6263,6 +6264,145 @@ export default function App() {
   };
   
   const [isNewAppModalOpen, setIsNewAppModalOpen] = useState(false);
+  const [isListeningVoice, setIsListeningVoice] = useState(false);
+  const [voiceProcessing, setVoiceProcessing] = useState(false);
+  const [voiceRecognitionRef, setVoiceRecognitionRef] = useState<any>(null);
+
+  const stopAndProcessVoice = () => {
+    if (voiceRecognitionRef) {
+      voiceRecognitionRef.stop();
+    }
+  };
+
+  const handleVoiceDictation = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      addNotification('Reconhecimento de voz não é suportado pelo seu navegador.', 'error');
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'pt-BR';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.continuous = false;
+
+    setVoiceRecognitionRef(recognition);
+    setIsListeningVoice(true);
+
+    recognition.onstart = () => {};
+
+    recognition.onresult = async (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setIsListeningVoice(false);
+      setVoiceProcessing(true);
+
+      try {
+        const today = new Date();
+        const ptDays = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
+        const currentDayStr = ptDays[today.getDay()];
+        const currentTimeStr = today.toTimeString().split(' ')[0].substring(0, 5);
+
+        const response = await fetch('/api/gemini/parse-scheduling', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: transcript,
+            contextDate: format(today, 'yyyy-MM-dd'),
+            contextDayOfWeek: currentDayStr,
+            contextTime: currentTimeStr
+          })
+        });
+
+        const resData = await response.json();
+        if (resData.status === 'success' && resData.data) {
+          const { clientName, procedureName, date, time, notes } = resData.data;
+
+          if (date) {
+            const dateInput = document.querySelector('input[name="date"]') as HTMLInputElement;
+            if (dateInput) {
+              dateInput.value = date;
+              dateInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+          }
+          if (time) {
+            const timeInput = document.querySelector('input[name="time"]') as HTMLInputElement;
+            if (timeInput) {
+              timeInput.value = time;
+              timeInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+          }
+
+          if (clientName) {
+            const clientSearchInput = document.querySelector('input[name="clientSearch"]') as HTMLInputElement;
+            if (clientSearchInput) {
+              clientSearchInput.value = clientName;
+              clientSearchInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+              const matchedClient = clients.find(c => (c.name || '').toLowerCase().includes(clientName.toLowerCase()));
+              if (matchedClient) {
+                clientSearchInput.value = matchedClient.name;
+                const hiddenInput = document.getElementById('selected-client-id') as HTMLInputElement;
+                if (hiddenInput) {
+                  hiddenInput.value = matchedClient.id;
+                  hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+              }
+            }
+          }
+
+          if (procedureName) {
+            const selectProc = document.querySelector('select[name="procedureId"]') as HTMLSelectElement;
+            if (selectProc) {
+              const matchedProc = procedures.find(p => (p.name || '').toLowerCase().includes(procedureName.toLowerCase()));
+              if (matchedProc) {
+                selectProc.value = matchedProc.id;
+                selectProc.dispatchEvent(new Event('change', { bubbles: true }));
+              } else {
+                const closestProc = procedures.find(p => procedureName.toLowerCase().includes((p.name || '').toLowerCase()));
+                if (closestProc) {
+                  selectProc.value = closestProc.id;
+                  selectProc.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+              }
+            }
+          }
+
+          if (notes) {
+            const notesInput = document.querySelector('textarea[name="notes"]') as HTMLTextAreaElement;
+            if (notesInput) {
+              notesInput.value = notes;
+              notesInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+          }
+
+          const rReason = resData.data.reasoning || 'Ditado interpretado com sucesso!';
+          addNotification('IA: ' + rReason, 'info');
+        } else {
+          addNotification(resData.message || 'Erro ao processar áudio.', 'warning');
+        }
+      } catch (err) {
+        addNotification('Erro ao comunicar com a IA para estruturar agendamento.', 'error');
+      } finally {
+        setVoiceProcessing(false);
+      }
+    };
+
+    recognition.onerror = (e: any) => {
+      setIsListeningVoice(false);
+      if (e.error === 'not-allowed') {
+        addNotification('Acesso ao microfone recusado. Libere a permissão para ditar.', 'warning');
+      } else {
+        addNotification('Gravação interrompida ou microfone não detectado.', 'warning');
+      }
+    };
+
+    recognition.onend = () => {
+      setIsListeningVoice(false);
+    };
+
+    recognition.start();
+  };
   const [isNewClientModalOpen, setIsNewClientModalOpen] = useState(false);
   const [isNewFollowUpModalOpen, setIsNewFollowUpModalOpen] = useState(false);
   const [clientStep, setClientStep] = useState(1);
@@ -7605,10 +7745,76 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
             </div>
 
             <div className="p-8 pt-6 overflow-y-auto custom-scrollbar">
+              {/* Intelligent Voice Dictation Bar */}
+              <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-rose-500/5 to-amber-500/5 border border-rose-100 flex flex-col gap-3 relative overflow-hidden">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="relative flex items-center justify-center shrink-0">
+                      {isListeningVoice ? (
+                        <>
+                          <span className="absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75 animate-ping" />
+                          <div className="bg-rose-500 text-white p-2 rounded-xl relative z-10">
+                            <Mic className="w-4 h-4 animate-bounce" />
+                          </div>
+                        </>
+                      ) : voiceProcessing ? (
+                        <div className="bg-amber-500 text-white p-2 rounded-xl">
+                          <Sparkles className="w-4 h-4 animate-spin" />
+                        </div>
+                      ) : (
+                        <div className="bg-rose-100 text-rose-500 p-2 rounded-xl">
+                          <Mic className="w-4 h-4" />
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
+                        Agendamento por Voz Inteligente
+                      </h4>
+                      <p className="text-[10px] text-gray-500 font-bold leading-tight">
+                        {isListeningVoice 
+                          ? "Ouvindo... Toque em Finalizar quando terminar" 
+                          : voiceProcessing 
+                            ? "Analisando voz com Inteligência Artificial..." 
+                            : "Diga ex: \"Agendar Maria Silva amanhã às 14h para Limpeza de Pele\""}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <button
+                    type="button"
+                    disabled={voiceProcessing}
+                    onClick={isListeningVoice ? stopAndProcessVoice : handleVoiceDictation}
+                    className={cn(
+                      "px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer shrink-0 shadow-xs",
+                      isListeningVoice 
+                        ? "bg-rose-500 text-white animate-pulse" 
+                        : voiceProcessing
+                          ? "bg-amber-100 text-amber-600 cursor-not-allowed"
+                          : "bg-white text-gray-800 hover:bg-gray-50 border border-gray-100 shadow-sm active:scale-95"
+                    )}
+                  >
+                    {isListeningVoice ? "Finalizar" : voiceProcessing ? "Lendo..." : "Gravar"}
+                  </button>
+                </div>
+
+                {isListeningVoice && (
+                  <div className="flex items-center gap-1 justify-center py-2 bg-rose-500/5 rounded-xl border border-rose-100/40">
+                    <div className="h-3 w-1 bg-rose-500 rounded-full animate-bounce [animation-delay:0.1s]" />
+                    <div className="h-4.5 w-1 bg-rose-500 rounded-full animate-bounce [animation-delay:0.3s]" />
+                    <div className="h-6 w-1 bg-rose-500 rounded-full animate-bounce [animation-delay:0.5s]" />
+                    <div className="h-4.5 w-1 bg-rose-500 rounded-full animate-bounce [animation-delay:0.2s]" />
+                    <div className="h-3 w-1 bg-rose-500 rounded-full animate-bounce [animation-delay:0.4s]" />
+                    <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest ml-2 animate-pulse">Sintonizando voz... fale agora</span>
+                  </div>
+                )}
+              </div>
+
               <form 
                 onSubmit={async (e) => {
                 e.preventDefault();
                 const formData = new FormData(e.currentTarget);
+                const notesStr = formData.get('notes') as string || '';
                 const dateStr = formData.get('date') as string;
                 const timeStr = formData.get('time') as string;
                 let clientId = formData.get('clientId') as string;
@@ -7679,7 +7885,8 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
                         status: 'confirmado',
                         price: proc?.price || 0,
                         sessionNumber: appsToCreate.length + 1,
-                        totalSessions: maxTotal
+                        totalSessions: maxTotal,
+                        notes: notesStr
                       });
                     }
 
@@ -7719,7 +7926,8 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
                     status: 'confirmado',
                     price: proc?.price || 0,
                     sessionNumber,
-                    totalSessions
+                    totalSessions,
+                    notes: notesStr
                   });
                 }
 
@@ -7834,6 +8042,16 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
                     <option key={p.id} value={p.id}>{p.name} - {formatCurrency(p.price)}</option>
                   ))}
                 </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-400 uppercase">Observações do Agendamento</label>
+                <textarea 
+                  name="notes" 
+                  rows={2}
+                  placeholder="Ex: Preferência por cor clara, trazer referência de design..." 
+                  className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 resize-none text-[11px] font-bold text-gray-700 placeholder:text-gray-300"
+                />
               </div>
 
               <div className="pt-2 border-t border-gray-50">
