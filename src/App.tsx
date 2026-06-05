@@ -5983,6 +5983,12 @@ export default function App() {
   useEffect(() => {
     if (isDemo) {
       console.log('Activating Demo Mode...');
+      if (typeof window !== 'undefined' && (window as any).gtag) {
+        (window as any).gtag('event', 'enter_demo', {
+          'event_category': 'Engagement',
+          'event_label': 'Usuario entrou no modo Demo'
+        });
+      }
       // Set all mock data
       setClients(MOCK_CLIENTS);
       setAppointments(MOCK_APPOINTMENTS);
@@ -6220,6 +6226,26 @@ export default function App() {
     } catch (e) { console.error(e); }
   };
 
+  const trackClickBuySaaS = (location: string) => {
+    if (typeof window !== 'undefined' && (window as any).gtag) {
+      (window as any).gtag('event', 'click_buy_saas', {
+        'event_category': 'Conversion',
+        'event_label': `Usuario clicou para comprar no: ${location}`
+      });
+    }
+    window.open(UPGRADE_URL, '_blank');
+  };
+
+  const trackClickWhatsAppCreator = () => {
+    if (typeof window !== 'undefined' && (window as any).gtag) {
+      (window as any).gtag('event', 'click_whatsapp_creator', {
+        'event_category': 'Engagement',
+        'event_label': 'Usuario clicou para falar no WhatsApp com o criador'
+      });
+    }
+    window.open('https://wa.me/5521969457083?text=Olá!+Gostaria+de+agendar+uma+conversa+sobre+o+OrbyFlow.', '_blank');
+  };
+
   const handleGoogleLogin = async (isRegisteringFlow: boolean = false) => {
     setIsGoogleLoggingIn(true);
     setAuthError(null);
@@ -6240,6 +6266,14 @@ export default function App() {
       if (!hasAccess) {
         // This is a new user!
         if (isRegisteringFlow) {
+          // Send signup GA event
+          if (typeof window !== 'undefined' && (window as any).gtag) {
+            (window as any).gtag('event', 'sign_up_google', {
+              'event_category': 'Engagement',
+              'event_label': 'Usuario cadastrou com Google'
+            });
+          }
+
           // If they came from the "Criar Conta Grátis" Google login button:
           // We can automatically authorize them!
           try {
@@ -6302,6 +6336,13 @@ export default function App() {
         }
       } else {
         // They already have an account! Just log them in. 
+        if (typeof window !== 'undefined' && (window as any).gtag) {
+          (window as any).gtag('event', 'login_google', {
+            'event_category': 'Engagement',
+            'event_label': 'Usuario entrou com Google'
+          });
+        }
+
         setIsAuthorized(true);
         setActivePlan(profileSnap.exists() ? (profileSnap.data()?.plan || 'Plano Profissional') : 'Plano Profissional');
         addNotification('Bem-vinda de volta ao OrbyFlow!', 'info');
@@ -6660,6 +6701,13 @@ export default function App() {
         }
       });
 
+      if (typeof window !== 'undefined' && (window as any).gtag) {
+        (window as any).gtag('event', 'sign_up_email', {
+          'event_category': 'Engagement',
+          'event_label': 'Usuario cadastrou com email'
+        });
+      }
+
       setIsAuthorized(true);
       setActivePlan('Plano Profissional');
       setUserProfile(defaultProfile as any);
@@ -6722,6 +6770,12 @@ export default function App() {
         localStorage.removeItem('last_login_email');
       }
       await signInWithEmailAndPassword(auth, email, password);
+      if (typeof window !== 'undefined' && (window as any).gtag) {
+        (window as any).gtag('event', 'login_email', {
+          'event_category': 'Engagement',
+          'event_label': 'Usuario entrou com email'
+        });
+      }
     } catch (error: any) {
       if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
         setAuthError('Usuário não encontrado ou senha incorreta. Se você é novo, aguarde a liberação do seu acesso.');
@@ -8078,7 +8132,7 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
               </p>
             </div>
             <button 
-              onClick={() => window.open('https://wa.me/5521969457083?text=Olá!+Gostaria+de+agendar+uma+conversa+sobre+o+OrbyFlow.', '_blank')}
+              onClick={trackClickWhatsAppCreator}
               className="bg-white border hover:border-rose-400 hover:text-rose-600 text-rose-500 font-black px-4.5 py-3 rounded-xl text-[9px] uppercase tracking-widest transition-all shrink-0 shadow-xs active:scale-95"
             >
               Agendar Conversa 📆
@@ -8171,7 +8225,7 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
           <p className="text-gray-500 mb-8">Para acessar o sistema, você precisa adquirir sua licença via Kiwify. Se você já comprou, aguarde alguns instantes até que seu e-mail seja liberado.</p>
           
           <button 
-            onClick={() => window.open(UPGRADE_URL, '_blank')}
+            onClick={() => trackClickBuySaaS('acesso_nao_liberado')}
             className="w-full bg-rose-500 text-white p-4 rounded-2xl font-bold mb-3 shadow-lg shadow-rose-100 transition-all hover:bg-rose-600 active:scale-95"
           >
             Comprar Licença agora
@@ -8212,7 +8266,7 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
           <div className="hidden sm:block w-px h-10 bg-slate-100" />
           <button 
             type="button"
-            onClick={() => window.open(UPGRADE_URL, '_blank')}
+            onClick={() => trackClickBuySaaS('barra_demo')}
             className="group relative overflow-hidden bg-[#050b1a] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl font-black text-[9px] sm:text-[10px] uppercase tracking-widest transition-all hover:scale-105 active:scale-95 shadow-xl shadow-blue-200/50 w-full sm:w-auto"
           >
             <span className="relative z-10 transition-colors group-hover:text-blue-200">Adquirir Versão Completa</span>
