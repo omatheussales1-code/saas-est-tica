@@ -98,6 +98,8 @@ import {
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { db, auth, googleProvider, signInWithPopup, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from './firebase';
 import { cn } from './lib/utils';
+import { AdminControlCenter } from './components/AdminControlCenter';
+import { GoogleOnboardingModal } from './components/GoogleOnboardingModal';
 import { 
   Client, 
   Appointment, 
@@ -813,7 +815,7 @@ const PagamentosTab = ({
               {groupByPackage ? (
                 groupedData.map(group => {
                   const client = clients.find(c => c.id === group.activeApp.clientId);
-                  const proc = procedures.find(p => p.id === group.activeApp.procedureId);
+                  const proc = getAppProcedure(group.activeApp, procedures);
                   const isExpanded = expandedGroups[group.key];
                   const nextUnpaidApp = group.appointments.find(a => !a.isPaid);
 
@@ -1029,7 +1031,7 @@ const PagamentosTab = ({
               ) : (
                 filteredApps.map(app => {
                   const client = clients.find(c => c.id === app.clientId);
-                  const proc = procedures.find(p => p.id === app.procedureId);
+                  const proc = getAppProcedure(app, procedures);
                   const paid = app.paidAmount || 0;
                   const remaining = app.price - paid;
                   const isPartial = paid > 0 && !app.isPaid;
@@ -1150,7 +1152,7 @@ const PagamentosTab = ({
             groupedData.length > 0 ? (
               groupedData.map(group => {
                 const client = clients.find(c => c.id === group.activeApp.clientId);
-                const proc = procedures.find(p => p.id === group.activeApp.procedureId);
+                const proc = getAppProcedure(group.activeApp, procedures);
                 const isExpanded = expandedGroups[group.key];
                 const nextUnpaidApp = group.appointments.find(a => !a.isPaid);
 
@@ -1318,7 +1320,7 @@ const PagamentosTab = ({
             filteredApps.length > 0 ? (
               filteredApps.map(app => {
                 const client = clients.find(c => c.id === app.clientId);
-                const proc = procedures.find(p => p.id === app.procedureId);
+                const proc = getAppProcedure(app, procedures);
                 const paid = app.paidAmount || 0;
                 const remaining = app.price - paid;
                 const isPartial = paid > 0 && !app.isPaid;
@@ -1684,7 +1686,7 @@ const Dashboard = ({
             {todayAppointments.length > 0 ? (
               todayAppointments.slice(0, 5).map((app, index) => {
                 const client = clients.find(c => c.id === app.clientId);
-                const proc = procedures.find(p => p.id === app.procedureId);
+                const proc = getAppProcedure(app, procedures);
                 return (
                   <motion.div 
                     key={app.id}
@@ -1749,7 +1751,7 @@ const Dashboard = ({
             {tomorrowAppointments.length > 0 ? (
               tomorrowAppointments.map((app, index) => {
                 const client = clients.find(c => c.id === app.clientId);
-                const proc = procedures.find(p => p.id === app.procedureId);
+                const proc = getAppProcedure(app, procedures);
                 return (
                   <motion.div 
                     key={app.id}
@@ -1815,7 +1817,7 @@ const Dashboard = ({
             {todayAppointments.length > 0 ? (
               todayAppointments.map((app, index) => {
                 const client = clients.find(c => c.id === app.clientId);
-                const proc = procedures.find(p => p.id === app.procedureId);
+                const proc = getAppProcedure(app, procedures);
                 const isLate = app.status === 'atrasado';
                 const isDone = app.status === 'realizado';
 
@@ -2081,7 +2083,7 @@ const Agenda = ({
             {dayAppointments.length > 0 ? (
               dayAppointments.map((app, index) => {
                 const client = clients.find(c => c.id === app.clientId);
-                const proc = procedures.find(p => p.id === app.procedureId);
+                const proc = getAppProcedure(app, procedures);
                 const isLate = app.status === 'atrasado';
                 const isRealized = app.status === 'realizado';
 
@@ -2942,7 +2944,7 @@ const ClientsTab = ({
               <h3 className="text-lg font-bold text-gray-900 mb-6">Histórico</h3>
               <div className="space-y-4">
                 {clientAppointments.map(app => {
-                  const proc = procedures.find(p => p.id === app.procedureId);
+                  const proc = getAppProcedure(app, procedures);
                   return (
                     <div key={app.id} className="flex justify-between items-center p-4 rounded-xl bg-gray-50">
                       <div>
@@ -3226,7 +3228,7 @@ const AppointmentsTab = ({
             <tbody className="divide-y divide-gray-100">
               {filteredAppointments.map(app => {
                 const client = clients.find(c => c.id === app.clientId);
-                const proc = procedures.find(p => p.id === app.procedureId);
+                const proc = getAppProcedure(app, procedures);
                 return (
                   <tr key={app.id} className="hover:bg-rose-50/30 transition-colors group">
                     <td className="px-6 py-4">
@@ -3303,7 +3305,7 @@ const AppointmentsTab = ({
           {filteredAppointments.length > 0 ? (
             filteredAppointments.map(app => {
               const client = clients.find(c => c.id === app.clientId);
-              const proc = procedures.find(p => p.id === app.procedureId);
+              const proc = getAppProcedure(app, procedures);
               return (
                 <div key={app.id} className="p-5 space-y-4">
                   <div className="flex justify-between items-start">
@@ -5927,6 +5929,22 @@ const ObrigadoPage = ({ addNotification, setCurrentPage, setIsAuthorized }: Obri
   );
 };
 
+const getAppProcedure = (app: Appointment | undefined, proceduresList: Procedure[]) => {
+  if (!app) return undefined;
+  if (app.procedureIds && app.procedureIds.length > 0) {
+    const matchedProcs = app.procedureIds.map(id => proceduresList.find(p => p.id === id)).filter(Boolean) as Procedure[];
+    if (matchedProcs.length > 0) {
+      return {
+        id: app.procedureId,
+        name: matchedProcs.map(p => p.name).join(' + '),
+        price: app.price || matchedProcs.reduce((sum, p) => sum + p.price, 0),
+        duration: matchedProcs.reduce((sum, p) => sum + p.duration, 0)
+      };
+    }
+  }
+  return proceduresList.find(p => p.id === app.procedureId);
+};
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [user, setUser] = useState<User | null>(IS_DEMO_INITIAL ? ({ uid: 'demo-user' } as any) : null);
@@ -6202,12 +6220,92 @@ export default function App() {
     } catch (e) { console.error(e); }
   };
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleLogin = async (isRegisteringFlow: boolean = false) => {
     setIsGoogleLoggingIn(true);
     setAuthError(null);
     try {
-      await signInWithPopup(auth, googleProvider);
-      addNotification('Acesso autenticado com o Google!', 'info');
+      const result = await signInWithPopup(auth, googleProvider);
+      const userObj = result.user;
+      const lowerEmail = userObj.email?.toLowerCase()?.trim() || '';
+      
+      // Check if they have a profile or authorized_email
+      const authRef = doc(db, 'authorized_emails', lowerEmail);
+      const authSnap = await getDoc(authRef);
+      
+      const profileRef = doc(db, 'userProfiles', userObj.uid);
+      const profileSnap = await getDoc(profileRef);
+      
+      const hasAccess = authSnap.exists() || profileSnap.exists();
+      
+      if (!hasAccess) {
+        // This is a new user!
+        if (isRegisteringFlow) {
+          // If they came from the "Criar Conta Grátis" Google login button:
+          // We can automatically authorize them!
+          try {
+            await setDoc(doc(db, 'authorized_emails', lowerEmail), {
+              email: lowerEmail,
+              createdAt: new Date().toISOString(),
+              createdBy: 'google_signup',
+              productName: 'Plano Profissional',
+              status: 'active'
+            });
+          } catch (err) {
+            console.error('Error auto-authorizing Google signup:', err);
+          }
+          
+          // Build default user profile (without phone, since we will collect it via GoogleOnboardingModal)
+          const defaultProfile = {
+            name: userObj.displayName || '',
+            businessName: (userObj.displayName || '') + ' Estética',
+            specialty: 'Estética',
+            phone: '', // Will be registered with the modal as soon as they log in
+            address: '',
+            instagram: '',
+            workingHours: { start: '08:00', end: '18:00' },
+            workingDays: [1, 2, 3, 4, 5],
+            budgetValidityDays: 7,
+            clientLabel: 'Cliente',
+            ownerId: userObj.uid,
+            email: lowerEmail,
+            plan: 'Plano Profissional',
+            accentColor: 'rose',
+            createdAt: new Date().toISOString(),
+            setupComplete: false
+          };
+          
+          await setDoc(doc(db, 'userProfiles', userObj.uid), defaultProfile);
+          
+          // Track event
+          const eventId = Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+          await setDoc(doc(db, 'userEvents', eventId), {
+            userId: userObj.uid,
+            userEmail: lowerEmail,
+            userName: userObj.displayName || '',
+            eventType: 'google_registration_started',
+            timestamp: new Date().toISOString(),
+            details: {
+              origin: 'Google Button'
+            }
+          });
+          
+          setIsAuthorized(true);
+          setActivePlan('Plano Profissional');
+          setUserProfile(defaultProfile as any);
+          addNotification('Cadastro iniciado com sucesso! Confirme os dados abaixo para concluir seu acesso.', 'info');
+        } else {
+          // If they came from the "Entrar" tab (Login flow) but do NOT have an account yet:
+          // We sign them out, show an error/warning message, and redirect them to the register tab!
+          await signOut(auth);
+          setIsRegisterMode(true);
+          setAuthError('Você ainda não possui uma conta criada com o Google. Preencha seus dados abaixo ou use o botão do Google na aba "Criar Conta Grátis" para se cadastrar gratuitamente!');
+        }
+      } else {
+        // They already have an account! Just log them in. 
+        setIsAuthorized(true);
+        setActivePlan(profileSnap.exists() ? (profileSnap.data()?.plan || 'Plano Profissional') : 'Plano Profissional');
+        addNotification('Bem-vinda de volta ao OrbyFlow!', 'info');
+      }
     } catch (e: any) {
       console.error(e);
       if (e.code !== 'auth/popup-closed-by-user') {
@@ -6264,9 +6362,31 @@ export default function App() {
   };
   
   const [isNewAppModalOpen, setIsNewAppModalOpen] = useState(false);
+  const [selectedNewAppProcedureIds, setSelectedNewAppProcedureIds] = useState<string[]>([]);
+  
+  // Voice confirmation states
+  const [isVoiceConfirmModalOpen, setIsVoiceConfirmModalOpen] = useState(false);
+  const [voiceParsedData, setVoiceParsedData] = useState<{
+    clientName: string;
+    procedureIds: string[];
+    date: string;
+    time: string;
+    notes: string;
+    reasoning?: string;
+    isNewClient: boolean;
+    matchedClientId?: string;
+  } | null>(null);
+  
+  useEffect(() => {
+    if (isNewAppModalOpen) {
+      setSelectedNewAppProcedureIds([]);
+    }
+  }, [isNewAppModalOpen]);
+
   const [isListeningVoice, setIsListeningVoice] = useState(false);
   const [voiceProcessing, setVoiceProcessing] = useState(false);
   const [voiceRecognitionRef, setVoiceRecognitionRef] = useState<any>(null);
+  const [liveVoiceTranscript, setLiveVoiceTranscript] = useState('');
 
   const stopAndProcessVoice = () => {
     if (voiceRecognitionRef) {
@@ -6283,19 +6403,55 @@ export default function App() {
 
     const recognition = new SpeechRecognition();
     recognition.lang = 'pt-BR';
-    recognition.interimResults = false;
+    recognition.interimResults = true;
     recognition.maxAlternatives = 1;
-    recognition.continuous = false;
+    recognition.continuous = true;
 
     setVoiceRecognitionRef(recognition);
     setIsListeningVoice(true);
+    setLiveVoiceTranscript('');
+    
+    // Track voice feature engagement
+    logUserEvent('voice_record_start');
+
+    let finalTranscript = '';
+    let hasError = false;
 
     recognition.onstart = () => {};
 
-    recognition.onresult = async (event: any) => {
-      const transcript = event.results[0][0].transcript;
+    recognition.onresult = (event: any) => {
+      let currentResult = '';
+      for (let i = 0; i < event.results.length; ++i) {
+        currentResult += event.results[i][0].transcript + ' ';
+      }
+      finalTranscript = currentResult.trim();
+      setLiveVoiceTranscript(finalTranscript);
+    };
+
+    recognition.onerror = (e: any) => {
+      hasError = true;
       setIsListeningVoice(false);
+      if (e.error === 'not-allowed') {
+        addNotification('Acesso ao microfone recusado. Libere a permissão para ditar.', 'warning');
+      } else {
+        addNotification('Gravação interrompida ou microfone não detectado.', 'warning');
+      }
+    };
+
+    recognition.onend = async () => {
+      setIsListeningVoice(false);
+      
+      if (hasError) {
+        return;
+      }
+
+      if (!finalTranscript) {
+        addNotification('Nenhuma voz detectada. Por favor, fale seu agendamento.', 'warning');
+        return;
+      }
+
       setVoiceProcessing(true);
+      logUserEvent('voice_record_success', { textLength: finalTranscript.length });
 
       try {
         const today = new Date();
@@ -6307,7 +6463,7 @@ export default function App() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            text: transcript,
+            text: finalTranscript,
             contextDate: format(today, 'yyyy-MM-dd'),
             contextDayOfWeek: currentDayStr,
             contextTime: currentTimeStr
@@ -6316,70 +6472,50 @@ export default function App() {
 
         const resData = await response.json();
         if (resData.status === 'success' && resData.data) {
-          const { clientName, procedureName, date, time, notes } = resData.data;
-          const formEl = document.getElementById('new-appointment-form');
+          const { clientName, procedureName, procedureNames, date, time, notes } = resData.data;
 
-          if (formEl) {
-            if (date) {
-              const dateInput = formEl.querySelector('input[name="date"]') as HTMLInputElement;
-              if (dateInput) {
-                dateInput.value = date;
-                dateInput.dispatchEvent(new Event('input', { bubbles: true }));
+          // Find the matching procedures in procedures list
+          const parsedProcs: string[] = [];
+          if (procedureNames && Array.isArray(procedureNames)) {
+            procedureNames.forEach((pName: string) => {
+              const found = procedures.find(p => (p.name || '').toLowerCase().includes(pName.toLowerCase()) || pName.toLowerCase().includes((p.name || '').toLowerCase()));
+              if (found) {
+                parsedProcs.push(found.id);
               }
-            }
-            if (time) {
-              const timeInput = formEl.querySelector('input[name="time"]') as HTMLInputElement;
-              if (timeInput) {
-                timeInput.value = time;
-                timeInput.dispatchEvent(new Event('input', { bubbles: true }));
-              }
-            }
-
-            if (clientName) {
-              const clientSearchInput = formEl.querySelector('input[name="clientSearch"]') as HTMLInputElement;
-              if (clientSearchInput) {
-                clientSearchInput.value = clientName;
-                clientSearchInput.dispatchEvent(new Event('input', { bubbles: true }));
-
-                const matchedClient = clients.find(c => (c.name || '').toLowerCase().includes(clientName.toLowerCase()));
-                if (matchedClient) {
-                  clientSearchInput.value = matchedClient.name;
-                  const hiddenInput = formEl.querySelector('#selected-client-id') as HTMLInputElement;
-                  if (hiddenInput) {
-                    hiddenInput.value = matchedClient.id;
-                    hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
-                  }
-                }
-              }
-            }
-
-            if (procedureName) {
-              const selectProc = formEl.querySelector('select[name="procedureId"]') as HTMLSelectElement;
-              if (selectProc) {
-                const matchedProc = procedures.find(p => (p.name || '').toLowerCase().includes(procedureName.toLowerCase()));
-                if (matchedProc) {
-                  selectProc.value = matchedProc.id;
-                  selectProc.dispatchEvent(new Event('change', { bubbles: true }));
-                } else {
-                  const closestProc = procedures.find(p => procedureName.toLowerCase().includes((p.name || '').toLowerCase()));
-                  if (closestProc) {
-                    selectProc.value = closestProc.id;
-                    selectProc.dispatchEvent(new Event('change', { bubbles: true }));
-                  }
-                }
-              }
-            }
-
-            if (notes) {
-              const notesInput = formEl.querySelector('textarea[name="notes"]') as HTMLTextAreaElement;
-              if (notesInput) {
-                notesInput.value = notes;
-                notesInput.dispatchEvent(new Event('input', { bubbles: true }));
-              }
+            });
+          } else if (procedureName) {
+            const found = procedures.find(p => (p.name || '').toLowerCase().includes(procedureName.toLowerCase()) || procedureName.toLowerCase().includes((p.name || '').toLowerCase()));
+            if (found) {
+              parsedProcs.push(found.id);
             }
           }
 
-          const rReason = resData.data.reasoning || 'Ditado interpretado com sucesso!';
+          // Check if it's an existing client
+          let matchedClientId = '';
+          let isNewClient = true;
+          if (clientName) {
+            const matchedClient = clients.find(c => (c.name || '').toLowerCase().includes(clientName.toLowerCase()) || clientName.toLowerCase().includes((c.name || '').toLowerCase()));
+            if (matchedClient) {
+              matchedClientId = matchedClient.id;
+              isNewClient = false;
+            }
+          }
+
+          // Fill in voiceParsedData state to open our custom Voice Confirmation dialog
+          setVoiceParsedData({
+            clientName: clientName || '',
+            procedureIds: parsedProcs,
+            date: date || format(today, 'yyyy-MM-dd'),
+            time: time || format(today, 'HH:mm'),
+            notes: notes || '',
+            isNewClient: isNewClient,
+            matchedClientId: matchedClientId,
+            reasoning: resData.data.reasoning || ''
+          });
+          
+          setIsVoiceConfirmModalOpen(true);
+
+          const rReason = resData.data.reasoning || 'Ditado interpretado com sucesso! Revise os dados abaixo.';
           addNotification('IA: ' + rReason, 'info');
         } else {
           addNotification(resData.message || 'Erro ao processar áudio.', 'warning');
@@ -6389,19 +6525,6 @@ export default function App() {
       } finally {
         setVoiceProcessing(false);
       }
-    };
-
-    recognition.onerror = (e: any) => {
-      setIsListeningVoice(false);
-      if (e.error === 'not-allowed') {
-        addNotification('Acesso ao microfone recusado. Libere a permissão para ditar.', 'warning');
-      } else {
-        addNotification('Gravação interrompida ou microfone não detectado.', 'warning');
-      }
-    };
-
-    recognition.onend = () => {
-      setIsListeningVoice(false);
     };
 
     recognition.start();
@@ -6421,6 +6544,137 @@ export default function App() {
   const [recurrenceEndDate, setRecurrenceEndDate] = useState(addMonths(new Date(), 1));
   
   const [emailInput, setEmailInput] = useState('');
+
+  // Onboarding Beta Registration States
+  const [isRegisterMode, setIsRegisterMode] = useState(false);
+  const [regName, setRegName] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPhone, setRegPhone] = useState('');
+  const [regProfession, setRegProfession] = useState('Estética');
+  const [regCityState, setRegCityState] = useState('');
+  const [regObjective, setRegObjective] = useState('');
+  const [regPain, setRegPain] = useState('');
+  const [regOrigin, setRegOrigin] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [consentWhatsApp, setConsentWhatsApp] = useState(true);
+  const [consentMeeting, setConsentMeeting] = useState(true);
+  const [isRegistering, setIsRegistering] = useState(false);
+
+  // Behavioral telemetries (Lean Startup tracking)
+  const logUserEvent = async (eventType: string, details: any = {}) => {
+    if (isDemo || !user) return;
+    try {
+      const eventId = Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+      await setDoc(doc(db, 'userEvents', eventId), {
+        userId: user.uid,
+        userEmail: user.email,
+        userName: userProfile?.name || user.displayName || '',
+        eventType,
+        timestamp: new Date().toISOString(),
+        details
+      });
+    } catch (err) {
+      console.warn('Silent warning - Failed to log event:', err);
+    }
+  };
+
+  const handleBetaRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+    setIsRegistering(true);
+
+    if (regPassword.length < 6) {
+      setAuthError('A senha cadastrada deve conter no mínimo 6 caracteres.');
+      setIsRegistering(false);
+      return;
+    }
+
+    try {
+      const email = regEmail.toLowerCase().trim();
+      const password = regPassword;
+
+      // 1. Create firebase auth user
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const newUser = userCredential.user;
+
+      // 2. Build initial user profile
+      const defaultProfile = {
+        name: regName,
+        businessName: regName + ' Estética',
+        specialty: regProfession,
+        phone: regPhone,
+        address: regCityState,
+        instagram: '',
+        workingHours: { start: '08:00', end: '18:00' },
+        workingDays: [1, 2, 3, 4, 5],
+        budgetValidityDays: 7,
+        clientLabel: 'Cliente',
+        ownerId: newUser.uid,
+        email: email,
+        plan: 'Plano Profissional',
+        accentColor: 'rose',
+        createdAt: new Date().toISOString(),
+        setupComplete: true,
+        
+        // Onboarding feedback context:
+        betaProfession: regProfession,
+        betaCityState: regCityState,
+        betaObjective: regObjective,
+        betaPain: regPain,
+        betaOrigin: regOrigin,
+        consentWhatsApp,
+        consentMeeting,
+      };
+
+      await setDoc(doc(db, 'userProfiles', newUser.uid), defaultProfile);
+
+      // 3. Mark authorized_emails directly so access is clean
+      try {
+        await setDoc(doc(db, 'authorized_emails', email), {
+          email,
+          createdAt: new Date().toISOString(),
+          createdBy: 'beta_onboarding',
+          productName: 'Plano Profissional',
+          status: 'active'
+        });
+      } catch (authEmailErr) {
+        console.warn('Authorized email registration warning:', authEmailErr);
+      }
+
+      // 4. Log behavioral tracking metrics
+      const eventId = Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+      await setDoc(doc(db, 'userEvents', eventId), {
+        userId: newUser.uid,
+        userEmail: email,
+        userName: regName,
+        eventType: 'completed_registration',
+        timestamp: new Date().toISOString(),
+        details: {
+          profession: regProfession,
+          cityState: regCityState,
+          objective: regObjective,
+          pain: regPain,
+          origin: regOrigin,
+          consentWhatsApp,
+          consentMeeting,
+        }
+      });
+
+      setIsAuthorized(true);
+      setActivePlan('Plano Profissional');
+      setUserProfile(defaultProfile as any);
+      addNotification('Cadastro concluído com sucesso! Bem-vinda ao OrbyFlow!', 'info');
+    } catch (error: any) {
+      console.error(error);
+      if (error.code === 'auth/email-already-in-use') {
+        setAuthError('Este e-mail já está sendo utilizado por outro usuário.');
+      } else {
+        setAuthError('Erro ao cadastrar. ' + (error.message || 'Verifique seus dados.'));
+      }
+    } finally {
+      setIsRegistering(false);
+    }
+  };
 
   // Detect email from URL (useful for Kiwify redirects)
   React.useEffect(() => {
@@ -6658,7 +6912,7 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
     if (!app) return;
 
     const client = clients.find(c => c.id === app.clientId);
-    const proc = procedures.find(p => p.id === app.procedureId);
+    const proc = getAppProcedure(app, procedures);
 
     if (isDemo) {
       setAppointments(prev => prev.map(a => a.id === id ? { 
@@ -6732,9 +6986,9 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
     await handleAddAppointments([app]);
   };
 
-  const handleAddAppointments = async (apps: Appointment[]) => {
+  const handleAddAppointments = async (apps: Appointment[], preResolvedClient?: Client) => {
     if (apps.length === 0) return;
-    const client = clients.find(c => c.id === apps[0].clientId);
+    const client = preResolvedClient || clients.find(c => c.id === apps[0].clientId);
     
     if (isDemo) {
       const newApps = apps.map(app => ({ ...app, id: Math.random().toString(36).substr(2, 9) }));
@@ -6754,12 +7008,16 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
       setIsNewAppModalOpen(false);
       addNotification(`${apps.length > 1 ? `${apps.length} agendamentos salvos` : 'Agendamento salvo'} com sucesso!`, 'info');
       if (client) setJustCreatedAppointment({ app: { ...apps[0], id: docRefs[0].id }, client });
+      
+      // Track retention/behavior metric
+      await logUserEvent('create_appointment', { count: apps.length });
     } catch (e) { handleFirestoreError(e, OperationType.CREATE, 'appointments'); }
   };
 
   const handleAddClient = async (client: Client) => {
     if (isDemo) {
-      setClients(prev => [...prev, { ...client, id: Math.random().toString(36).substr(2, 9) }]);
+      const ensuredId = client.id || Math.random().toString(36).substr(2, 9);
+      setClients(prev => [...prev, { ...client, id: ensuredId }]);
       setIsNewClientModalOpen(false);
       addNotification('Registro criado com sucesso! (Modo Demo)', 'info');
       return;
@@ -6767,9 +7025,13 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
     if (!user) return;
     try {
       const { id, ...data } = client;
-      await addDoc(collection(db, 'clients'), { ...data, ownerId: user.uid });
+      const ensuredId = id || Math.random().toString(36).substr(2, 9);
+      await setDoc(doc(db, 'clients', ensuredId), { ...data, ownerId: user.uid });
       setIsNewClientModalOpen(false);
       addNotification('Registro criado com sucesso!', 'info');
+      
+      // Track registration/behavior metric
+      await logUserEvent('create_client');
     } catch (e) { handleFirestoreError(e, OperationType.CREATE, 'clients'); }
   };
 
@@ -7228,7 +7490,7 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
 
   const handleSendWhatsApp = (app: Appointment, type: 'confirmation' | 'reminder' | 'payment') => {
     const client = clients.find(c => c.id === app.clientId);
-    const proc = procedures.find(p => p.id === app.procedureId);
+    const proc = getAppProcedure(app, procedures);
     if (!client) return;
 
     let template = '';
@@ -7257,23 +7519,39 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
     openWhatsApp(client.phone || '', message, userProfile?.whatsappPrefix || '55');
   };
 
-  const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'agenda', label: 'Agenda', icon: CalendarIcon },
-    { id: 'clientes', label: csLabel, icon: Users },
-    { id: 'prospeccao', label: 'Crescimento', icon: TrendingUp },
-    { id: 'atendimentos', label: 'Atendimentos', icon: ClipboardList },
-    { id: 'servicos', label: 'Serviços', icon: Activity },
-    { id: 'orcamentos', label: 'Orçamentos', icon: FileText },
-    { id: 'follow-up', label: 'Follow-up', icon: BellRing },
-    { id: 'financeiro', label: 'Financeiro', icon: DollarSign },
-    { id: 'pagamentos', label: 'Controle de Pagamentos', icon: CreditCard },
-    { id: 'mensagens', label: 'Mensagens Automáticas', icon: MessageCircle },
-    { id: 'configuracoes', label: 'Configurações', icon: Settings },
-  ];
+  const isAdminUser = useMemo(() => {
+    const email = user?.email?.toLowerCase()?.trim() || '';
+    return email === 'teus.rma@gmail.com' || email === 'brefer@gmail.com';
+  }, [user]);
+
+  const menuItems = useMemo(() => {
+    const baseItems = [
+      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { id: 'agenda', label: 'Agenda', icon: CalendarIcon },
+      { id: 'clientes', label: csLabel, icon: Users },
+      { id: 'prospeccao', label: 'Crescimento', icon: TrendingUp },
+      { id: 'atendimentos', label: 'Atendimentos', icon: ClipboardList },
+      { id: 'servicos', label: 'Serviços', icon: Activity },
+      { id: 'orcamentos', label: 'Orçamentos', icon: FileText },
+      { id: 'follow-up', label: 'Follow-up', icon: BellRing },
+      { id: 'financeiro', label: 'Financeiro', icon: DollarSign },
+      { id: 'pagamentos', label: 'Controle de Pagamentos', icon: CreditCard },
+      { id: 'mensagens', label: 'Mensagens Automáticas', icon: MessageCircle },
+      { id: 'configuracoes', label: 'Configurações', icon: Settings },
+    ];
+
+    if (isAdminUser) {
+      baseItems.push({ id: 'central-controle', label: 'Central de Controle 👑', icon: Settings });
+    }
+
+    return baseItems;
+  }, [csLabel, isAdminUser]);
 
   const renderContent = () => {
     switch (activeTab) {
+      case 'central-controle': return (
+        <AdminControlCenter onClose={() => setActiveTab('dashboard')} />
+      );
       case 'dashboard': return (
         <Dashboard 
           appointments={appointments} 
@@ -7463,139 +7741,353 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
 
   if (!user && !isDemo) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#FFF9F9] p-4">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#FFF9F9] p-4 font-sans">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white p-10 rounded-[40px] shadow-2xl border border-rose-50 w-full max-w-md text-center"
+          transition={{ duration: 0.5 }}
+          className="bg-white p-6 sm:p-10 rounded-[40px] shadow-2xl border border-rose-50 w-full max-w-md transition-all duration-300"
         >
-          <div className="w-20 h-20 bg-rose-500 rounded-3xl flex items-center justify-center shadow-xl shadow-rose-200 mx-auto mb-8">
-            <ShieldCheck className="text-white w-10 h-10" />
-          </div>
-          <h1 className="text-4xl font-black mb-2 uppercase tracking-tighter bg-linear-to-r from-rose-600 to-rose-400 bg-clip-text text-transparent">
-            OrbyFlow
-          </h1>
-          
-          <p className="text-gray-500 font-medium mb-10 px-4">O sistema inteligente para organizar sua agenda, clientes e financeiro.</p>
-          
-          <button 
-            type="button"
-            disabled={isGoogleLoggingIn}
-            onClick={handleGoogleLogin}
-            className="w-full bg-white border border-gray-100 hover:border-rose-200 hover:bg-gray-50 p-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-sm active:scale-95 disabled:opacity-50 mb-6"
-          >
-            {isGoogleLoggingIn ? (
-              <RefreshCcw className="w-5 h-5 animate-spin text-rose-500" />
-            ) : (
-              <svg className="w-5 h-5" viewBox="0 0 24 24">
-                <path
-                  fill="#4285F4"
-                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                />
-                <path
-                  fill="#34A853"
-                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
-                />
-                <path
-                  fill="#EA4335"
-                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                />
-              </svg>
-            )}
-            {isGoogleLoggingIn ? 'Iniciando Google...' : 'Entrar com Google'}
-          </button>
-
-          <div className="relative mb-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-100"></div>
+          {/* Brand logo & title */}
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 bg-rose-500 rounded-2xl flex items-center justify-center shadow-xl shadow-rose-200 mx-auto mb-4">
+              <ShieldCheck className="text-white w-8 h-8" />
             </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white px-4 text-gray-400 font-bold tracking-widest">Ou acesse com e-mail</span>
-            </div>
+            <h1 className="text-3xl font-black mb-1 uppercase tracking-tighter bg-linear-to-r from-rose-600 to-rose-400 bg-clip-text text-transparent">
+              OrbyFlow
+            </h1>
+            <p className="text-gray-400 font-bold text-[10px] uppercase tracking-widest">
+              Sua Agenda Inteligente 🚀
+            </p>
           </div>
 
-          <form onSubmit={handleEmailLogin} className="space-y-4">
-            <div className="text-left">
-              <label className="block text-xs font-bold text-gray-400 uppercase mb-2 ml-4">E-mail</label>
-              <input 
-                type="email" 
-                value={emailInput}
-                onChange={e => setEmailInput(e.target.value)}
-                placeholder="exemplo@gmail.com"
-                className="w-full bg-gray-50 border-none rounded-2xl p-4 font-bold text-gray-700 outline-none focus:ring-2 focus:ring-rose-500 transition-all"
-                required
-              />
-            </div>
-            <div className="text-left">
-              <label className="block text-xs font-bold text-gray-400 uppercase mb-2 ml-4">Senha</label>
-              <input 
-                type="password" 
-                value={passwordInput}
-                onChange={e => setPasswordInput(e.target.value)}
-                placeholder="Sua senha"
-                className="w-full bg-gray-50 border-none rounded-2xl p-4 font-bold text-gray-700 outline-none focus:ring-2 focus:ring-rose-500 transition-all"
-                required
-              />
-            </div>
-            {authError && (
-              <div className="bg-rose-50 p-4 rounded-2xl border border-rose-100 mb-4 animate-shake">
-                <p className="text-rose-600 text-xs font-bold">{authError}</p>
-                <button 
-                  type="button"
-                  onClick={handleOpenResetModal}
-                  className="mt-2 text-[10px] text-rose-400 hover:text-rose-600 underline uppercase font-black"
-                >
-                  Esqueci minha senha
-                </button>
-              </div>
-            )}
+          {/* Toggle Tabs */}
+          <div className="flex bg-gray-50 p-1.5 rounded-2xl mb-8 border border-gray-100/50">
+            <button 
+              type="button"
+              onClick={() => { setIsRegisterMode(false); setAuthError(null); }}
+              className={cn(
+                "w-1/2 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all",
+                !isRegisterMode ? "bg-white text-gray-850 shadow-sm" : "text-gray-400 hover:text-gray-600"
+              )}
+            >
+              Entrar
+            </button>
+            <button 
+              type="button"
+              onClick={() => { setIsRegisterMode(true); setAuthError(null); }}
+              className={cn(
+                "w-1/2 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all",
+                isRegisterMode ? "bg-white text-rose-600 shadow-sm" : "text-gray-400 hover:text-gray-600"
+              )}
+            >
+              Criar Conta Grátis
+            </button>
+          </div>
 
-            <div className="flex items-center justify-between px-2 mb-4">
-              <label className="flex items-center gap-2 cursor-pointer group">
-                <div className="relative">
-                  <input 
-                    type="checkbox" 
-                    checked={rememberMe}
-                    onChange={e => setRememberMe(e.target.checked)}
-                    className="sr-only"
-                  />
-                  <div className={cn(
-                    "w-5 h-5 rounded-lg border-2 transition-all flex items-center justify-center",
-                    rememberMe ? "bg-rose-500 border-rose-500" : "border-gray-200 bg-gray-50"
-                  )}>
-                    {rememberMe && <CheckCircle2 className="w-3 h-3 text-white" />}
-                  </div>
-                </div>
-                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest group-hover:text-gray-600 transition-colors">Lembrar-me</span>
-              </label>
+          {isRegisterMode ? (
+            <div className="space-y-6 text-left">
+              {/* Google Register Button */}
               <button 
                 type="button"
-                onClick={handleOpenResetModal}
-                className="text-[10px] font-black text-rose-400 uppercase tracking-widest hover:text-rose-600 transition-colors"
+                disabled={isGoogleLoggingIn}
+                onClick={() => handleGoogleLogin(true)}
+                className="w-full bg-white border border-gray-150 hover:bg-gray-50 p-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-xs active:scale-95 disabled:opacity-50 text-xs sm:text-sm text-gray-700"
               >
-                Esqueci a senha
+                {isGoogleLoggingIn ? (
+                  <RefreshCcw className="w-5 h-5 animate-spin text-rose-500" />
+                ) : (
+                  <svg className="w-5 h-5" viewBox="0 0 24 24">
+                    <path
+                      fill="#4285F4"
+                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                    />
+                    <path
+                      fill="#34A853"
+                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                    />
+                    <path
+                      fill="#FBBC05"
+                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
+                    />
+                    <path
+                      fill="#EA4335"
+                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                    />
+                  </svg>
+                )}
+                {isGoogleLoggingIn ? 'Iniciando Google...' : 'Cadastrar Grátis com Google'}
               </button>
-            </div>
 
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-100"></div>
+                </div>
+                <div className="relative flex justify-center text-[10px] uppercase tracking-widest">
+                  <span className="bg-white px-4 text-gray-400 font-extrabold">Ou cadastrar com E-mail</span>
+                </div>
+              </div>
+
+              <form onSubmit={handleBetaRegister} className="space-y-6">
+                <div className="bg-rose-50 p-5 rounded-3xl border border-rose-100/70 flex items-start gap-3.5">
+                  <Sparkles className="text-rose-500 w-5 h-5 shrink-0 mt-1" />
+                  <div>
+                    <p className="text-xs sm:text-sm font-semibold text-gray-800 leading-relaxed">
+                      Você terá acesso livre para organizar sua agenda, enviar lembretes e ditar agendamentos por voz. Como contrapartida, você concorda em nos fornecer feedbacks reais de uso pelo WhatsApp para co-criarmos a melhor ferramenta de estética do mercado! 💕
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 pb-2 flex items-center gap-1.5">
+                    <UserCheck className="w-3.5 h-3.5 text-rose-400" /> Dados da Conta
+                  </h3>
+                  
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-2">Nome Completo</label>
+                    <input 
+                      type="text" 
+                      value={regName}
+                      onChange={e => setRegName(e.target.value)}
+                      placeholder="Ex: Amanda Silva"
+                      className="w-full bg-gray-50 border-none rounded-xl p-3.5 text-xs font-bold text-gray-700 outline-none focus:ring-2 focus:ring-rose-500 transition-all shadow-inner"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-2">WhatsApp de contato</label>
+                    <input 
+                      type="tel" 
+                      value={regPhone}
+                      onChange={e => setRegPhone(e.target.value)}
+                      placeholder="Ex: (11) 98888-7777"
+                      className="w-full bg-gray-50 border-none rounded-xl p-3.5 text-xs font-bold text-gray-700 outline-none focus:ring-2 focus:ring-rose-500 transition-all shadow-inner"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-2">Seu melhor E-mail</label>
+                    <input 
+                      type="email" 
+                      value={regEmail}
+                      onChange={e => setRegEmail(e.target.value)}
+                      placeholder="Ex: amanda@gmail.com"
+                      className="w-full bg-gray-50 border-none rounded-xl p-3.5 text-xs font-bold text-gray-700 outline-none focus:ring-2 focus:ring-rose-500 transition-all shadow-inner"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-2">Defina uma Senha</label>
+                    <input 
+                      type="password" 
+                      value={regPassword}
+                      onChange={e => setRegPassword(e.target.value)}
+                      placeholder="Mínimo 6 caracteres"
+                      className="w-full bg-gray-50 border-none rounded-xl p-3.5 text-xs font-bold text-gray-700 outline-none focus:ring-2 focus:ring-rose-500 transition-all shadow-inner"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-2">Profissão ou Nicho</label>
+                    <select 
+                      value={regProfession}
+                      onChange={e => setRegProfession(e.target.value)}
+                      className="w-full bg-gray-50 border-none rounded-xl p-3.5 text-xs font-bold text-gray-700 outline-none focus:ring-2 focus:ring-rose-500 transition-all cursor-pointer shadow-inner"
+                    >
+                      <option value="Estética">Esteticista / Clínica de Estética</option>
+                      <option value="Design_Cílios_Sobrancelhas">Lash Designer / Sobrancelhas</option>
+                      <option value="Fisioterapia">Fisioterapeuta</option>
+                      <option value="Nutrição">Nutricionista</option>
+                      <option value="Manicure_Pedicure">Nail Designer / Manicure</option>
+                      <option value="Cabeleireira">Cabeleireira / Salão</option>
+                      <option value="Outro">Outro Nicho de Negócio</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Checkbox consents */}
+                <div className="space-y-3 bg-gray-50 p-4 sm:p-5 rounded-3xl border border-gray-100">
+                  <label className="flex items-start gap-3 cursor-pointer group select-none">
+                    <input 
+                      type="checkbox" 
+                      checked={consentWhatsApp}
+                      onChange={e => setConsentWhatsApp(e.target.checked)}
+                      className="mt-0.5 rounded text-rose-500 focus:ring-rose-500"
+                    />
+                    <span className="text-xs font-semibold text-gray-600 leading-relaxed group-hover:text-gray-800 transition-colors">
+                      Concordo em fornecer feedbacks reais de uso pelo WhatsApp para co-criarmos a melhor ferramenta de estética do mercado! 💕
+                    </span>
+                  </label>
+
+                  <label className="flex items-start gap-3 cursor-pointer group select-none">
+                    <input 
+                      type="checkbox" 
+                      checked={consentMeeting}
+                      onChange={e => setConsentMeeting(e.target.checked)}
+                      className="mt-0.5 rounded text-rose-500 focus:ring-rose-500"
+                    />
+                    <span className="text-xs font-semibold text-gray-600 leading-relaxed group-hover:text-gray-800 transition-colors">
+                      Aceito receber convites para bate-papo de melhoria e atualizações do sistema para evoluir a ferramenta.
+                    </span>
+                  </label>
+                </div>
+
+                {authError && (
+                  <div className="bg-rose-50 p-4 rounded-2xl border border-rose-100">
+                    <p className="text-rose-600 text-xs font-bold">{authError}</p>
+                  </div>
+                )}
+
+                <button 
+                  type="submit"
+                  disabled={isRegistering}
+                  className="w-full bg-rose-500 hover:bg-rose-600 text-white p-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-rose-200 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                >
+                  {isRegistering ? (
+                    <RefreshCcw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Zap className="w-4 h-4 text-amber-300 fill-amber-300" /> Finalizar Cadastro e Experimentar Grátis
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* Google Button */}
+              <button 
+                type="button"
+                disabled={isGoogleLoggingIn}
+                onClick={handleGoogleLogin}
+                className="w-full bg-white border border-gray-150 hover:bg-gray-50 p-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-xs active:scale-95 disabled:opacity-50"
+              >
+                {isGoogleLoggingIn ? (
+                  <RefreshCcw className="w-5 h-5 animate-spin text-rose-500" />
+                ) : (
+                  <svg className="w-5 h-5" viewBox="0 0 24 24">
+                    <path
+                      fill="#4285F4"
+                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                    />
+                    <path
+                      fill="#34A853"
+                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                    />
+                    <path
+                      fill="#FBBC05"
+                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
+                    />
+                    <path
+                      fill="#EA4335"
+                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                    />
+                  </svg>
+                )}
+                {isGoogleLoggingIn ? 'Iniciando Google...' : 'Continuar com Google'}
+              </button>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-100"></div>
+                </div>
+                <div className="relative flex justify-center text-[10px] uppercase tracking-widest">
+                  <span className="bg-white px-4 text-gray-400 font-black">Ou use seu e-mail</span>
+                </div>
+              </div>
+
+              <form onSubmit={handleEmailLogin} className="space-y-4">
+                <div className="text-left">
+                  <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-4">E-mail</label>
+                  <input 
+                    type="email" 
+                    value={emailInput}
+                    onChange={e => setEmailInput(e.target.value)}
+                    placeholder="amanda@gmail.com"
+                    className="w-full bg-gray-50 border-none rounded-2xl p-4 font-bold text-gray-700 outline-none focus:ring-2 focus:ring-rose-500 transition-all text-xs"
+                    required
+                  />
+                </div>
+                <div className="text-left">
+                  <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-4">Senha</label>
+                  <input 
+                    type="password" 
+                    value={passwordInput}
+                    onChange={e => setPasswordInput(e.target.value)}
+                    placeholder="Sua senha secreta"
+                    className="w-full bg-gray-50 border-none rounded-2xl p-4 font-bold text-gray-700 outline-none focus:ring-2 focus:ring-rose-500 transition-all text-xs"
+                    required
+                  />
+                </div>
+
+                {authError && (
+                  <div className="bg-rose-50 p-4 rounded-2xl border border-rose-100 text-left">
+                    <p className="text-rose-600 text-xs font-bold">{authError}</p>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between px-2">
+                  <label className="flex items-center gap-2 cursor-pointer group">
+                    <div className="relative">
+                      <input 
+                        type="checkbox" 
+                        checked={rememberMe}
+                        onChange={e => setRememberMe(e.target.checked)}
+                        className="sr-only"
+                      />
+                      <div className={cn(
+                        "w-5 h-5 rounded-lg border-2 transition-all flex items-center justify-center",
+                        rememberMe ? "bg-rose-500 border-rose-500" : "border-gray-200 bg-gray-50"
+                      )}>
+                        {rememberMe && <CheckCircle2 className="w-3 h-3 text-white" />}
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest group-hover:text-gray-600 transition-colors">Lembrar-me</span>
+                  </label>
+                  <button 
+                    type="button"
+                    onClick={handleOpenResetModal}
+                    className="text-[10px] font-black text-rose-400 uppercase tracking-widest hover:text-rose-600 transition-colors"
+                  >
+                    Esqueci minha senha
+                  </button>
+                </div>
+
+                <button 
+                  type="submit"
+                  className="w-full bg-rose-500 text-white p-4 rounded-2xl font-black shadow-lg shadow-rose-200 active:scale-95 transition-all text-xs uppercase tracking-widest flex items-center justify-center gap-2"
+                >
+                  <ShieldCheck className="w-4 h-4 text-white" /> Entrar no Painel
+                </button>
+              </form>
+            </div>
+          )}
+
+          {/* Cal.com / Appointments Invitation Block */}
+          <div className="mt-8 bg-linear-to-r from-gray-50 to-rose-50/50 p-5 rounded-[28px] border border-rose-100/75 flex flex-col sm:flex-row items-center justify-between gap-4 text-left">
+            <div>
+              <h4 className="text-[10px] font-black text-rose-500 uppercase tracking-widest flex items-center gap-1.5 mb-1">
+                <Sparkles className="w-3.5 h-3.5" /> Quer acelerar a evolução?
+              </h4>
+              <p className="text-[9px] text-gray-500 font-bold leading-normal">
+                Clique aqui para conversar direto no WhatsApp do criador do OrbyFlow e compartilhar suas ideias de novas funções!
+              </p>
+            </div>
             <button 
-              type="submit"
-              className="w-full bg-rose-500 text-white p-4 rounded-2xl font-bold shadow-lg shadow-rose-200 active:scale-95 transition-all text-sm uppercase tracking-widest animate-pulse-subtle"
+              onClick={() => window.open('https://wa.me/5521969457083?text=Olá!+Gostaria+de+agendar+uma+conversa+sobre+o+OrbyFlow.', '_blank')}
+              className="bg-white border hover:border-rose-400 hover:text-rose-600 text-rose-500 font-black px-4.5 py-3 rounded-xl text-[9px] uppercase tracking-widest transition-all shrink-0 shadow-xs active:scale-95"
             >
-              Entrar no Sistema
+              Agendar Conversa 📆
             </button>
-          </form>
-          
-          <p className="mt-8 text-xs text-gray-400 font-medium">
-            Seus dados são salvos de forma segura e privada.
-          </p>
+          </div>
         </motion.div>
 
         {isResetPasswordModalOpen && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-gray-950/60 backdrop-blur-subtle">
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-gray-950/60 backdrop-blur-xs">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -7775,11 +8267,17 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
                         Agendamento por Voz Inteligente
                       </h4>
                       <p className="text-[10px] text-gray-500 font-bold leading-tight">
-                        {isListeningVoice 
-                          ? "Ouvindo... Toque em Finalizar quando terminar" 
-                          : voiceProcessing 
-                            ? "Analisando voz com Inteligência Artificial..." 
-                            : "Diga ex: \"Agendar Maria Silva amanhã às 14h para Limpeza de Pele\""}
+                        {isListeningVoice ? (
+                          liveVoiceTranscript ? (
+                            <span className="italic text-rose-600 font-bold">“{liveVoiceTranscript}”</span>
+                          ) : (
+                            "Ouvindo... Fale agora e toque em Finalizar ao terminar."
+                          )
+                        ) : voiceProcessing ? (
+                          "Analisando voz com Inteligência Artificial..."
+                        ) : (
+                          "Diga ex: \"Agendar Maria Silva amanhã às 14h para Limpeza de Pele\""
+                        )}
                       </p>
                     </div>
                   </div>
@@ -7828,7 +8326,6 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
                   if (match) clientId = match.id;
                 }
                 
-                const procedureId = formData.get('procedureId') as string;
                 const sessionNumber = parseInt(formData.get('sessionNumber') as string) || 1;
                 const totalSessions = parseInt(formData.get('totalSessions') as string) || (parseInt(formData.get('repeatCount') as string) || 1);
                 
@@ -7836,7 +8333,14 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
                   addNotification('Por favor, selecione uma cliente da lista.', 'error');
                   return;
                 }
-                if (!procedureId || !dateStr || !timeStr) {
+                
+                const primaryProcedureId = selectedNewAppProcedureIds[0];
+                if (!primaryProcedureId) {
+                  addNotification('Por favor, selecione pelo menos um procedimento.', 'error');
+                  return;
+                }
+
+                if (!dateStr || !timeStr) {
                   addNotification('Por favor, preencha todos os campos do agendamento.', 'error');
                   return;
                 }
@@ -7857,7 +8361,11 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
                   return;
                 }
 
-                const proc = procedures.find(p => p.id === procedureId);
+                const calculatedTotalPrice = selectedNewAppProcedureIds.reduce((sum, pid) => {
+                  const p = procedures.find(proc => proc.id === pid);
+                  return sum + (p ? p.price : 0);
+                }, 0);
+
                 const appsToCreate: Appointment[] = [];
 
                 if (isRecurring) {
@@ -7883,10 +8391,11 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
                       appsToCreate.push({
                         id: Math.random().toString(36).substr(2, 9),
                         clientId,
-                        procedureId,
+                        procedureId: primaryProcedureId,
+                        procedureIds: selectedNewAppProcedureIds,
                         date: current.toISOString(),
                         status: 'confirmado',
-                        price: proc?.price || 0,
+                        price: calculatedTotalPrice,
                         sessionNumber: appsToCreate.length + 1,
                         totalSessions: maxTotal,
                         notes: notesStr
@@ -7897,16 +8406,7 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
                     if (recurrenceFreq === 'daily') {
                       current = addDays(current, recurrenceInterval);
                     } else if (recurrenceFreq === 'weekly') {
-                      // Logic for weekly needs to be smarter if we have multiple days selected
-                      // If we pick MON and WED, and interval is 1.
-                      // We should check every day until we hit the next recurrence interval or next week.
                       current = addDays(current, 1);
-                      // If we moved to a new week, skip by interval?
-                      // Actually, let's keep it simple: 
-                      // Weekly Frequency with Days:
-                      // If I pick Mon/Wed, it checks every day. 
-                      // If I want "Every 2 weeks on Mon/Wed", that's harder.
-                      // Let's assume Interval applies to the WHOLE week for now.
                       if (getDay(current) === getDay(baseDate)) {
                          if (recurrenceInterval > 1) {
                            current = addWeeks(current, recurrenceInterval - 1);
@@ -7924,10 +8424,11 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
                   appsToCreate.push({
                     id: Math.random().toString(36).substr(2, 9),
                     clientId,
-                    procedureId,
+                    procedureId: primaryProcedureId,
+                    procedureIds: selectedNewAppProcedureIds,
                     date: baseDate.toISOString(),
                     status: 'confirmado',
-                    price: proc?.price || 0,
+                    price: calculatedTotalPrice,
                     sessionNumber,
                     totalSessions,
                     notes: notesStr
@@ -8034,18 +8535,72 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-400 uppercase">Procedimento</label>
-                <select 
-                  name="procedureId" 
-                  required 
-                  className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300"
-                >
-                  <option value="">Selecionar serviço...</option>
-                  {procedures.map(p => (
-                    <option key={p.id} value={p.id}>{p.name} - {formatCurrency(p.price)}</option>
-                  ))}
-                </select>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase flex justify-between items-center">
+                  <span>Procedimentos (Selecione um ou mais)</span>
+                  {selectedNewAppProcedureIds.length > 0 && (
+                    <span className="text-[10px] font-black text-rose-500 uppercase">
+                      {selectedNewAppProcedureIds.length} selecionado(s)
+                    </span>
+                  )}
+                </label>
+                
+                {/* Scrollable list of selectable procedures */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[160px] overflow-y-auto p-1.5 border border-gray-100 rounded-2xl bg-gray-50/50">
+                  {procedures.map(p => {
+                    const isSelected = selectedNewAppProcedureIds.includes(p.id);
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedNewAppProcedureIds(prev => prev.filter(id => id !== p.id));
+                          } else {
+                            setSelectedNewAppProcedureIds(prev => [...prev, p.id]);
+                          }
+                        }}
+                        className={cn(
+                          "flex items-center justify-between p-3 rounded-xl border text-left transition-all text-xs font-bold shrink-0",
+                          isSelected 
+                            ? "bg-rose-50/70 border-rose-400 text-rose-700 shadow-xs" 
+                            : "bg-white border-gray-100 text-gray-600 hover:bg-gray-50 active:scale-97"
+                        )}
+                      >
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <div className={cn(
+                            "w-3.5 h-3.5 rounded-md border flex items-center justify-center text-[8px] font-bold text-white shrink-0",
+                            isSelected ? "bg-rose-500 border-rose-500" : "bg-white border-gray-300"
+                          )}>
+                            {isSelected && "✓"}
+                          </div>
+                          <span className="truncate">{p.name}</span>
+                        </div>
+                        <span className={cn(
+                          "text-[10px] whitespace-nowrap px-1.5 py-0.5 rounded-lg",
+                          isSelected ? "bg-rose-100 text-rose-700" : "bg-gray-100 text-gray-500"
+                        )}>
+                          {formatCurrency(p.price)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Combined Total Display */}
+                {selectedNewAppProcedureIds.length > 0 && (
+                  <div className="flex justify-between items-center px-2 py-2 bg-rose-500/5 border border-rose-100/40 rounded-xl">
+                    <span className="text-[10px] font-black text-rose-600 uppercase tracking-wider">Valor Total Combinado:</span>
+                    <span className="text-sm font-black text-rose-700">
+                      {formatCurrency(
+                        selectedNewAppProcedureIds.reduce((sum, pid) => {
+                          const p = procedures.find(proc => proc.id === pid);
+                          return sum + (p ? p.price : 0);
+                        }, 0)
+                      )}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1">
@@ -8302,6 +8857,330 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
         </div>
       )}
 
+      {isVoiceConfirmModalOpen && voiceParsedData && (
+        <div className="fixed inset-0 z-[600] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="bg-white rounded-3xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh] overflow-hidden"
+          >
+            <div className="p-8 pb-4 border-b border-gray-50 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="bg-rose-100 text-rose-500 p-2.5 rounded-2xl">
+                  <Sparkles className="w-5 h-5 animate-pulse" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-black text-gray-900 leading-tight">Confirmar Agendamento</h2>
+                  <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wide">Inteligência Artificial por Voz</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsVoiceConfirmModalOpen(false)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            <div className="p-8 pt-6 overflow-y-auto custom-scrollbar space-y-5">
+              {voiceParsedData.reasoning && (
+                <div className="p-3 bg-rose-500/5 rounded-xl border border-rose-100/30 text-[10px] text-rose-600 font-bold flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                  <span>Resumo do entendimento: <strong>{voiceParsedData.reasoning}</strong></span>
+                </div>
+              )}
+
+              {/* Cliente Input */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-400 uppercase">Cliente</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    list="voice-clients-list"
+                    value={voiceParsedData.clientName}
+                    onChange={(e) => {
+                      const name = e.target.value;
+                      const matched = clients.find(c => (c.name || '').toLowerCase() === name.toLowerCase());
+                      setVoiceParsedData(prev => prev ? {
+                        ...prev,
+                        clientName: name,
+                        isNewClient: !matched,
+                        matchedClientId: matched ? matched.id : ''
+                      } : null);
+                    }}
+                    className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 text-sm font-bold placeholder:text-gray-300"
+                    placeholder="Nome da cliente..."
+                  />
+                  <datalist id="voice-clients-list">
+                    {clients.map(c => (
+                      <option key={c.id} value={c.name} />
+                    ))}
+                  </datalist>
+                  
+                  {voiceParsedData.isNewClient ? (
+                    <div className="mt-1.5 flex items-center gap-1.5 text-[9px] text-amber-600 bg-amber-500/5 px-2.5 py-1 rounded-lg font-black border border-amber-500/10 uppercase tracking-wider">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                      Não cadastrada: Criará nova cliente ao salvar
+                    </div>
+                  ) : (
+                    <div className="mt-1.5 flex items-center gap-1.5 text-[9px] text-emerald-600 bg-emerald-500/5 px-2.5 py-1 rounded-lg font-black border border-emerald-500/10 uppercase tracking-wider">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      ✓ Associar à Cliente cadastrada
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Data & Horário */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase">Data</label>
+                  <input
+                    type="date"
+                    value={voiceParsedData.date}
+                    onChange={(e) => setVoiceParsedData(prev => prev ? { ...prev, date: e.target.value } : null)}
+                    className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 text-sm font-bold text-gray-700"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase">Horário</label>
+                  <input
+                    type="time"
+                    value={voiceParsedData.time}
+                    onChange={(e) => setVoiceParsedData(prev => prev ? { ...prev, time: e.target.value } : null)}
+                    className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 text-sm font-bold text-gray-700"
+                  />
+                </div>
+              </div>
+
+              {/* Procedimentos list with checks */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase flex justify-between items-center">
+                  <span>Procedimentos Selecionados</span>
+                  {voiceParsedData.procedureIds.length > 0 && (
+                    <span className="text-[10px] font-black text-rose-500 uppercase">
+                      {voiceParsedData.procedureIds.length} selecionado(s)
+                    </span>
+                  )}
+                </label>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[160px] overflow-y-auto p-1.5 border border-gray-100 rounded-2xl bg-gray-50/50">
+                  {procedures.map(p => {
+                    const isSelected = voiceParsedData.procedureIds.includes(p.id);
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => {
+                          const currentlySelected = voiceParsedData.procedureIds;
+                          const nextSelected = isSelected
+                            ? currentlySelected.filter(id => id !== p.id)
+                            : [...currentlySelected, p.id];
+                          setVoiceParsedData(prev => prev ? { ...prev, procedureIds: nextSelected } : null);
+                        }}
+                        className={cn(
+                          "flex items-center justify-between p-3 rounded-xl border text-left transition-all text-xs font-bold shrink-0",
+                          isSelected 
+                            ? "bg-rose-50/70 border-rose-400 text-rose-700 shadow-xs" 
+                            : "bg-white border-gray-100 text-gray-600 hover:bg-gray-50 active:scale-97"
+                        )}
+                      >
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <div className={cn(
+                            "w-3.5 h-3.5 rounded-md border flex items-center justify-center text-[8px] font-bold text-white shrink-0",
+                            isSelected ? "bg-rose-500 border-rose-500" : "bg-white border-gray-300"
+                          )}>
+                            {isSelected && "✓"}
+                          </div>
+                          <span className="truncate">{p.name}</span>
+                        </div>
+                        <span className={cn(
+                          "text-[10px] whitespace-nowrap px-1.5 py-0.5 rounded-lg",
+                          isSelected ? "bg-rose-100 text-rose-700" : "bg-gray-100 text-gray-500"
+                        )}>
+                          {formatCurrency(p.price)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Combined Total Display */}
+                {voiceParsedData.procedureIds.length > 0 && (
+                  <div className="flex justify-between items-center px-3 py-2.5 bg-rose-500/5 border border-rose-100/40 rounded-xl">
+                    <span className="text-[10px] font-black text-rose-600 uppercase tracking-wider">Valor total:</span>
+                    <span className="text-sm font-black text-rose-700">
+                      {formatCurrency(
+                        voiceParsedData.procedureIds.reduce((sum, pid) => {
+                          const p = procedures.find(proc => proc.id === pid);
+                          return sum + (p ? p.price : 0);
+                        }, 0)
+                      )}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Observações */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-400 uppercase">Observações do Agendamento</label>
+                <textarea 
+                  value={voiceParsedData.notes}
+                  onChange={(e) => setVoiceParsedData(prev => prev ? { ...prev, notes: e.target.value } : null)}
+                  rows={2}
+                  placeholder="Se necessário, digite observações adicionais..." 
+                  className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 outline-none focus:border-rose-300 resize-none text-[11px] font-bold text-gray-700 placeholder:text-gray-300"
+                />
+              </div>
+            </div>
+
+            <div className="p-8 border-t border-gray-50 flex flex-col sm:flex-row gap-3 shrink-0">
+              <button 
+                type="button" 
+                onClick={() => setIsVoiceConfirmModalOpen(false)} 
+                className="flex-1 py-3 text-sm rounded-xl font-bold text-gray-500 hover:bg-gray-50 transition-all border border-transparent hover:border-gray-150"
+              >
+                Cancelar
+              </button>
+              
+              <button 
+                type="button" 
+                onClick={() => {
+                  if (!voiceParsedData) return;
+                  // Pre-fill the standard uncontrolled form elements
+                  setSelectedNewAppProcedureIds(voiceParsedData.procedureIds);
+                  
+                  setTimeout(() => {
+                    const formEl = document.getElementById('new-appointment-form');
+                    if (formEl) {
+                      if (voiceParsedData.date) {
+                        const dateInput = formEl.querySelector('input[name="date"]') as HTMLInputElement;
+                        if (dateInput) {
+                          dateInput.value = voiceParsedData.date;
+                          dateInput.dispatchEvent(new Event('input', { bubbles: true }));
+                        }
+                      }
+                      if (voiceParsedData.time) {
+                        const timeInput = formEl.querySelector('input[name="time"]') as HTMLInputElement;
+                        if (timeInput) {
+                          timeInput.value = voiceParsedData.time;
+                          timeInput.dispatchEvent(new Event('input', { bubbles: true }));
+                        }
+                      }
+                      if (voiceParsedData.clientName) {
+                        const clientSearchInput = formEl.querySelector('input[name="clientSearch"]') as HTMLInputElement;
+                        if (clientSearchInput) {
+                          clientSearchInput.value = voiceParsedData.clientName;
+                          clientSearchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                          
+                          if (voiceParsedData.matchedClientId) {
+                            const hiddenInput = formEl.querySelector('#selected-client-id') as HTMLInputElement;
+                            if (hiddenInput) {
+                              hiddenInput.value = voiceParsedData.matchedClientId;
+                              hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
+                            }
+                          }
+                        }
+                      }
+                      if (voiceParsedData.notes) {
+                        const notesInput = formEl.querySelector('textarea[name="notes"]') as HTMLTextAreaElement;
+                        if (notesInput) {
+                          notesInput.value = voiceParsedData.notes;
+                          notesInput.dispatchEvent(new Event('input', { bubbles: true }));
+                        }
+                      }
+                    }
+                  }, 50);
+
+                  setIsVoiceConfirmModalOpen(false);
+                  addNotification('Campos preenchidos! Prossiga com ajustes manuais no formulário principal.', 'info');
+                }} 
+                className="flex-1 py-3 text-sm rounded-xl font-bold bg-rose-50 text-rose-600 hover:bg-rose-100 transition-all border border-rose-100"
+              >
+                Editar Manualmente
+              </button>
+
+              <button 
+                type="button" 
+                onClick={async () => {
+                  if (!voiceParsedData) return;
+                  if (!voiceParsedData.clientName.trim()) {
+                    addNotification('O nome da cliente é obrigatório.', 'warning');
+                    return;
+                  }
+                  if (voiceParsedData.procedureIds.length === 0) {
+                    addNotification('Por favor, selecione pelo menos um procedimento.', 'warning');
+                    return;
+                  }
+
+                  try {
+                    let finalClientId = '';
+                    let tempClient: Client | undefined = undefined;
+                    if (voiceParsedData.isNewClient) {
+                      finalClientId = Math.random().toString(36).substr(2, 9);
+                      const newClient: Client = {
+                        id: finalClientId,
+                        name: voiceParsedData.clientName,
+                        lastName: '',
+                        phone: '',
+                        email: '',
+                        city: '',
+                        state: '',
+                        country: 'BR',
+                        birthday: '',
+                        observations: 'Cadastrada por Voz Inteligente',
+                        label: '',
+                        labelColor: '',
+                        createdAt: new Date().toISOString(),
+                        preferences: {}
+                      };
+                      tempClient = newClient;
+                      await handleAddClient(newClient);
+                    } else {
+                      finalClientId = voiceParsedData.matchedClientId || '';
+                      tempClient = clients.find(c => c.id === finalClientId);
+                    }
+
+                    const baseDate = parseISO(`${voiceParsedData.date}T${voiceParsedData.time}:00`);
+                    if (!isValid(baseDate)) {
+                      addNotification('Data ou horário inválidos.', 'error');
+                      return;
+                    }
+
+                    const totalPrice = voiceParsedData.procedureIds.reduce((sum, pid) => {
+                      const p = procedures.find(proc => proc.id === pid);
+                      return sum + (p ? p.price : 0);
+                    }, 0);
+
+                    const app: Appointment = {
+                      id: Math.random().toString(36).substr(2, 9),
+                      clientId: finalClientId,
+                      procedureId: voiceParsedData.procedureIds[0] || '',
+                      procedureIds: voiceParsedData.procedureIds,
+                      date: baseDate.toISOString(),
+                      status: 'confirmado',
+                      price: totalPrice,
+                      sessionNumber: 1,
+                      totalSessions: 1,
+                      notes: voiceParsedData.notes
+                    };
+
+                    await handleAddAppointments([app], tempClient);
+                    setIsVoiceConfirmModalOpen(false);
+                    setVoiceParsedData(null);
+                  } catch (e: any) {
+                    addNotification('Erro ao agendar: ' + (e.message || e), 'error');
+                  }
+                }}
+                className="flex-1 bg-rose-500 text-white py-3 text-sm rounded-xl font-bold shadow-lg shadow-rose-200 active:scale-95 transition-all text-center"
+              >
+                Confirmar e Agendar
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
       {justCreatedAppointment && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-md">
           <motion.div 
@@ -8325,7 +9204,7 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
                 onClick={() => {
                   const app = justCreatedAppointment.app;
                   const client = justCreatedAppointment.client;
-                  const proc = procedures.find(p => p.id === app.procedureId);
+                  const proc = getAppProcedure(app, procedures);
                   
                   const template = userProfile?.confirmationMessageTemplate || DEFAULT_CONFIRMATION_TEMPLATE;
                   const appDate = app.date ? parseISO(app.date) : new Date();
@@ -9227,6 +10106,19 @@ const [editingClient, setEditingClient] = useState<Client | null>(null);
           </AnimatePresence>
         </div>
       </main>
+
+      {/* Google Onboarding completion modal if phone is missing and they logged in through Google auth */}
+      <GoogleOnboardingModal
+        isOpen={!!(user && isAuthorized && userProfile && !userProfile.phone && !isDemo)}
+        userName={userProfile?.name || user?.displayName || ''}
+        onSave={async (phone, profession) => {
+          await handleUpdateProfile({
+            phone,
+            specialty: profession,
+            businessName: (userProfile?.name || user?.displayName || '') + ' Estética'
+          });
+        }}
+      />
 
       {/* Bottom Navigation for Mobile */}
       <nav className="fixed bottom-0 left-0 right-0 h-20 bg-white border-t border-rose-50 z-[180] lg:hidden flex items-center justify-around px-2 pb-safe shadow-[0_-8px_30px_rgb(0,0,0,0.04)] rounded-t-[32px]">

@@ -296,7 +296,12 @@ Atenção especial para as regras de cálculo de datas relativas:
             },
             procedureName: {
               type: Type.STRING,
-              description: 'Nome do procedimento ou tratamento mencionado, ex: "Limpeza de Pele". Retornar vazio ("") se não mencionado.'
+              description: 'Nome do primeiro procedimento ou tratamento mencionado, ex: "Limpeza de Pele". Retornar vazio ("") se não mencionado.'
+            },
+            procedureNames: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+              description: 'Lista de todos os procedimentos ou tratamentos mencionados, ex: ["Limpeza de Pele", "Massagem"]. Retornar lista vazia se nenhum for especificado.'
             },
             date: {
               type: Type.STRING,
@@ -319,7 +324,7 @@ Atenção especial para as regras de cálculo de datas relativas:
               description: 'Breve resumo em português da interpretação do agendamento (máximo de 15 palavras) para visualização rápida.'
             }
           },
-          required: ['clientName', 'procedureName', 'date', 'time', 'price', 'notes', 'reasoning']
+          required: ['clientName', 'procedureName', 'procedureNames', 'date', 'time', 'price', 'notes', 'reasoning']
         }
       }
     });

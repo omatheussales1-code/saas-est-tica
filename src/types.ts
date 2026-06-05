@@ -43,6 +43,7 @@ export interface Appointment {
   id: string;
   clientId: string;
   procedureId: string;
+  procedureIds?: string[];
   date: string; // ISO string
   status: AppointmentStatus;
   notes?: string;
